@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
 import StageFunnel from "@/components/StageFunnel";
 import CloserTable from "@/components/CloserTable";
-import type { DashboardData } from "@/lib/aggregate";
+import DealListModal from "@/components/DealListModal";
+import { allDealsOf, type CloserRow, type DashboardData } from "@/lib/aggregate";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -14,6 +15,7 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [modal, setModal] = useState<{ row: CloserRow; stageId: string | "total" } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -56,6 +58,17 @@ export default function Page() {
   }, [data?.meta.updatedAt]);
 
   const ticketMedio = data && data.totals.total > 0 ? data.totals.valor / data.totals.total : 0;
+
+  const modalDeals = useMemo(() => {
+    if (!modal) return [];
+    return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
+  }, [modal]);
+
+  const modalStageLabel = useMemo(() => {
+    if (!modal || !data) return "";
+    if (modal.stageId === "total") return "Todos os negócios ativos";
+    return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
+  }, [modal, data]);
 
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
@@ -195,8 +208,21 @@ export default function Page() {
           />
         </div>
 
-        <CloserTable rows={filteredClosers} stages={data?.stages ?? []} loading={loading} />
+        <CloserTable
+          rows={filteredClosers}
+          stages={data?.stages ?? []}
+          loading={loading}
+          onOpenStage={(row, stageId) => setModal({ row, stageId })}
+        />
       </section>
+
+      <DealListModal
+        open={modal !== null}
+        onClose={() => setModal(null)}
+        closerName={modal?.row.nome ?? ""}
+        stageLabel={modalStageLabel}
+        deals={modalDeals}
+      />
     </main>
   );
 }

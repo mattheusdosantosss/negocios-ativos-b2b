@@ -1,10 +1,20 @@
-import { STAGES, STAGE_IDS, ownerDisplayName, type Deal, type Owner } from "./hubspot";
+import { STAGES, STAGE_IDS, ownerDisplayName, dealUrl, type Deal, type Owner } from "./hubspot";
+
+export type DealLite = {
+  id: string;
+  dealname: string;
+  amount: number;
+  createdate?: string;
+  /** Vazio no modo de exemplo (sem HUBSPOT_TOKEN) — sem registro real no HubSpot. */
+  url: string;
+};
 
 export type CloserRow = {
   ownerId: string;
   nome: string;
   porEtapa: Record<string, number>;
   valorPorEtapa: Record<string, number>;
+  dealsPorEtapa: Record<string, DealLite[]>;
   total: number;
   valor: number;
 };
@@ -18,6 +28,10 @@ export type DashboardData = {
 
 function emptyStageMap(): Record<string, number> {
   return Object.fromEntries(STAGE_IDS.map((id) => [id, 0]));
+}
+
+function emptyStageDealsMap(): Record<string, DealLite[]> {
+  return Object.fromEntries(STAGE_IDS.map((id) => [id, []]));
 }
 
 export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<DashboardData, "meta"> {
@@ -37,6 +51,7 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         nome: ownerId === "sem-dono" ? "Sem dono" : ownerDisplayName(owners.get(ownerId)),
         porEtapa: emptyStageMap(),
         valorPorEtapa: emptyStageMap(),
+        dealsPorEtapa: emptyStageDealsMap(),
         total: 0,
         valor: 0,
       };
@@ -45,6 +60,13 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
 
     row.porEtapa[stage] += 1;
     row.valorPorEtapa[stage] += amount;
+    row.dealsPorEtapa[stage].push({
+      id: deal.id,
+      dealname: deal.properties.dealname || `Negócio ${deal.id}`,
+      amount,
+      createdate: deal.properties.createdate,
+      url: dealUrl(deal.id),
+    });
     row.total += 1;
     row.valor += amount;
   }
@@ -62,4 +84,9 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
   };
 
   return { stages: STAGES, totals, closers };
+}
+
+/** Todos os negócios ativos de um closer, juntando as 7 etapas (usado pela coluna Total/Valor). */
+export function allDealsOf(row: CloserRow): DealLite[] {
+  return STAGE_IDS.flatMap((id) => row.dealsPorEtapa[id]);
 }

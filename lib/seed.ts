@@ -3,12 +3,24 @@
 // (dev local sem env, ou preview). Com o token, o painel fica ao vivo.
 
 import { STAGES } from "./hubspot";
-import type { CloserRow, DashboardData } from "./aggregate";
+import type { CloserRow, DashboardData, DealLite } from "./aggregate";
 
 // porEtapa/valorPorEtapa seguem a ordem de STAGES:
 // [Conexão, Reunião agendada/Qualificado, Aguardando Envio de Proposta,
 //  Proposta enviada, Em negociação, Negociação avançada, Resting]
 const STAGE_IDS = STAGES.map((s) => s.id);
+
+// Negócio individual não é preservado no snapshot (só os totais agregados) —
+// os itens abaixo são ilustrativos, sem registro real no HubSpot (url vazia).
+function fakeDeals(stageIndex: number, count: number, valorEtapa: number): DealLite[] {
+  const media = count > 0 ? valorEtapa / count : 0;
+  return Array.from({ length: count }, (_, j) => ({
+    id: `demo-${stageIndex}-${j}`,
+    dealname: `Negócio de exemplo ${stageIndex + 1}.${j + 1}`,
+    amount: media,
+    url: "",
+  }));
+}
 
 function row(ownerId: string, nome: string, counts: number[], valores: number[]): CloserRow {
   return {
@@ -16,6 +28,9 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
     nome,
     porEtapa: Object.fromEntries(STAGE_IDS.map((id, i) => [id, counts[i]])),
     valorPorEtapa: Object.fromEntries(STAGE_IDS.map((id, i) => [id, valores[i]])),
+    dealsPorEtapa: Object.fromEntries(
+      STAGE_IDS.map((id, i) => [id, fakeDeals(i, counts[i], valores[i])])
+    ),
     total: counts.reduce((a, b) => a + b, 0),
     valor: valores.reduce((a, b) => a + b, 0),
   };

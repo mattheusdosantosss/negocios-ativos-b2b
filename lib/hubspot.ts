@@ -27,6 +27,13 @@ export const STAGES: { id: string; label: string }[] = [
 
 export const STAGE_IDS = STAGES.map((s) => s.id);
 
+// Portal (Hub) ID — usado pra montar o link de cada negócio no HubSpot.
+const PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || "49656171";
+
+// Link direto pro registro do negócio no HubSpot (objectTypeId de deals = 0-3).
+export const dealUrl = (dealId: string): string =>
+  `https://app.hubspot.com/contacts/${PORTAL_ID}/record/0-3/${dealId}`;
+
 // ============================================================
 // Tipos
 // ============================================================

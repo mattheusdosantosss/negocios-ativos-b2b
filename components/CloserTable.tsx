@@ -23,12 +23,14 @@ type Props = {
   rows: CloserRow[];
   stages: Stage[];
   loading?: boolean;
+  /** Clique numa célula numérica: etapa específica, ou "total" pra todas as etapas do closer. */
+  onOpenStage?: (row: CloserRow, stageId: string | "total") => void;
 };
 
 type SortKey = "nome" | "total" | "valor";
 type SortDir = "asc" | "desc";
 
-export default function CloserTable({ rows, stages, loading = false }: Props) {
+export default function CloserTable({ rows, stages, loading = false, onOpenStage }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
 
   const handleSort = (key: SortKey) => {
@@ -128,14 +130,52 @@ export default function CloserTable({ rows, stages, loading = false }: Props) {
                 <td className="px-3 py-3 font-medium text-psa-ink whitespace-nowrap">{r.nome}</td>
                 {stages.map((s) => {
                   const count = r.porEtapa[s.id] || 0;
+                  const clickable = count > 0 && !!onOpenStage;
                   return (
-                    <td key={s.id} className={`px-3 py-3 text-right tabular-nums ${count > 0 ? "text-psa-ink" : "text-psa-ink-soft/50"}`}>
-                      {num(count)}
+                    <td key={s.id} className="px-3 py-3 text-right tabular-nums">
+                      {clickable ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenStage!(r, s.id)}
+                          className="text-psa-ink hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
+                          title={`Ver negócios de ${r.nome} em "${s.label}"`}
+                        >
+                          {num(count)}
+                        </button>
+                      ) : (
+                        <span className={count > 0 ? "text-psa-ink" : "text-psa-ink-soft/50"}>{num(count)}</span>
+                      )}
                     </td>
                   );
                 })}
-                <td className="px-3 py-3 text-right font-bold tabular-nums text-psa-orange">{num(r.total)}</td>
-                <td className="px-3 py-3 text-right font-semibold tabular-nums text-psa-ink">{brl(r.valor)}</td>
+                <td className="px-3 py-3 text-right font-bold tabular-nums text-psa-orange">
+                  {r.total > 0 && onOpenStage ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenStage(r, "total")}
+                      className="hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
+                      title={`Ver todos os negócios ativos de ${r.nome}`}
+                    >
+                      {num(r.total)}
+                    </button>
+                  ) : (
+                    num(r.total)
+                  )}
+                </td>
+                <td className="px-3 py-3 text-right font-semibold tabular-nums text-psa-ink">
+                  {r.total > 0 && onOpenStage ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenStage(r, "total")}
+                      className="hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
+                      title={`Ver todos os negócios ativos de ${r.nome}`}
+                    >
+                      {brl(r.valor)}
+                    </button>
+                  ) : (
+                    brl(r.valor)
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
