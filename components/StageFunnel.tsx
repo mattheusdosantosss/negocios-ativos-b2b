@@ -4,11 +4,12 @@ type Props = {
   stages: Stage[];
   porEtapa: Record<string, number>;
   loading?: boolean;
+  onOpenStage?: (stageId: string) => void;
 };
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 
-export default function StageFunnel({ stages, porEtapa, loading = false }: Props) {
+export default function StageFunnel({ stages, porEtapa, loading = false, onOpenStage }: Props) {
   const max = Math.max(1, ...stages.map((s) => porEtapa[s.id] || 0));
 
   return (
@@ -34,7 +35,20 @@ export default function StageFunnel({ stages, porEtapa, loading = false }: Props
                 )}
               </div>
               <div className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-psa-ink">
-                {loading ? "" : num(count)}
+                {loading ? (
+                  ""
+                ) : count > 0 && onOpenStage ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenStage(s.id)}
+                    className="hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
+                    title={`Ver todos os negócios em "${s.label}"`}
+                  >
+                    {num(count)}
+                  </button>
+                ) : (
+                  num(count)
+                )}
               </div>
             </div>
           );

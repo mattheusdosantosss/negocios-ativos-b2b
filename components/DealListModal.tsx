@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import type { DealLite } from "@/lib/aggregate";
+import type { AggregatedDealItem, DealLite } from "@/lib/aggregate";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -15,12 +15,15 @@ const fmtDate = (iso?: string) => {
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Ex.: "Rafael Teixeira" */
-  closerName: string;
+  /** Ex.: "Rafael Teixeira". Omitido no modo agregado (todos os closers de uma etapa). */
+  closerName?: string;
   /** Ex.: "Em negociação" ou "Todos os negócios ativos" */
   stageLabel: string;
-  deals: DealLite[];
+  deals: Array<DealLite | AggregatedDealItem>;
 };
+
+const ownerOf = (d: DealLite | AggregatedDealItem): string | null =>
+  (d as AggregatedDealItem).ownerName ?? null;
 
 export default function DealListModal({ open, onClose, closerName, stageLabel, deals }: Props) {
   useEffect(() => {
@@ -63,7 +66,8 @@ export default function DealListModal({ open, onClose, closerName, stageLabel, d
                 {stageLabel}
               </h3>
               <div className="mt-1 text-xs text-psa-orange font-semibold uppercase tracking-wider">
-                {closerName} · {total} {total === 1 ? "negócio" : "negócios"}
+                {closerName ? `${closerName} · ` : ""}
+                {total} {total === 1 ? "negócio" : "negócios"}
               </div>
             </div>
             <button
@@ -111,6 +115,9 @@ export default function DealListModal({ open, onClose, closerName, stageLabel, d
                       >
                         {d.dealname}
                       </div>
+                      {ownerOf(d) && (
+                        <div className="mt-0.5 text-[11px] text-white/50 truncate">{ownerOf(d)}</div>
+                      )}
                     </div>
                     {hasLink && <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>}
                     <div className="text-xs font-medium text-psa-orange tabular-nums whitespace-nowrap">

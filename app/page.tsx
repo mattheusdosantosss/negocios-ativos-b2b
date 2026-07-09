@@ -6,7 +6,7 @@ import StageFunnel from "@/components/StageFunnel";
 import CloserTable from "@/components/CloserTable";
 import DealListModal from "@/components/DealListModal";
 import PeriodFilter from "@/components/PeriodFilter";
-import { allDealsOf, type CloserRow, type DashboardData } from "@/lib/aggregate";
+import { allDealsOf, dealsForStage, type CloserRow, type DashboardData } from "@/lib/aggregate";
 import { computePeriod, type PeriodValue } from "@/lib/periods";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -17,7 +17,11 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState<{ row: CloserRow; stageId: string | "total" } | null>(null);
+  type ModalState =
+    | { mode: "single"; row: CloserRow; stageId: string | "total" }
+    | { mode: "aggregated"; stageId: string }
+    | null;
+  const [modal, setModal] = useState<ModalState>(null);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
 
   const handlePeriodChange = (next: PeriodValue) => {
@@ -79,13 +83,14 @@ export default function Page() {
   const ticketMedio = data && data.totals.total > 0 ? data.totals.valor / data.totals.total : 0;
 
   const modalDeals = useMemo(() => {
-    if (!modal) return [];
+    if (!modal || !data) return [];
+    if (modal.mode === "aggregated") return dealsForStage(data.closers, modal.stageId);
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
-  }, [modal]);
+  }, [modal, data]);
 
   const modalStageLabel = useMemo(() => {
     if (!modal || !data) return "";
-    if (modal.stageId === "total") return "Todos os negócios ativos";
+    if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data]);
 
@@ -206,7 +211,14 @@ export default function Page() {
       </section>
 
       {/* Funil por etapa */}
-      {data && <StageFunnel stages={data.stages} porEtapa={data.totals.porEtapa} loading={loading} />}
+      {data && (
+        <StageFunnel
+          stages={data.stages}
+          porEtapa={data.totals.porEtapa}
+          loading={loading}
+          onOpenStage={(stageId) => setModal({ mode: "aggregated", stageId })}
+        />
+      )}
 
       {/* Tabela por closer */}
       <section>
@@ -239,14 +251,14 @@ export default function Page() {
           rows={filteredClosers}
           stages={data?.stages ?? []}
           loading={loading}
-          onOpenStage={(row, stageId) => setModal({ row, stageId })}
+          onOpenStage={(row, stageId) => setModal({ mode: "single", row, stageId })}
         />
       </section>
 
       <DealListModal
         open={modal !== null}
         onClose={() => setModal(null)}
-        closerName={modal?.row.nome ?? ""}
+        closerName={modal?.mode === "single" ? modal.row.nome : undefined}
         stageLabel={modalStageLabel}
         deals={modalDeals}
       />

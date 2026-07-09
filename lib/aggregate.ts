@@ -9,6 +9,9 @@ export type DealLite = {
   url: string;
 };
 
+/** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa). */
+export type AggregatedDealItem = DealLite & { ownerName: string };
+
 export type CloserRow = {
   ownerId: string;
   nome: string;
@@ -89,4 +92,11 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
 /** Todos os negócios ativos de um closer, juntando as 7 etapas (usado pela coluna Total/Valor). */
 export function allDealsOf(row: CloserRow): DealLite[] {
   return STAGE_IDS.flatMap((id) => row.dealsPorEtapa[id]);
+}
+
+/** Todos os negócios de uma etapa, de TODOS os closers (usado pelo funil por etapa). */
+export function dealsForStage(closers: CloserRow[], stageId: string): AggregatedDealItem[] {
+  return closers.flatMap((c) =>
+    (c.dealsPorEtapa[stageId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
+  );
 }
