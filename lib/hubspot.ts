@@ -1,0 +1,175 @@
+// ============================================================
+// HubSpot CRM v3 — cliente para o painel de Negócios Ativos B2B
+// ============================================================
+//
+// Escopo único e propositalmente enxuto: negócios ATIVOS (snapshot ao vivo,
+// sem filtro de período) na pipeline "Funil de Vendas B2B", agrupados por
+// Closer (Proprietário do negócio). Sem squads, sem admin, sem login.
+
+const HUBSPOT_API = "https://api.hubapi.com";
+
+const TOKEN = process.env.HUBSPOT_TOKEN;
+export const PIPELINE_B2B = process.env.HUBSPOT_PIPELINE_B2B || "default";
+
+// Etapas consideradas "negócio ativo" nessa pipeline, na ordem do funil.
+// ATENÇÃO: nessa pipeline os IDs internos "closedwon"/"closedlost" foram
+// renomeados pelo negócio para "Proposta enviada"/"Em negociação" — NÃO são
+// os estágios terminais de ganho/perda (confirmado via HubSpot em jul/2026).
+export const STAGES: { id: string; label: string }[] = [
+  { id: "presentationscheduled", label: "Conexão" },
+  { id: "decisionmakerboughtin", label: "Reunião agendada / Qualificado" },
+  { id: "contractsent", label: "Aguardando Envio de Proposta" },
+  { id: "closedwon", label: "Proposta enviada" },
+  { id: "closedlost", label: "Em negociação" },
+  { id: "1167445770", label: "Negociação avançada" },
+  { id: "1367665802", label: "Resting" },
+];
+
+export const STAGE_IDS = STAGES.map((s) => s.id);
+
+// ============================================================
+// Tipos
+// ============================================================
+
+export type Deal = {
+  id: string;
+  properties: {
+    dealname?: string;
+    amount?: string;
+    dealstage?: string;
+    pipeline?: string;
+    hubspot_owner_id?: string;
+    createdate?: string;
+    [key: string]: string | undefined;
+  };
+};
+
+export type Owner = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  archived?: boolean;
+};
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function assertToken() {
+  if (!TOKEN) {
+    throw new Error("HUBSPOT_TOKEN não está configurado. Veja .env.example.");
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
+  assertToken();
+  const res = await fetch(`${HUBSPOT_API}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+    cache: "no-store",
+  });
+
+  // Retry automático em 429 (rate limit) — até 3 tentativas com backoff
+  if (res.status === 429 && attempt < 3) {
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : 1000 * Math.pow(2, attempt);
+    await sleep(waitMs);
+    return hsFetch<T>(path, init, attempt + 1);
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text.slice(0, 500);
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.message) detail = parsed.message;
+    } catch {
+      // mantém o text bruto
+    }
+    throw new Error(`HubSpot ${res.status} em ${path}: ${detail}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+// ============================================================
+// Owners
+// ============================================================
+
+type OwnersResponse = { results: Owner[]; paging?: { next?: { after: string } } };
+
+export async function fetchAllOwners(): Promise<Map<string, Owner>> {
+  const map = new Map<string, Owner>();
+  let after: string | undefined;
+  do {
+    const qs = new URLSearchParams({ limit: "100" });
+    if (after) qs.set("after", after);
+    const data: OwnersResponse = await hsFetch(`/crm/v3/owners?${qs}`);
+    for (const o of data.results) map.set(o.id, o);
+    after = data.paging?.next?.after;
+  } while (after);
+  return map;
+}
+
+export function ownerDisplayName(owner?: Owner): string {
+  if (!owner) return "Sem dono";
+  const first = owner.firstName?.trim() || "";
+  const last = owner.lastName?.trim() || "";
+  const full = `${first} ${last}`.trim();
+  return full || owner.email || `Owner ${owner.id}`;
+}
+
+// ============================================================
+// Deals ativos — busca via Search API
+// ============================================================
+
+type SearchResponse<T> = {
+  total: number;
+  results: T[];
+  paging?: { next?: { after: string } };
+};
+
+const DEAL_PROPS = ["dealname", "amount", "dealstage", "pipeline", "hubspot_owner_id", "createdate"];
+
+/**
+ * Snapshot ao vivo: negócios que ESTÃO hoje na pipeline B2B, em uma das
+ * etapas ativas (STAGE_IDS). Sem filtro de período — reflete o funil agora.
+ */
+export async function fetchActiveDeals(): Promise<Deal[]> {
+  const filters = [
+    { propertyName: "pipeline", operator: "EQ", value: PIPELINE_B2B },
+    { propertyName: "dealstage", operator: "IN", values: STAGE_IDS },
+  ];
+
+  const all: Deal[] = [];
+  let after: string | undefined;
+
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters }],
+      properties: DEAL_PROPS,
+      limit: 100,
+    };
+    if (after) body.after = after;
+
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    all.push(...data.results);
+    after = data.paging?.next?.after;
+    if (after) await sleep(150);
+  } while (after);
+
+  return all;
+}

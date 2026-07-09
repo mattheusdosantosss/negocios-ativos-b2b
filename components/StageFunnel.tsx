@@ -1,0 +1,45 @@
+type Stage = { id: string; label: string };
+
+type Props = {
+  stages: Stage[];
+  porEtapa: Record<string, number>;
+  loading?: boolean;
+};
+
+const num = (n: number) => n.toLocaleString("pt-BR");
+
+export default function StageFunnel({ stages, porEtapa, loading = false }: Props) {
+  const max = Math.max(1, ...stages.map((s) => porEtapa[s.id] || 0));
+
+  return (
+    <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+      <h2 className="font-display text-sm font-semibold text-psa-ink mb-4">Negócios ativos por etapa</h2>
+      <div className="space-y-3">
+        {stages.map((s) => {
+          const count = porEtapa[s.id] || 0;
+          const pct = Math.round((count / max) * 100);
+          return (
+            <div key={s.id} className="flex items-center gap-3">
+              <div className="w-52 shrink-0 text-xs font-medium text-psa-ink-soft truncate" title={s.label}>
+                {s.label}
+              </div>
+              <div className="flex-1 h-3 rounded-full bg-psa-canvas overflow-hidden">
+                {loading ? (
+                  <div className="skeleton h-full w-full" />
+                ) : (
+                  <div
+                    className="h-full rounded-full bg-psa-orange transition-all"
+                    style={{ width: `${count > 0 ? Math.max(pct, 4) : 0}%` }}
+                  />
+                )}
+              </div>
+              <div className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-psa-ink">
+                {loading ? "" : num(count)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
