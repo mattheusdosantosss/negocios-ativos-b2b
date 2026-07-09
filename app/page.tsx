@@ -5,7 +5,9 @@ import KpiCard from "@/components/KpiCard";
 import StageFunnel from "@/components/StageFunnel";
 import CloserTable from "@/components/CloserTable";
 import DealListModal from "@/components/DealListModal";
+import PeriodFilter from "@/components/PeriodFilter";
 import { allDealsOf, type CloserRow, type DashboardData } from "@/lib/aggregate";
+import { computePeriod, type PeriodValue } from "@/lib/periods";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -16,12 +18,28 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<{ row: CloserRow; stageId: string | "total" } | null>(null);
+  const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
+
+  const handlePeriodChange = (next: PeriodValue) => {
+    if (next.preset !== period.preset && next.preset !== "custom") {
+      setPeriod(computePeriod(next.preset));
+    } else {
+      setPeriod(next);
+    }
+  };
+
+  const queryString = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (period.from) qs.set("from", period.from);
+    if (period.to) qs.set("to", period.to);
+    return qs.toString();
+  }, [period.from, period.to]);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/dashboard");
+      const res = await fetch(`/api/dashboard${queryString ? `?${queryString}` : ""}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
       setData(json as DashboardData);
@@ -35,7 +53,8 @@ export default function Page() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryString]);
 
   const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -100,33 +119,40 @@ export default function Page() {
               </h1>
               <p className="mt-4 text-sm text-white/85 max-w-md">
                 Snapshot ao vivo dos negócios em aberto na pipeline B2B, por Closer.
+                Filtre por Data de criação pra ver só os negócios abertos no período.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={load}
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-2 min-w-[150px] px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
-              title="Rebuscar os dados no HubSpot agora"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={loading ? "animate-spin" : ""}
+            <div className="flex flex-nowrap items-end gap-2.5 shrink-0">
+              <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3">
+                <PeriodFilter value={period} onChange={handlePeriodChange} />
+              </div>
+
+              <button
+                type="button"
+                onClick={load}
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-2 min-w-[150px] px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
+                title="Rebuscar os dados no HubSpot agora"
               >
-                <polyline points="23 4 23 10 17 10" />
-                <polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-              {loading ? "Atualizando…" : "Atualizar"}
-            </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={loading ? "animate-spin" : ""}
+                >
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                {loading ? "Atualizando…" : "Atualizar"}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -143,6 +169,7 @@ export default function Page() {
       {data && !data.meta.usingLiveData && !loading && (
         <div className="rounded-2xl border border-psa-blue/20 bg-psa-blue-soft p-4 text-sm text-psa-blue">
           Exibindo snapshot de exemplo (sem <code className="px-1 py-0.5 bg-white/50 rounded">HUBSPOT_TOKEN</code> configurado). Configure a env var pra ver dados ao vivo.
+          {period.preset !== "all" && " O filtro de Data de criação não se aplica a esse snapshot fixo."}
         </div>
       )}
 

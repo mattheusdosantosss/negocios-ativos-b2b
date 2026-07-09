@@ -147,15 +147,30 @@ type SearchResponse<T> = {
 
 const DEAL_PROPS = ["dealname", "amount", "dealstage", "pipeline", "hubspot_owner_id", "createdate"];
 
+// Helpers de timezone (Brasília = UTC-3, sem DST desde 2019) pro filtro por
+// Data de criação (createdate é datetime real).
+const BR_OFFSET_MS = 3 * 60 * 60 * 1000;
+const brStartOfDayMs = (yyyymmdd: string): number => new Date(yyyymmdd).getTime() + BR_OFFSET_MS;
+const brEndOfDayMs = (yyyymmdd: string): number =>
+  new Date(yyyymmdd).getTime() + BR_OFFSET_MS + 86_400_000 - 1;
+
 /**
  * Snapshot ao vivo: negócios que ESTÃO hoje na pipeline B2B, em uma das
- * etapas ativas (STAGE_IDS). Sem filtro de período — reflete o funil agora.
+ * etapas ativas (STAGE_IDS). Sem `from`/`to`, mostra o funil inteiro; com
+ * eles, filtra pela Data de criação (createdate) dentro do período.
  */
-export async function fetchActiveDeals(): Promise<Deal[]> {
-  const filters = [
+export async function fetchActiveDeals(opts?: { from?: string; to?: string }): Promise<Deal[]> {
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
     { propertyName: "pipeline", operator: "EQ", value: PIPELINE_B2B },
     { propertyName: "dealstage", operator: "IN", values: STAGE_IDS },
   ];
+
+  if (opts?.from) {
+    filters.push({ propertyName: "createdate", operator: "GTE", value: brStartOfDayMs(opts.from).toString() });
+  }
+  if (opts?.to) {
+    filters.push({ propertyName: "createdate", operator: "LTE", value: brEndOfDayMs(opts.to).toString() });
+  }
 
   const all: Deal[] = [];
   let after: string | undefined;
