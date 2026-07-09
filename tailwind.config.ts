@@ -25,8 +25,10 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["Manrope", "system-ui", "sans-serif"],
-        body: ["Roboto", "system-ui", "sans-serif"],
+        // Referenciam as CSS vars setadas em globals.css (que apontam pras
+        // fontes carregadas via next/font em app/layout.tsx).
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        body: ["var(--font-body)", "system-ui", "sans-serif"],
       },
       boxShadow: {
         card: "0 1px 2px rgba(44,44,44,0.04), 0 4px 12px rgba(44,44,44,0.04)",

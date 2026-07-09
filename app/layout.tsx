@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Manrope, Roboto } from "next/font/google";
+import localFont from "next/font/local";
+import { Roboto } from "next/font/google";
 import "./globals.css";
 
-const manrope = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-manrope",
+// Fonte da identidade visual da PSA — usada nos títulos/destaques (font-display).
+const bruta = localFont({
+  src: "./fonts/BrutaProCompressed-ExtraBold.otf",
+  variable: "--font-bruta",
   display: "swap",
 });
 
@@ -27,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className={`${manrope.variable} ${roboto.variable}`}>
+    <html lang="pt-BR" className={`${bruta.variable} ${roboto.variable}`}>
       <body className="min-h-screen antialiased font-body bg-psa-canvas text-psa-ink">
         {children}
       </body>
