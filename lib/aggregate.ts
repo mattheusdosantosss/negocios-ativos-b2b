@@ -109,7 +109,11 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     row.total += 1;
     row.valor += amount;
 
-    const qualDate = Number(deal.properties.pipedrive___data_de_qualificacao || "");
+    // Data de qualificação é property tipo "date" — a API do HubSpot devolve
+    // como string "AAAA-MM-DD" (não epoch ms). new Date("AAAA-MM-DD") já
+    // interpreta como meia-noite UTC, então dá pra converter direto.
+    const qualDateRaw = deal.properties.pipedrive___data_de_qualificacao;
+    const qualDate = qualDateRaw ? new Date(qualDateRaw).getTime() : NaN;
     const bucket = Number.isFinite(qualDate) && qualDate > 0
       ? bucketForDays(Math.floor((now - qualDate) / 86_400_000))
       : SEM_DATA_BUCKET;
