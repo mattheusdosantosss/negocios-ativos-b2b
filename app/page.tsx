@@ -6,7 +6,7 @@ import StageFunnel from "@/components/StageFunnel";
 import CloserTable from "@/components/CloserTable";
 import DealListModal from "@/components/DealListModal";
 import PeriodFilter from "@/components/PeriodFilter";
-import { allDealsOf, dealsForStage, type CloserRow, type DashboardData } from "@/lib/aggregate";
+import { AGING_BUCKETS, allDealsOf, dealsForStage, type CloserRow, type DashboardData } from "@/lib/aggregate";
 import { computePeriod, type PeriodValue } from "@/lib/periods";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -20,6 +20,7 @@ export default function Page() {
   type ModalState =
     | { mode: "single"; row: CloserRow; stageId: string | "total" }
     | { mode: "aggregated"; stageId: string }
+    | { mode: "aging"; row: CloserRow; bucketId: string }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
@@ -85,11 +86,13 @@ export default function Page() {
   const modalDeals = useMemo(() => {
     if (!modal || !data) return [];
     if (modal.mode === "aggregated") return dealsForStage(data.closers, modal.stageId);
+    if (modal.mode === "aging") return modal.row.dealsPorFaixa[modal.bucketId] ?? [];
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
   }, [modal, data]);
 
   const modalStageLabel = useMemo(() => {
     if (!modal || !data) return "";
+    if (modal.mode === "aging") return AGING_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data]);
@@ -252,13 +255,14 @@ export default function Page() {
           stages={data?.stages ?? []}
           loading={loading}
           onOpenStage={(row, stageId) => setModal({ mode: "single", row, stageId })}
+          onOpenAgingBucket={(row, bucketId) => setModal({ mode: "aging", row, bucketId })}
         />
       </section>
 
       <DealListModal
         open={modal !== null}
         onClose={() => setModal(null)}
-        closerName={modal?.mode === "single" ? modal.row.nome : undefined}
+        closerName={modal?.mode === "single" || modal?.mode === "aging" ? modal.row.nome : undefined}
         stageLabel={modalStageLabel}
         deals={modalDeals}
       />

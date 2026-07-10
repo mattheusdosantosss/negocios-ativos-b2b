@@ -47,6 +47,8 @@ export type Deal = {
     pipeline?: string;
     hubspot_owner_id?: string;
     createdate?: string;
+    /** Data de qualificação — mesma definição usada nos outros painéis da PSA. */
+    pipedrive___data_de_qualificacao?: string;
     [key: string]: string | undefined;
   };
 };
@@ -145,7 +147,15 @@ type SearchResponse<T> = {
   paging?: { next?: { after: string } };
 };
 
-const DEAL_PROPS = ["dealname", "amount", "dealstage", "pipeline", "hubspot_owner_id", "createdate"];
+const DEAL_PROPS = [
+  "dealname",
+  "amount",
+  "dealstage",
+  "pipeline",
+  "hubspot_owner_id",
+  "createdate",
+  "pipedrive___data_de_qualificacao",
+];
 
 // Helpers de timezone (Brasília = UTC-3, sem DST desde 2019) pro filtro por
 // Data de criação (createdate é datetime real).

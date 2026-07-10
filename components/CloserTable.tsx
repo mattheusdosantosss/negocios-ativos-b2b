@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { CloserRow } from "@/lib/aggregate";
+import { Fragment, useMemo, useState } from "react";
+import { AGING_BUCKETS, type CloserRow } from "@/lib/aggregate";
+import AgingFunnel from "./AgingFunnel";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -25,13 +26,22 @@ type Props = {
   loading?: boolean;
   /** Clique numa célula numérica: etapa específica, ou "total" pra todas as etapas do closer. */
   onOpenStage?: (row: CloserRow, stageId: string | "total") => void;
+  /** Clique num número da faixa de tempo (dropdown "Tempo desde qualificação"). */
+  onOpenAgingBucket?: (row: CloserRow, bucketId: string) => void;
 };
 
 type SortKey = "nome" | "total" | "valor";
 type SortDir = "asc" | "desc";
 
-export default function CloserTable({ rows, stages, loading = false, onOpenStage }: Props) {
+export default function CloserTable({
+  rows,
+  stages,
+  loading = false,
+  onOpenStage,
+  onOpenAgingBucket,
+}: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
+  const [expandedOwnerId, setExpandedOwnerId] = useState<string | null>(null);
 
   const handleSort = (key: SortKey) => {
     setSort((cur) => {
@@ -125,9 +135,22 @@ export default function CloserTable({ rows, stages, loading = false, onOpenStage
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map((r) => (
-              <tr key={r.ownerId} className="border-b border-psa-line last:border-0 hover:bg-psa-canvas/50 transition-colors">
-                <td className="px-3 py-3 font-medium text-psa-ink whitespace-nowrap">{r.nome}</td>
+            {sortedRows.map((r) => {
+              const expanded = expandedOwnerId === r.ownerId;
+              return (
+              <Fragment key={r.ownerId}>
+              <tr className="border-b border-psa-line last:border-0 hover:bg-psa-canvas/50 transition-colors">
+                <td className="px-3 py-3 font-medium text-psa-ink whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedOwnerId(expanded ? null : r.ownerId)}
+                    className="inline-flex items-center gap-1.5 hover:text-psa-orange transition-colors"
+                    title="Ver tempo desde a qualificação"
+                  >
+                    <span className={`text-[10px] transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
+                    {r.nome}
+                  </button>
+                </td>
                 {stages.map((s) => {
                   const count = r.porEtapa[s.id] || 0;
                   const clickable = count > 0 && !!onOpenStage;
@@ -177,7 +200,23 @@ export default function CloserTable({ rows, stages, loading = false, onOpenStage
                   )}
                 </td>
               </tr>
-            ))}
+              {expanded && (
+                <tr className="border-b border-psa-line last:border-0 bg-psa-canvas/40">
+                  <td colSpan={stages.length + 3} className="px-5 py-4">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
+                      Tempo desde a qualificação · {r.nome}
+                    </div>
+                    <AgingFunnel
+                      buckets={AGING_BUCKETS}
+                      porFaixa={r.porFaixa}
+                      onOpenBucket={onOpenAgingBucket ? (bucketId) => onOpenAgingBucket(r, bucketId) : undefined}
+                    />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

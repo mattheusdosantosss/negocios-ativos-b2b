@@ -3,36 +3,62 @@
 // (dev local sem env, ou preview). Com o token, o painel fica ao vivo.
 
 import { STAGES } from "./hubspot";
+import { AGING_BUCKETS } from "./aggregate";
 import type { CloserRow, DashboardData, DealLite } from "./aggregate";
 
 // porEtapa/valorPorEtapa seguem a ordem de STAGES:
 // [Conexão, Reunião agendada/Qualificado, Aguardando Envio de Proposta,
 //  Proposta enviada, Em negociação, Negociação avançada, Resting]
 const STAGE_IDS = STAGES.map((s) => s.id);
+const AGING_BUCKET_IDS = AGING_BUCKETS.map((b) => b.id);
+// Proporção ilustrativa (0–20 / 20–30 / 30–40 / 40+), próxima da amostra real
+// verificada pro Rafael Teixeira em jul/2026. Sem registro individual real —
+// é só pra o modo de exemplo não ficar com o gráfico de faixas vazio.
+const AGING_RATIOS = [0.53, 0.14, 0.12, 0.21];
 
 // Negócio individual não é preservado no snapshot (só os totais agregados) —
 // os itens abaixo são ilustrativos, sem registro real no HubSpot (url vazia).
-function fakeDeals(stageIndex: number, count: number, valorEtapa: number): DealLite[] {
-  const media = count > 0 ? valorEtapa / count : 0;
+function fakeDeals(prefix: string, count: number, valorTotal: number): DealLite[] {
+  const media = count > 0 ? valorTotal / count : 0;
   return Array.from({ length: count }, (_, j) => ({
-    id: `demo-${stageIndex}-${j}`,
-    dealname: `Negócio de exemplo ${stageIndex + 1}.${j + 1}`,
+    id: `demo-${prefix}-${j}`,
+    dealname: `Negócio de exemplo ${prefix}.${j + 1}`,
     amount: media,
     url: "",
   }));
 }
 
+function fakeAgingBuckets(total: number, valor: number) {
+  const counts = AGING_RATIOS.map((r) => Math.round(total * r));
+  const diff = total - counts.reduce((a, b) => a + b, 0);
+  counts[0] += diff; // ajusta arredondamento na 1ª faixa
+
+  const media = total > 0 ? valor / total : 0;
+  const porFaixa: Record<string, number> = { "sem-data": 0 };
+  const dealsPorFaixa: Record<string, DealLite[]> = { "sem-data": [] };
+  AGING_BUCKET_IDS.forEach((id, i) => {
+    porFaixa[id] = counts[i];
+    dealsPorFaixa[id] = fakeDeals(id, counts[i], media * counts[i]);
+  });
+  return { porFaixa, dealsPorFaixa };
+}
+
 function row(ownerId: string, nome: string, counts: number[], valores: number[]): CloserRow {
+  const total = counts.reduce((a, b) => a + b, 0);
+  const valor = valores.reduce((a, b) => a + b, 0);
+  const { porFaixa, dealsPorFaixa } = fakeAgingBuckets(total, valor);
   return {
     ownerId,
     nome,
     porEtapa: Object.fromEntries(STAGE_IDS.map((id, i) => [id, counts[i]])),
     valorPorEtapa: Object.fromEntries(STAGE_IDS.map((id, i) => [id, valores[i]])),
     dealsPorEtapa: Object.fromEntries(
-      STAGE_IDS.map((id, i) => [id, fakeDeals(i, counts[i], valores[i])])
+      STAGE_IDS.map((id, i) => [id, fakeDeals(String(i + 1), counts[i], valores[i])])
     ),
-    total: counts.reduce((a, b) => a + b, 0),
-    valor: valores.reduce((a, b) => a + b, 0),
+    porFaixa,
+    dealsPorFaixa,
+    total,
+    valor,
   };
 }
 

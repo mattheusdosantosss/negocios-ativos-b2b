@@ -1,0 +1,74 @@
+type Bucket = { id: string; label: string };
+
+type Props = {
+  buckets: Bucket[];
+  porFaixa: Record<string, number>;
+  onOpenBucket?: (bucketId: string) => void;
+};
+
+const num = (n: number) => n.toLocaleString("pt-BR");
+
+// Faixa crítica (acima do ciclo de vendas de ~20-25 dias) — destacada sem
+// depender de cor: negrito + rótulo "acima do ciclo" + barra hachurada.
+const CRITICAL_BUCKET_ID = "40+";
+
+export default function AgingFunnel({ buckets, porFaixa, onOpenBucket }: Props) {
+  const max = Math.max(1, ...buckets.map((b) => porFaixa[b.id] || 0));
+
+  return (
+    <div className="space-y-3">
+      {buckets.map((b) => {
+        const count = porFaixa[b.id] || 0;
+        const pct = Math.round((count / max) * 100);
+        const critical = b.id === CRITICAL_BUCKET_ID;
+        return (
+          <div key={b.id} className="flex items-center gap-3">
+            <div
+              className={`w-24 shrink-0 text-xs text-psa-ink-soft flex items-center gap-1 ${
+                critical ? "font-bold text-psa-ink" : "font-medium"
+              }`}
+            >
+              {b.label}
+              {critical && (
+                <span
+                  className="inline-flex items-center rounded-full border border-psa-ink px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-psa-ink"
+                  title="Acima do ciclo de vendas (~20-25 dias)"
+                >
+                  acima do ciclo
+                </span>
+              )}
+            </div>
+            <div className="flex-1 h-3 rounded-full bg-psa-canvas overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  critical
+                    ? "bg-[repeating-linear-gradient(135deg,theme(colors.psa.ink)_0,theme(colors.psa.ink)_6px,theme(colors.psa.ink/70)_6px,theme(colors.psa.ink/70)_12px)]"
+                    : "bg-psa-orange"
+                }`}
+                style={{ width: `${count > 0 ? Math.max(pct, 4) : 0}%` }}
+              />
+            </div>
+            <div
+              className={`w-10 shrink-0 text-right text-sm tabular-nums ${
+                critical ? "font-bold text-psa-ink" : "font-semibold text-psa-ink"
+              }`}
+            >
+              {count > 0 && onOpenBucket ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenBucket(b.id)}
+                  className="hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
+                  title={`Ver negócios na faixa "${b.label}"`}
+                >
+                  {num(count)}
+                </button>
+              ) : (
+                num(count)
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
