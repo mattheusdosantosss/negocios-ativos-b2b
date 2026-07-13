@@ -12,6 +12,10 @@ export type DealLite = {
 /** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa). */
 export type AggregatedDealItem = DealLite & { ownerName: string };
 
+// Bucket extra pra negócio sem a data em questão preenchida — só aparece na
+// UI se tiver algum caso (não é mostrado nos arrays de buckets abaixo).
+const SEM_DATA_BUCKET = "sem-data";
+
 // Faixas de tempo desde a Data de qualificação (mesmo campo usado nos outros
 // painéis da PSA: pipedrive___data_de_qualificacao). Ciclo de vendas da PSA
 // é de ~20-25 dias — "40+" é a faixa crítica (negócio muito além do ciclo).
@@ -22,15 +26,32 @@ export const AGING_BUCKETS: { id: string; label: string }[] = [
   { id: "40+", label: "40+ dias" },
 ];
 const AGING_BUCKET_IDS = AGING_BUCKETS.map((b) => b.id);
-// Bucket extra pra negócio sem Data de qualificação preenchida — só aparece
-// na UI se tiver algum caso (não é mostrado em AGING_BUCKETS).
-const SEM_DATA_BUCKET = "sem-data";
 
-function bucketForDays(days: number): string {
+function bucketForQualificationDays(days: number): string {
   if (days < 20) return "0-20";
   if (days < 30) return "20-30";
   if (days < 40) return "30-40";
   return "40+";
+}
+
+// Faixas de tempo desde a última atividade (notes_last_updated — última nota,
+// ligação, e-mail, reunião ou tarefa registrada no negócio). "16+" é a faixa
+// crítica (negócio parado sem contato há mais de 2 semanas).
+export const ACTIVITY_BUCKETS: { id: string; label: string }[] = [
+  { id: "0-2", label: "0–2 dias" },
+  { id: "3-5", label: "3–5 dias" },
+  { id: "6-10", label: "6–10 dias" },
+  { id: "11-15", label: "11–15 dias" },
+  { id: "16+", label: "16+ dias" },
+];
+const ACTIVITY_BUCKET_IDS = ACTIVITY_BUCKETS.map((b) => b.id);
+
+function bucketForActivityDays(days: number): string {
+  if (days <= 2) return "0-2";
+  if (days <= 5) return "3-5";
+  if (days <= 10) return "6-10";
+  if (days <= 15) return "11-15";
+  return "16+";
 }
 
 export type CloserRow = {
@@ -41,6 +62,8 @@ export type CloserRow = {
   dealsPorEtapa: Record<string, DealLite[]>;
   porFaixa: Record<string, number>;
   dealsPorFaixa: Record<string, DealLite[]>;
+  porAtividade: Record<string, number>;
+  dealsPorAtividade: Record<string, DealLite[]>;
   total: number;
   valor: number;
 };
@@ -60,12 +83,18 @@ function emptyStageDealsMap(): Record<string, DealLite[]> {
   return Object.fromEntries(STAGE_IDS.map((id) => [id, []]));
 }
 
-function emptyFaixaMap(): Record<string, number> {
-  return Object.fromEntries([...AGING_BUCKET_IDS, SEM_DATA_BUCKET].map((id) => [id, 0]));
+function emptyBucketMap(ids: string[]): Record<string, number> {
+  return Object.fromEntries([...ids, SEM_DATA_BUCKET].map((id) => [id, 0]));
 }
 
-function emptyFaixaDealsMap(): Record<string, DealLite[]> {
-  return Object.fromEntries([...AGING_BUCKET_IDS, SEM_DATA_BUCKET].map((id) => [id, []]));
+function emptyBucketDealsMap(ids: string[]): Record<string, DealLite[]> {
+  return Object.fromEntries([...ids, SEM_DATA_BUCKET].map((id) => [id, []]));
+}
+
+/** Property tipo "date" ("AAAA-MM-DD") ou "datetime" (ISO) — new Date() lê os dois. */
+function daysSince(now: number, raw?: string): number {
+  const t = raw ? new Date(raw).getTime() : NaN;
+  return Number.isFinite(t) && t > 0 ? Math.floor((now - t) / 86_400_000) : NaN;
 }
 
 export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<DashboardData, "meta"> {
@@ -87,8 +116,10 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         porEtapa: emptyStageMap(),
         valorPorEtapa: emptyStageMap(),
         dealsPorEtapa: emptyStageDealsMap(),
-        porFaixa: emptyFaixaMap(),
-        dealsPorFaixa: emptyFaixaDealsMap(),
+        porFaixa: emptyBucketMap(AGING_BUCKET_IDS),
+        dealsPorFaixa: emptyBucketDealsMap(AGING_BUCKET_IDS),
+        porAtividade: emptyBucketMap(ACTIVITY_BUCKET_IDS),
+        dealsPorAtividade: emptyBucketDealsMap(ACTIVITY_BUCKET_IDS),
         total: 0,
         valor: 0,
       };
@@ -109,16 +140,17 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     row.total += 1;
     row.valor += amount;
 
-    // Data de qualificação é property tipo "date" — a API do HubSpot devolve
-    // como string "AAAA-MM-DD" (não epoch ms). new Date("AAAA-MM-DD") já
-    // interpreta como meia-noite UTC, então dá pra converter direto.
-    const qualDateRaw = deal.properties.pipedrive___data_de_qualificacao;
-    const qualDate = qualDateRaw ? new Date(qualDateRaw).getTime() : NaN;
-    const bucket = Number.isFinite(qualDate) && qualDate > 0
-      ? bucketForDays(Math.floor((now - qualDate) / 86_400_000))
+    const qualDays = daysSince(now, deal.properties.pipedrive___data_de_qualificacao);
+    const faixaBucket = Number.isFinite(qualDays) ? bucketForQualificationDays(qualDays) : SEM_DATA_BUCKET;
+    row.porFaixa[faixaBucket] += 1;
+    row.dealsPorFaixa[faixaBucket].push(dealLite);
+
+    const atividadeDays = daysSince(now, deal.properties.notes_last_updated);
+    const atividadeBucket = Number.isFinite(atividadeDays)
+      ? bucketForActivityDays(atividadeDays)
       : SEM_DATA_BUCKET;
-    row.porFaixa[bucket] += 1;
-    row.dealsPorFaixa[bucket].push(dealLite);
+    row.porAtividade[atividadeBucket] += 1;
+    row.dealsPorAtividade[atividadeBucket].push(dealLite);
   }
 
   const closers = [...byOwner.values()].sort(

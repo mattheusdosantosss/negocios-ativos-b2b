@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { AGING_BUCKETS, type CloserRow } from "@/lib/aggregate";
+import { AGING_BUCKETS, ACTIVITY_BUCKETS, type CloserRow } from "@/lib/aggregate";
 import AgingFunnel from "./AgingFunnel";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -28,6 +28,8 @@ type Props = {
   onOpenStage?: (row: CloserRow, stageId: string | "total") => void;
   /** Clique num número da faixa de tempo (dropdown "Tempo desde qualificação"). */
   onOpenAgingBucket?: (row: CloserRow, bucketId: string) => void;
+  /** Clique num número da faixa de tempo desde a última atividade. */
+  onOpenActivityBucket?: (row: CloserRow, bucketId: string) => void;
 };
 
 type SortKey = "nome" | "total" | "valor";
@@ -39,6 +41,7 @@ export default function CloserTable({
   loading = false,
   onOpenStage,
   onOpenAgingBucket,
+  onOpenActivityBucket,
 }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
   const [expandedOwnerId, setExpandedOwnerId] = useState<string | null>(null);
@@ -202,15 +205,35 @@ export default function CloserTable({
               </tr>
               {expanded && (
                 <tr className="border-b border-psa-line last:border-0 bg-psa-canvas/40">
-                  <td colSpan={stages.length + 3} className="px-5 py-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
-                      Tempo desde a qualificação · {r.nome}
+                  <td colSpan={stages.length + 3} className="px-5 py-4 space-y-5">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
+                        Tempo desde a qualificação · {r.nome}
+                      </div>
+                      <AgingFunnel
+                        buckets={AGING_BUCKETS}
+                        porFaixa={r.porFaixa}
+                        onOpenBucket={onOpenAgingBucket ? (bucketId) => onOpenAgingBucket(r, bucketId) : undefined}
+                        criticalBucketId="40+"
+                        criticalLabel="acima do ciclo"
+                        criticalHint="Acima do ciclo de vendas (~20-25 dias)"
+                      />
                     </div>
-                    <AgingFunnel
-                      buckets={AGING_BUCKETS}
-                      porFaixa={r.porFaixa}
-                      onOpenBucket={onOpenAgingBucket ? (bucketId) => onOpenAgingBucket(r, bucketId) : undefined}
-                    />
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
+                        Tempo desde a última atividade · {r.nome}
+                      </div>
+                      <AgingFunnel
+                        buckets={ACTIVITY_BUCKETS}
+                        porFaixa={r.porAtividade}
+                        onOpenBucket={
+                          onOpenActivityBucket ? (bucketId) => onOpenActivityBucket(r, bucketId) : undefined
+                        }
+                        criticalBucketId="16+"
+                        criticalLabel="sem contato"
+                        criticalHint="Mais de 15 dias sem nota, ligação, e-mail, reunião ou tarefa registrada"
+                      />
+                    </div>
                   </td>
                 </tr>
               )}

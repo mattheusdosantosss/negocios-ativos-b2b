@@ -4,15 +4,24 @@ type Props = {
   buckets: Bucket[];
   porFaixa: Record<string, number>;
   onOpenBucket?: (bucketId: string) => void;
+  /** Bucket destacado sem cor (negrito + badge + barra hachurada). */
+  criticalBucketId?: string;
+  /** Texto do title do badge crítico. */
+  criticalHint?: string;
+  /** Texto exibido dentro do badge crítico. */
+  criticalLabel?: string;
 };
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 
-// Faixa crítica (acima do ciclo de vendas de ~20-25 dias) — destacada sem
-// depender de cor: negrito + rótulo "acima do ciclo" + barra hachurada.
-const CRITICAL_BUCKET_ID = "40+";
-
-export default function AgingFunnel({ buckets, porFaixa, onOpenBucket }: Props) {
+export default function AgingFunnel({
+  buckets,
+  porFaixa,
+  onOpenBucket,
+  criticalBucketId,
+  criticalHint,
+  criticalLabel = "acima do ciclo",
+}: Props) {
   const max = Math.max(1, ...buckets.map((b) => porFaixa[b.id] || 0));
 
   return (
@@ -20,7 +29,7 @@ export default function AgingFunnel({ buckets, porFaixa, onOpenBucket }: Props) 
       {buckets.map((b) => {
         const count = porFaixa[b.id] || 0;
         const pct = Math.round((count / max) * 100);
-        const critical = b.id === CRITICAL_BUCKET_ID;
+        const critical = !!criticalBucketId && b.id === criticalBucketId;
         return (
           <div key={b.id} className="flex items-center gap-3">
             <div
@@ -32,9 +41,9 @@ export default function AgingFunnel({ buckets, porFaixa, onOpenBucket }: Props) 
               {critical && (
                 <span
                   className="inline-flex items-center rounded-full border border-psa-ink px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-psa-ink"
-                  title="Acima do ciclo de vendas (~20-25 dias)"
+                  title={criticalHint}
                 >
-                  acima do ciclo
+                  {criticalLabel}
                 </span>
               )}
             </div>

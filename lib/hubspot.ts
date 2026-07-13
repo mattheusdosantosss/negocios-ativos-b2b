@@ -49,6 +49,8 @@ export type Deal = {
     createdate?: string;
     /** Data de qualificação — mesma definição usada nos outros painéis da PSA. */
     pipedrive___data_de_qualificacao?: string;
+    /** "Last Activity Date" — última nota, ligação, e-mail, reunião ou tarefa registrada no negócio. */
+    notes_last_updated?: string;
     [key: string]: string | undefined;
   };
 };
@@ -155,6 +157,7 @@ const DEAL_PROPS = [
   "hubspot_owner_id",
   "createdate",
   "pipedrive___data_de_qualificacao",
+  "notes_last_updated",
 ];
 
 // Helpers de timezone (Brasília = UTC-3, sem DST desde 2019) pro filtro por
