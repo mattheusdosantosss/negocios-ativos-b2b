@@ -4,6 +4,7 @@
 
 import { STAGES } from "./hubspot";
 import { AGING_BUCKETS, ACTIVITY_BUCKETS } from "./aggregate";
+import { OUTSIDE_TEAM_ID, OUTSIDE_TEAM_LABEL } from "./team";
 import type { CloserRow, DashboardData, DealLite } from "./aggregate";
 
 // porEtapa/valorPorEtapa seguem a ordem de STAGES:
@@ -17,6 +18,8 @@ const ACTIVITY_BUCKET_IDS = ACTIVITY_BUCKETS.map((b) => b.id);
 // gráficos de faixa vazios.
 const AGING_RATIOS = [0.53, 0.14, 0.12, 0.21]; // 0-20 / 20-30 / 30-40 / 40+
 const ACTIVITY_RATIOS = [0.35, 0.25, 0.2, 0.1, 0.1]; // 0-2 / 3-5 / 6-10 / 11-15 / 16+
+const EVENTO_ATRASADO_RATIO = 0.08;
+const EVENTO_PROXIMO30_RATIO = 0.18;
 
 // Negócio individual não é preservado no snapshot (só os totais agregados) —
 // os itens abaixo são ilustrativos, sem registro real no HubSpot (url vazia).
@@ -48,8 +51,11 @@ function fakeBucketSplit(bucketIds: string[], ratios: number[], total: number, v
 function row(ownerId: string, nome: string, counts: number[], valores: number[]): CloserRow {
   const total = counts.reduce((a, b) => a + b, 0);
   const valor = valores.reduce((a, b) => a + b, 0);
+  const media = total > 0 ? valor / total : 0;
   const aging = fakeBucketSplit(AGING_BUCKET_IDS, AGING_RATIOS, total, valor);
   const atividade = fakeBucketSplit(ACTIVITY_BUCKET_IDS, ACTIVITY_RATIOS, total, valor);
+  const eventoAtrasado = Math.round(total * EVENTO_ATRASADO_RATIO);
+  const eventoProximo30 = Math.round(total * EVENTO_PROXIMO30_RATIO);
   return {
     ownerId,
     nome,
@@ -62,6 +68,10 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
     dealsPorFaixa: aging.dealsPorBucket,
     porAtividade: atividade.porBucket,
     dealsPorAtividade: atividade.dealsPorBucket,
+    eventoAtrasado,
+    dealsEventoAtrasado: fakeDeals(`${ownerId}-atrasado`, eventoAtrasado, media * eventoAtrasado),
+    eventoProximo30,
+    dealsEventoProximo30: fakeDeals(`${ownerId}-prox30`, eventoProximo30, media * eventoProximo30),
     total,
     valor,
   };
@@ -76,11 +86,10 @@ const closers: CloserRow[] = [
   row("80169395", "Lucas Oliveira", [0, 6, 1, 36, 5, 0, 7], [0, 0, 0, 183515, 40220, 0, 34570]),
   row("92704130", "Talita Santos Cruz", [0, 10, 2, 14, 12, 0, 3], [0, 8360, 8450, 69215, 86634.9, 0, 11000]),
   row("80454576", "Eduardo Vince", [0, 1, 0, 7, 10, 0, 0], [0, 0, 0, 43845, 55400, 0, 0]),
-  row("79760745", "Thiago Berto", [1, 5, 0, 0, 0, 1, 0], [0, 10885, 0, 0, 0, 8408, 0]),
-  row("81033487", "Owner 81033487", [0, 7, 0, 0, 0, 0, 0], [0, 14970, 0, 0, 0, 0, 0]),
-  row("87074298", "Owner 87074298", [0, 6, 0, 0, 0, 0, 0], [0, 14000, 0, 0, 0, 0, 0]),
-  row("80454577", "Daniel Bento Sias", [0, 3, 0, 0, 0, 1, 0], [0, 1000, 0, 0, 0, 5950, 0]),
-  row("80454582", "Katyeli Ceroni Madril", [0, 1, 0, 1, 0, 0, 0], [0, 0, 0, 28800, 0, 0, 0]),
+  // Todo mundo fora do roster oficial (farmers, SDRs, ex-funcionários, etc.)
+  // compilado numa única linha — soma de: Thiago Berto, Owner 81033487,
+  // Owner 87074298, Daniel Bento Sias, Katyeli Ceroni Madril.
+  row(OUTSIDE_TEAM_ID, OUTSIDE_TEAM_LABEL, [1, 22, 0, 1, 0, 2, 0], [0, 40855, 0, 28800, 0, 14358, 0]),
 ].sort((a, b) => b.total - a.total || b.valor - a.valor);
 
 const totals = {
@@ -89,6 +98,9 @@ const totals = {
   porEtapa: Object.fromEntries(
     STAGE_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEtapa[id], 0)])
   ),
+  foraDoTimeB2B: closers.find((c) => c.ownerId === OUTSIDE_TEAM_ID)?.total ?? 0,
+  eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
+  eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
 };
 
 export const SEED_DATA: DashboardData = {

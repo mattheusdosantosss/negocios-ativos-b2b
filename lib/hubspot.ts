@@ -51,6 +51,8 @@ export type Deal = {
     pipedrive___data_de_qualificacao?: string;
     /** "Last Activity Date" — última nota, ligação, e-mail, reunião ou tarefa registrada no negócio. */
     notes_last_updated?: string;
+    /** Data prevista do evento contratado. */
+    data_prevista_do_evento?: string;
     [key: string]: string | undefined;
   };
 };
@@ -158,6 +160,7 @@ const DEAL_PROPS = [
   "createdate",
   "pipedrive___data_de_qualificacao",
   "notes_last_updated",
+  "data_prevista_do_evento",
 ];
 
 // Helpers de timezone (Brasília = UTC-3, sem DST desde 2019) pro filtro por

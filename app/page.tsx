@@ -11,10 +11,19 @@ import {
   ACTIVITY_BUCKETS,
   allDealsOf,
   dealsForStage,
+  dealsForEventBucket,
+  eventoDealsOf,
   type CloserRow,
   type DashboardData,
 } from "@/lib/aggregate";
+import { OUTSIDE_TEAM_ID } from "@/lib/team";
 import { computePeriod, type PeriodValue } from "@/lib/periods";
+
+const EVENTO_BUCKET_LABELS: Record<"atrasado" | "proximo30" | "total", string> = {
+  atrasado: "Evento com data atrasada",
+  proximo30: "Evento nos próximos 30 dias",
+  total: "Evento atrasado ou nos próximos 30 dias",
+};
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -29,6 +38,8 @@ export default function Page() {
     | { mode: "aggregated"; stageId: string }
     | { mode: "aging"; row: CloserRow; bucketId: string }
     | { mode: "activity"; row: CloserRow; bucketId: string }
+    | { mode: "evento-agg"; bucket: "atrasado" | "proximo30" | "total" }
+    | { mode: "evento-closer"; row: CloserRow }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
@@ -96,6 +107,8 @@ export default function Page() {
     if (modal.mode === "aggregated") return dealsForStage(data.closers, modal.stageId);
     if (modal.mode === "aging") return modal.row.dealsPorFaixa[modal.bucketId] ?? [];
     if (modal.mode === "activity") return modal.row.dealsPorAtividade[modal.bucketId] ?? [];
+    if (modal.mode === "evento-agg") return dealsForEventBucket(data.closers, modal.bucket);
+    if (modal.mode === "evento-closer") return eventoDealsOf(modal.row);
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
   }, [modal, data]);
 
@@ -103,6 +116,8 @@ export default function Page() {
     if (!modal || !data) return "";
     if (modal.mode === "aging") return AGING_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
     if (modal.mode === "activity") return ACTIVITY_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
+    if (modal.mode === "evento-agg") return EVENTO_BUCKET_LABELS[modal.bucket];
+    if (modal.mode === "evento-closer") return EVENTO_BUCKET_LABELS.total;
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data]);
@@ -209,9 +224,9 @@ export default function Page() {
         />
         <KpiCard
           label="Closers com negócios ativos"
-          value={data ? num(data.closers.length) : 0}
+          value={data ? num(data.closers.filter((c) => c.ownerId !== OUTSIDE_TEAM_ID).length) : 0}
           accent="ink"
-          hint="Proprietários com ao menos 1 negócio ativo"
+          hint="Do time B2B, com ao menos 1 negócio ativo"
           loading={loading}
         />
         <KpiCard
@@ -221,6 +236,78 @@ export default function Page() {
           hint="Valor total ÷ negócios ativos"
           loading={loading}
         />
+      </section>
+
+      {/* Atenção — fora do time B2B + Data Prevista do Evento */}
+      <section className="rounded-2xl border-2 border-psa-ink/10 bg-psa-surface shadow-card overflow-hidden">
+        <div className="flex items-center gap-2 px-5 pt-4">
+          <span className="text-lg leading-none">⚠️</span>
+          <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Atenção</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5">
+          <button
+            type="button"
+            disabled={!data || data.totals.foraDoTimeB2B === 0}
+            onClick={() => {
+              const row = data?.closers.find((c) => c.ownerId === OUTSIDE_TEAM_ID);
+              if (row) setModal({ mode: "single", row, stageId: "total" });
+            }}
+            className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
+          >
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+              Fora do time B2B
+            </div>
+            <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
+              {data ? num(data.totals.foraDoTimeB2B) : 0}
+            </div>
+            <div className="mt-1 text-[11px] text-psa-ink-soft">Dono não é um dos 8 Closers do time</div>
+          </button>
+
+          <button
+            type="button"
+            disabled={!data || data.totals.eventoAtrasado === 0}
+            onClick={() => setModal({ mode: "evento-agg", bucket: "atrasado" })}
+            className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
+          >
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+              Evento atrasado
+            </div>
+            <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
+              {data ? num(data.totals.eventoAtrasado) : 0}
+            </div>
+            <div className="mt-1 text-[11px] text-psa-ink-soft">Data Prevista do Evento já passou</div>
+          </button>
+
+          <button
+            type="button"
+            disabled={!data || data.totals.eventoProximo30 === 0}
+            onClick={() => setModal({ mode: "evento-agg", bucket: "proximo30" })}
+            className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
+          >
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+              Evento em até 30 dias
+            </div>
+            <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
+              {data ? num(data.totals.eventoProximo30) : 0}
+            </div>
+            <div className="mt-1 text-[11px] text-psa-ink-soft">Data Prevista do Evento nos próximos 30 dias</div>
+          </button>
+
+          <button
+            type="button"
+            disabled={!data || data.totals.eventoAtrasado + data.totals.eventoProximo30 === 0}
+            onClick={() => setModal({ mode: "evento-agg", bucket: "total" })}
+            className="text-left rounded-xl border-2 border-psa-orange/40 bg-psa-orange-soft p-4 hover:border-psa-orange transition-all disabled:cursor-default"
+          >
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-orange">
+              Total (atrasado + 30 dias)
+            </div>
+            <div className="mt-1 font-display text-2xl font-bold text-psa-orange tabular-nums">
+              {data ? num(data.totals.eventoAtrasado + data.totals.eventoProximo30) : 0}
+            </div>
+            <div className="mt-1 text-[11px] text-psa-orange/80">Soma dos dois acima</div>
+          </button>
+        </div>
       </section>
 
       {/* Funil por etapa */}
@@ -267,6 +354,7 @@ export default function Page() {
           onOpenStage={(row, stageId) => setModal({ mode: "single", row, stageId })}
           onOpenAgingBucket={(row, bucketId) => setModal({ mode: "aging", row, bucketId })}
           onOpenActivityBucket={(row, bucketId) => setModal({ mode: "activity", row, bucketId })}
+          onOpenEvento={(row) => setModal({ mode: "evento-closer", row })}
         />
       </section>
 
@@ -274,7 +362,10 @@ export default function Page() {
         open={modal !== null}
         onClose={() => setModal(null)}
         closerName={
-          modal?.mode === "single" || modal?.mode === "aging" || modal?.mode === "activity"
+          modal?.mode === "single" ||
+          modal?.mode === "aging" ||
+          modal?.mode === "activity" ||
+          modal?.mode === "evento-closer"
             ? modal.row.nome
             : undefined
         }

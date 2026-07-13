@@ -1,4 +1,5 @@
 import { STAGES, STAGE_IDS, ownerDisplayName, dealUrl, type Deal, type Owner } from "./hubspot";
+import { B2B_TEAM_IDS, OUTSIDE_TEAM_ID, OUTSIDE_TEAM_LABEL } from "./team";
 
 export type DealLite = {
   id: string;
@@ -9,7 +10,7 @@ export type DealLite = {
   url: string;
 };
 
-/** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa). */
+/** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa/faixa). */
 export type AggregatedDealItem = DealLite & { ownerName: string };
 
 // Bucket extra pra negócio sem a data em questão preenchida — só aparece na
@@ -64,6 +65,12 @@ export type CloserRow = {
   dealsPorFaixa: Record<string, DealLite[]>;
   porAtividade: Record<string, number>;
   dealsPorAtividade: Record<string, DealLite[]>;
+  /** Data Prevista do Evento já passou (negócio ainda ativo). */
+  eventoAtrasado: number;
+  dealsEventoAtrasado: DealLite[];
+  /** Data Prevista do Evento dentro dos próximos 30 dias. */
+  eventoProximo30: number;
+  dealsEventoProximo30: DealLite[];
   total: number;
   valor: number;
 };
@@ -71,7 +78,14 @@ export type CloserRow = {
 export type DashboardData = {
   meta: { updatedAt: string; usingLiveData: boolean };
   stages: { id: string; label: string }[];
-  totals: { total: number; valor: number; porEtapa: Record<string, number> };
+  totals: {
+    total: number;
+    valor: number;
+    porEtapa: Record<string, number>;
+    foraDoTimeB2B: number;
+    eventoAtrasado: number;
+    eventoProximo30: number;
+  };
   closers: CloserRow[];
 };
 
@@ -92,9 +106,14 @@ function emptyBucketDealsMap(ids: string[]): Record<string, DealLite[]> {
 }
 
 /** Property tipo "date" ("AAAA-MM-DD") ou "datetime" (ISO) — new Date() lê os dois. */
-function daysSince(now: number, raw?: string): number {
+function parseDateMs(raw?: string): number {
   const t = raw ? new Date(raw).getTime() : NaN;
-  return Number.isFinite(t) && t > 0 ? Math.floor((now - t) / 86_400_000) : NaN;
+  return Number.isFinite(t) && t > 0 ? t : NaN;
+}
+
+function daysSince(now: number, raw?: string): number {
+  const t = parseDateMs(raw);
+  return Number.isFinite(t) ? Math.floor((now - t) / 86_400_000) : NaN;
 }
 
 export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<DashboardData, "meta"> {
@@ -105,14 +124,18 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     const stage = deal.properties.dealstage;
     if (!stage || !STAGE_IDS.includes(stage)) continue;
 
-    const ownerId = deal.properties.hubspot_owner_id || "sem-dono";
+    const rawOwnerId = deal.properties.hubspot_owner_id || "";
+    // Só os 8 Closers do time B2B ganham linha própria — qualquer outro dono
+    // (farmer, SDR, ex-funcionário, ou nenhum dono) cai numa única linha
+    // compilada "Fora do time B2B".
+    const ownerId = B2B_TEAM_IDS.has(rawOwnerId) ? rawOwnerId : OUTSIDE_TEAM_ID;
     const amount = Number(deal.properties.amount || 0) || 0;
 
     let row = byOwner.get(ownerId);
     if (!row) {
       row = {
         ownerId,
-        nome: ownerId === "sem-dono" ? "Sem dono" : ownerDisplayName(owners.get(ownerId)),
+        nome: ownerId === OUTSIDE_TEAM_ID ? OUTSIDE_TEAM_LABEL : ownerDisplayName(owners.get(ownerId)),
         porEtapa: emptyStageMap(),
         valorPorEtapa: emptyStageMap(),
         dealsPorEtapa: emptyStageDealsMap(),
@@ -120,6 +143,10 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         dealsPorFaixa: emptyBucketDealsMap(AGING_BUCKET_IDS),
         porAtividade: emptyBucketMap(ACTIVITY_BUCKET_IDS),
         dealsPorAtividade: emptyBucketDealsMap(ACTIVITY_BUCKET_IDS),
+        eventoAtrasado: 0,
+        dealsEventoAtrasado: [],
+        eventoProximo30: 0,
+        dealsEventoProximo30: [],
         total: 0,
         valor: 0,
       };
@@ -151,6 +178,18 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
       : SEM_DATA_BUCKET;
     row.porAtividade[atividadeBucket] += 1;
     row.dealsPorAtividade[atividadeBucket].push(dealLite);
+
+    const eventoMs = parseDateMs(deal.properties.data_prevista_do_evento);
+    if (Number.isFinite(eventoMs)) {
+      const diffDays = Math.floor((eventoMs - now) / 86_400_000);
+      if (diffDays < 0) {
+        row.eventoAtrasado += 1;
+        row.dealsEventoAtrasado.push(dealLite);
+      } else if (diffDays <= 30) {
+        row.eventoProximo30 += 1;
+        row.dealsEventoProximo30.push(dealLite);
+      }
+    }
   }
 
   const closers = [...byOwner.values()].sort(
@@ -163,6 +202,9 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     porEtapa: Object.fromEntries(
       STAGE_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEtapa[id], 0)])
     ),
+    foraDoTimeB2B: closers.find((c) => c.ownerId === OUTSIDE_TEAM_ID)?.total ?? 0,
+    eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
+    eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
   };
 
   return { stages: STAGES, totals, closers };
@@ -178,4 +220,25 @@ export function dealsForStage(closers: CloserRow[], stageId: string): Aggregated
   return closers.flatMap((c) =>
     (c.dealsPorEtapa[stageId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
   );
+}
+
+/** Negócios com Data Prevista do Evento atrasada ou nos próximos 30 dias, de um closer (combinado). */
+export function eventoDealsOf(row: CloserRow): DealLite[] {
+  return [...row.dealsEventoAtrasado, ...row.dealsEventoProximo30];
+}
+
+/** Idem, de TODOS os closers — usado pelos cards do cabeçalho. */
+export function dealsForEventBucket(
+  closers: CloserRow[],
+  bucket: "atrasado" | "proximo30" | "total"
+): AggregatedDealItem[] {
+  return closers.flatMap((c) => {
+    const deals =
+      bucket === "atrasado"
+        ? c.dealsEventoAtrasado
+        : bucket === "proximo30"
+        ? c.dealsEventoProximo30
+        : eventoDealsOf(c);
+    return deals.map((d) => ({ ...d, ownerName: c.nome }));
+  });
 }
