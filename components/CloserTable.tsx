@@ -32,9 +32,11 @@ type Props = {
   onOpenActivityBucket?: (row: CloserRow, bucketId: string) => void;
   /** Clique no badge de evento atrasado/próximo, ao lado do nome. */
   onOpenEvento?: (row: CloserRow) => void;
+  /** Clique na coluna em destaque "Evento atrasado" (só data já passada). */
+  onOpenEventoAtrasado?: (row: CloserRow) => void;
 };
 
-type SortKey = "nome" | "total" | "valor";
+type SortKey = "nome" | "total" | "valor" | "eventoAtrasado";
 type SortDir = "asc" | "desc";
 
 export default function CloserTable({
@@ -45,6 +47,7 @@ export default function CloserTable({
   onOpenAgingBucket,
   onOpenActivityBucket,
   onOpenEvento,
+  onOpenEventoAtrasado,
 }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
   const [expandedOwnerId, setExpandedOwnerId] = useState<string | null>(null);
@@ -138,6 +141,21 @@ export default function CloserTable({
               ))}
               <Th label="Total" col="total" />
               <Th label="Valor em aberto" col="valor" />
+              <th className="px-3 py-3 text-right bg-psa-orange-soft border-l-2 border-psa-orange/40">
+                <button
+                  type="button"
+                  onClick={() => handleSort("eventoAtrasado")}
+                  className={`inline-flex flex-row-reverse items-center gap-1 whitespace-nowrap uppercase tracking-[0.08em] text-[10px] transition-colors ${
+                    sort?.key === "eventoAtrasado" ? "text-psa-orange" : "text-psa-orange/70 hover:text-psa-orange"
+                  }`}
+                  title="Ordenar por esta coluna"
+                >
+                  ⚠ Evento atrasado
+                  <span className="text-[9px] text-psa-orange w-2 inline-block">
+                    {sort?.key === "eventoAtrasado" ? (sort.dir === "asc" ? "▲" : "▼") : ""}
+                  </span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -222,10 +240,25 @@ export default function CloserTable({
                     brl(r.valor)
                   )}
                 </td>
+                <td className="px-3 py-3 text-right font-bold tabular-nums bg-psa-orange-soft border-l-2 border-psa-orange/40">
+                  {r.eventoAtrasado > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenEventoAtrasado?.(r)}
+                      disabled={!onOpenEventoAtrasado}
+                      className="text-psa-orange hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
+                      title={`Ver negócios de ${r.nome} com Data Prevista do Evento já passada`}
+                    >
+                      {num(r.eventoAtrasado)}
+                    </button>
+                  ) : (
+                    <span className="text-psa-ink-soft/40">{num(r.eventoAtrasado)}</span>
+                  )}
+                </td>
               </tr>
               {expanded && (
                 <tr className="border-b border-psa-line last:border-0 bg-psa-canvas/40">
-                  <td colSpan={stages.length + 3} className="px-5 py-4 space-y-5">
+                  <td colSpan={stages.length + 4} className="px-5 py-4 space-y-5">
                     <div>
                       <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
                         Tempo desde a qualificação · {r.nome}

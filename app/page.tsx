@@ -44,6 +44,7 @@ export default function Page() {
     | { mode: "evento-proximo30-agg" }
     | { mode: "evento-futuro-agg"; bucketId: string }
     | { mode: "evento-closer"; row: CloserRow }
+    | { mode: "evento-atrasado-closer"; row: CloserRow }
     | { mode: "outside-team" }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
@@ -116,6 +117,7 @@ export default function Page() {
     if (modal.mode === "evento-proximo30-agg") return dealsForEventoProximo30(data.closers);
     if (modal.mode === "evento-futuro-agg") return dealsForFutureEventBucket(data.closers, modal.bucketId);
     if (modal.mode === "evento-closer") return eventoDealsOf(modal.row);
+    if (modal.mode === "evento-atrasado-closer") return modal.row.dealsEventoAtrasado;
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
   }, [modal, data]);
@@ -129,6 +131,7 @@ export default function Page() {
     if (modal.mode === "evento-futuro-agg")
       return EVENT_FUTURE_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
     if (modal.mode === "evento-closer") return `${EVENTO_ATRASADO_LABEL} ou ${EVENTO_PROXIMO30_LABEL.toLowerCase()}`;
+    if (modal.mode === "evento-atrasado-closer") return EVENTO_ATRASADO_LABEL;
     if (modal.mode === "outside-team") return "Fora do time B2B";
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
@@ -365,6 +368,7 @@ export default function Page() {
           onOpenAgingBucket={(row, bucketId) => setModal({ mode: "aging", row, bucketId })}
           onOpenActivityBucket={(row, bucketId) => setModal({ mode: "activity", row, bucketId })}
           onOpenEvento={(row) => setModal({ mode: "evento-closer", row })}
+          onOpenEventoAtrasado={(row) => setModal({ mode: "evento-atrasado-closer", row })}
         />
       </section>
 
@@ -375,7 +379,8 @@ export default function Page() {
           modal?.mode === "single" ||
           modal?.mode === "aging" ||
           modal?.mode === "activity" ||
-          modal?.mode === "evento-closer"
+          modal?.mode === "evento-closer" ||
+          modal?.mode === "evento-atrasado-closer"
             ? modal.row.nome
             : undefined
         }
