@@ -13,9 +13,18 @@ export type DealLite = {
   dealname: string;
   amount: number;
   createdate?: string;
+  /** Data de qualificação (pipedrive___data_de_qualificacao). */
+  qualdate?: string;
+  /** Data da última atividade (notes_last_updated). */
+  activitydate?: string;
+  /** Data prevista do evento (data_prevista_do_evento). */
+  eventdate?: string;
   /** Vazio no modo de exemplo (sem HUBSPOT_TOKEN) — sem registro real no HubSpot. */
   url: string;
 };
+
+/** Qual campo de data cada popup exibe ao lado do valor. */
+export type DateField = "createdate" | "qualdate" | "activitydate" | "eventdate";
 
 /** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa/faixa). */
 export type AggregatedDealItem = DealLite & { ownerName: string };
@@ -190,6 +199,9 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
       dealname: deal.properties.dealname || `Negócio ${deal.id}`,
       amount,
       createdate: deal.properties.createdate,
+      qualdate: deal.properties.pipedrive___data_de_qualificacao,
+      activitydate: deal.properties.notes_last_updated,
+      eventdate: deal.properties.data_prevista_do_evento,
       url: dealUrl(deal.id),
     };
 

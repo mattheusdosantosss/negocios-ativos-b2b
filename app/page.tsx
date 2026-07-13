@@ -133,6 +133,21 @@ export default function Page() {
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data]);
 
+  // Cada tipo de popup mostra ao lado do valor a data mais relevante ao seu contexto.
+  const modalDateField = useMemo((): "createdate" | "qualdate" | "activitydate" | "eventdate" => {
+    if (!modal) return "createdate";
+    if (modal.mode === "aging") return "qualdate";
+    if (modal.mode === "activity") return "activitydate";
+    if (
+      modal.mode === "evento-atrasado-agg" ||
+      modal.mode === "evento-proximo30-agg" ||
+      modal.mode === "evento-futuro-agg" ||
+      modal.mode === "evento-atrasado-closer"
+    )
+      return "eventdate";
+    return "createdate";
+  }, [modal]);
+
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
       {/* Hero */}
@@ -380,6 +395,7 @@ export default function Page() {
         }
         stageLabel={modalStageLabel}
         deals={modalDeals}
+        dateField={modalDateField}
       />
     </main>
   );

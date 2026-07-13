@@ -29,10 +29,16 @@ const EVENT_FUTURE_RATIOS = [0.06, 0.05, 0.07, 0.35]; // 0-7 / 8-15 / 16-30 / 30
 // os itens abaixo são ilustrativos, sem registro real no HubSpot (url vazia).
 function fakeDeals(prefix: string, count: number, valorTotal: number): DealLite[] {
   const media = count > 0 ? valorTotal / count : 0;
+  // Datas ilustrativas fixas (snapshot 09/07/2026) só pra os popups do modo de
+  // exemplo não ficarem cheios de "—". Com HUBSPOT_TOKEN vêm as datas reais.
   return Array.from({ length: count }, (_, j) => ({
     id: `demo-${prefix}-${j}`,
     dealname: `Negócio de exemplo ${prefix}.${j + 1}`,
     amount: media,
+    createdate: "2026-06-20",
+    qualdate: "2026-06-22",
+    activitydate: "2026-07-07",
+    eventdate: "2026-08-15",
     url: "",
   }));
 }
