@@ -286,7 +286,3 @@ export function dealsForFutureEventBucket(closers: CloserRow[], bucketId: string
   );
 }
 
-/** Negócios com Data Prevista do Evento atrasada ou nos próximos 30 dias, de um closer (combinado). */
-export function eventoDealsOf(row: CloserRow): DealLite[] {
-  return [...row.dealsEventoAtrasado, ...row.dealsEventoProximo30];
-}

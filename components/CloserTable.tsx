@@ -30,8 +30,6 @@ type Props = {
   onOpenAgingBucket?: (row: CloserRow, bucketId: string) => void;
   /** Clique num número da faixa de tempo desde a última atividade. */
   onOpenActivityBucket?: (row: CloserRow, bucketId: string) => void;
-  /** Clique no badge de evento atrasado/próximo, ao lado do nome. */
-  onOpenEvento?: (row: CloserRow) => void;
   /** Clique na coluna em destaque "Evento atrasado" (só data já passada). */
   onOpenEventoAtrasado?: (row: CloserRow) => void;
 };
@@ -46,7 +44,6 @@ export default function CloserTable({
   onOpenStage,
   onOpenAgingBucket,
   onOpenActivityBucket,
-  onOpenEvento,
   onOpenEventoAtrasado,
 }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
@@ -165,32 +162,15 @@ export default function CloserTable({
               <Fragment key={r.ownerId}>
               <tr className="border-b border-psa-line last:border-0 hover:bg-psa-canvas/50 transition-colors">
                 <td className="px-3 py-3 font-medium text-psa-ink whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedOwnerId(expanded ? null : r.ownerId)}
-                      className="inline-flex items-center gap-1.5 hover:text-psa-orange transition-colors"
-                      title="Ver tempo desde a qualificação e desde a última atividade"
-                    >
-                      <span className={`text-[10px] transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
-                      {r.nome}
-                    </button>
-                    {(() => {
-                      const eventoTotal = r.eventoAtrasado + r.eventoProximo30;
-                      if (eventoTotal === 0) return null;
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => onOpenEvento?.(r)}
-                          disabled={!onOpenEvento}
-                          className="inline-flex items-center rounded-full border border-psa-orange/50 bg-psa-orange-soft px-1.5 py-0.5 text-[10px] font-bold text-psa-orange"
-                          title={`Data Prevista do Evento atrasada ou nos próximos 30 dias: ${r.eventoAtrasado} atrasado(s), ${r.eventoProximo30} próximo(s)`}
-                        >
-                          {eventoTotal}
-                        </button>
-                      );
-                    })()}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedOwnerId(expanded ? null : r.ownerId)}
+                    className="inline-flex items-center gap-1.5 hover:text-psa-orange transition-colors"
+                    title="Ver tempo desde a qualificação e desde a última atividade"
+                  >
+                    <span className={`text-[10px] transition-transform ${expanded ? "rotate-90" : ""}`}>▶</span>
+                    {r.nome}
+                  </button>
                 </td>
                 {stages.map((s) => {
                   const count = r.porEtapa[s.id] || 0;
