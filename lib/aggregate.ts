@@ -1,5 +1,12 @@
 import { STAGES, STAGE_IDS, ownerDisplayName, dealUrl, type Deal, type Owner } from "./hubspot";
-import { B2B_TEAM_IDS, OUTSIDE_TEAM_ID, OUTSIDE_TEAM_LABEL } from "./team";
+import { B2B_TEAM_IDS } from "./team";
+
+// Chave de agrupamento pra qualquer negócio cujo dono não dá pra resolver
+// (sem hubspot_owner_id, ou owner não encontrado no mapa de owners). Compila
+// tudo numa única linha "Sem dono" — antes cada owner não-resolvido virava
+// uma linha própria (todas mostrando "Sem dono", mas sem se juntar).
+const SEM_DONO_ID = "sem-dono";
+const SEM_DONO_LABEL = "Sem dono";
 
 export type DealLite = {
   id: string;
@@ -125,17 +132,19 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     if (!stage || !STAGE_IDS.includes(stage)) continue;
 
     const rawOwnerId = deal.properties.hubspot_owner_id || "";
-    // Só os 8 Closers do time B2B ganham linha própria — qualquer outro dono
-    // (farmer, SDR, ex-funcionário, ou nenhum dono) cai numa única linha
-    // compilada "Fora do time B2B".
-    const ownerId = B2B_TEAM_IDS.has(rawOwnerId) ? rawOwnerId : OUTSIDE_TEAM_ID;
+    const resolvedOwner = rawOwnerId ? owners.get(rawOwnerId) : undefined;
+    // Cada owner resolvido (mesmo fora do time B2B — farmer, SDR etc.) mantém
+    // sua própria linha. Só quando o owner NÃO resolve (sem hubspot_owner_id,
+    // ou ID que não bate com nenhum owner ativo) é que compila numa única
+    // linha "Sem dono", em vez de uma linha por ID não resolvido.
+    const ownerId = resolvedOwner ? rawOwnerId : SEM_DONO_ID;
     const amount = Number(deal.properties.amount || 0) || 0;
 
     let row = byOwner.get(ownerId);
     if (!row) {
       row = {
         ownerId,
-        nome: ownerId === OUTSIDE_TEAM_ID ? OUTSIDE_TEAM_LABEL : ownerDisplayName(owners.get(ownerId)),
+        nome: ownerId === SEM_DONO_ID ? SEM_DONO_LABEL : ownerDisplayName(resolvedOwner),
         porEtapa: emptyStageMap(),
         valorPorEtapa: emptyStageMap(),
         dealsPorEtapa: emptyStageDealsMap(),
@@ -202,7 +211,7 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     porEtapa: Object.fromEntries(
       STAGE_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEtapa[id], 0)])
     ),
-    foraDoTimeB2B: closers.find((c) => c.ownerId === OUTSIDE_TEAM_ID)?.total ?? 0,
+    foraDoTimeB2B: closers.filter((c) => !B2B_TEAM_IDS.has(c.ownerId)).reduce((s, c) => s + c.total, 0),
     eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
     eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
   };
@@ -220,6 +229,13 @@ export function dealsForStage(closers: CloserRow[], stageId: string): Aggregated
   return closers.flatMap((c) =>
     (c.dealsPorEtapa[stageId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
   );
+}
+
+/** Todos os negócios ativos de closers fora do time B2B (qualquer dono não listado em B2B_TEAM). */
+export function dealsOutsideTeam(closers: CloserRow[]): AggregatedDealItem[] {
+  return closers
+    .filter((c) => !B2B_TEAM_IDS.has(c.ownerId))
+    .flatMap((c) => allDealsOf(c).map((d) => ({ ...d, ownerName: c.nome })));
 }
 
 /** Negócios com Data Prevista do Evento atrasada ou nos próximos 30 dias, de um closer (combinado). */

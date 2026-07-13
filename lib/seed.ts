@@ -4,7 +4,7 @@
 
 import { STAGES } from "./hubspot";
 import { AGING_BUCKETS, ACTIVITY_BUCKETS } from "./aggregate";
-import { OUTSIDE_TEAM_ID, OUTSIDE_TEAM_LABEL } from "./team";
+import { B2B_TEAM_IDS } from "./team";
 import type { CloserRow, DashboardData, DealLite } from "./aggregate";
 
 // porEtapa/valorPorEtapa seguem a ordem de STAGES:
@@ -86,10 +86,16 @@ const closers: CloserRow[] = [
   row("80169395", "Lucas Oliveira", [0, 6, 1, 36, 5, 0, 7], [0, 0, 0, 183515, 40220, 0, 34570]),
   row("92704130", "Talita Santos Cruz", [0, 10, 2, 14, 12, 0, 3], [0, 8360, 8450, 69215, 86634.9, 0, 11000]),
   row("80454576", "Eduardo Vince", [0, 1, 0, 7, 10, 0, 0], [0, 0, 0, 43845, 55400, 0, 0]),
-  // Todo mundo fora do roster oficial (farmers, SDRs, ex-funcionários, etc.)
-  // compilado numa única linha — soma de: Thiago Berto, Owner 81033487,
-  // Owner 87074298, Daniel Bento Sias, Katyeli Ceroni Madril.
-  row(OUTSIDE_TEAM_ID, OUTSIDE_TEAM_LABEL, [1, 22, 0, 1, 0, 2, 0], [0, 40855, 0, 28800, 0, 14358, 0]),
+  // Fora do roster oficial B2B (farmer, SDR, ex-funcionário etc.) — cada um
+  // mantém a própria linha, igual no HubSpot.
+  row("79760745", "Thiago Berto", [1, 5, 0, 0, 0, 1, 0], [0, 10885, 0, 0, 0, 8408, 0]),
+  row("81033487", "Owner 81033487", [0, 7, 0, 0, 0, 0, 0], [0, 14970, 0, 0, 0, 0, 0]),
+  row("87074298", "Owner 87074298", [0, 6, 0, 0, 0, 0, 0], [0, 14000, 0, 0, 0, 0, 0]),
+  row("80454577", "Daniel Bento Sias", [0, 3, 0, 0, 0, 1, 0], [0, 1000, 0, 0, 0, 5950, 0]),
+  row("80454582", "Katyeli Ceroni Madril", [0, 1, 0, 1, 0, 0, 0], [0, 0, 0, 28800, 0, 0, 0]),
+  // Negócios sem dono resolvido (sem hubspot_owner_id, ou owner desativado) —
+  // compilados numa única linha "Sem dono".
+  row("sem-dono", "Sem dono", [0, 2, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]),
 ].sort((a, b) => b.total - a.total || b.valor - a.valor);
 
 const totals = {
@@ -98,7 +104,7 @@ const totals = {
   porEtapa: Object.fromEntries(
     STAGE_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEtapa[id], 0)])
   ),
-  foraDoTimeB2B: closers.find((c) => c.ownerId === OUTSIDE_TEAM_ID)?.total ?? 0,
+  foraDoTimeB2B: closers.filter((c) => !B2B_TEAM_IDS.has(c.ownerId)).reduce((s, c) => s + c.total, 0),
   eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
   eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
 };

@@ -1,7 +1,6 @@
-// Roster oficial dos Closers B2B. Qualquer negócio ativo cujo Proprietário
-// não seja um desses 8 (farmer, SDR, ex-funcionário, sem dono etc.) é
-// compilado numa única linha "Fora do time B2B" no painel — em vez de uma
-// linha por pessoa aleatória, o que poluía a tabela.
+// Roster oficial dos Closers B2B. Usado só pra métrica "Fora do time B2B" no
+// cabeçalho (negócios cujo dono não é um desses 8) — a tabela continua
+// mostrando uma linha por dono real, mesmo os que não são do time B2B.
 
 export type TeamMember = { ownerId: string; nome: string };
 
@@ -17,6 +16,3 @@ export const B2B_TEAM: TeamMember[] = [
 ];
 
 export const B2B_TEAM_IDS = new Set(B2B_TEAM.map((m) => m.ownerId));
-
-export const OUTSIDE_TEAM_ID = "fora-do-time";
-export const OUTSIDE_TEAM_LABEL = "Fora do time B2B";

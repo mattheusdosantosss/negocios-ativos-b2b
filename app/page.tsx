@@ -12,11 +12,12 @@ import {
   allDealsOf,
   dealsForStage,
   dealsForEventBucket,
+  dealsOutsideTeam,
   eventoDealsOf,
   type CloserRow,
   type DashboardData,
 } from "@/lib/aggregate";
-import { OUTSIDE_TEAM_ID } from "@/lib/team";
+import { B2B_TEAM_IDS } from "@/lib/team";
 import { computePeriod, type PeriodValue } from "@/lib/periods";
 
 const EVENTO_BUCKET_LABELS: Record<"atrasado" | "proximo30" | "total", string> = {
@@ -40,6 +41,7 @@ export default function Page() {
     | { mode: "activity"; row: CloserRow; bucketId: string }
     | { mode: "evento-agg"; bucket: "atrasado" | "proximo30" | "total" }
     | { mode: "evento-closer"; row: CloserRow }
+    | { mode: "outside-team" }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
@@ -109,6 +111,7 @@ export default function Page() {
     if (modal.mode === "activity") return modal.row.dealsPorAtividade[modal.bucketId] ?? [];
     if (modal.mode === "evento-agg") return dealsForEventBucket(data.closers, modal.bucket);
     if (modal.mode === "evento-closer") return eventoDealsOf(modal.row);
+    if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
   }, [modal, data]);
 
@@ -118,6 +121,7 @@ export default function Page() {
     if (modal.mode === "activity") return ACTIVITY_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
     if (modal.mode === "evento-agg") return EVENTO_BUCKET_LABELS[modal.bucket];
     if (modal.mode === "evento-closer") return EVENTO_BUCKET_LABELS.total;
+    if (modal.mode === "outside-team") return "Fora do time B2B";
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data]);
@@ -224,7 +228,7 @@ export default function Page() {
         />
         <KpiCard
           label="Closers com negócios ativos"
-          value={data ? num(data.closers.filter((c) => c.ownerId !== OUTSIDE_TEAM_ID).length) : 0}
+          value={data ? num(data.closers.filter((c) => B2B_TEAM_IDS.has(c.ownerId)).length) : 0}
           accent="ink"
           hint="Do time B2B, com ao menos 1 negócio ativo"
           loading={loading}
@@ -248,10 +252,7 @@ export default function Page() {
           <button
             type="button"
             disabled={!data || data.totals.foraDoTimeB2B === 0}
-            onClick={() => {
-              const row = data?.closers.find((c) => c.ownerId === OUTSIDE_TEAM_ID);
-              if (row) setModal({ mode: "single", row, stageId: "total" });
-            }}
+            onClick={() => setModal({ mode: "outside-team" })}
             className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
           >
             <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
