@@ -62,6 +62,23 @@ function bucketForActivityDays(days: number): string {
   return "16+";
 }
 
+// Faixas de negócios cuja Data Prevista do Evento ainda está no futuro
+// (diffDays >= 0) — distribuição usada no card "Evento em até 30 dias".
+export const EVENT_FUTURE_BUCKETS: { id: string; label: string }[] = [
+  { id: "0-7", label: "0–7 dias" },
+  { id: "8-15", label: "8–15 dias" },
+  { id: "16-30", label: "16–30 dias" },
+  { id: "30+", label: "30+ dias" },
+];
+const EVENT_FUTURE_BUCKET_IDS = EVENT_FUTURE_BUCKETS.map((b) => b.id);
+
+function bucketForFutureEventDays(days: number): string {
+  if (days <= 7) return "0-7";
+  if (days <= 15) return "8-15";
+  if (days <= 30) return "16-30";
+  return "30+";
+}
+
 export type CloserRow = {
   ownerId: string;
   nome: string;
@@ -78,6 +95,9 @@ export type CloserRow = {
   /** Data Prevista do Evento dentro dos próximos 30 dias. */
   eventoProximo30: number;
   dealsEventoProximo30: DealLite[];
+  /** Distribuição de negócios com evento futuro (0-7/8-15/16-30/30+ dias). */
+  porEventoFuturo: Record<string, number>;
+  dealsPorEventoFuturo: Record<string, DealLite[]>;
   total: number;
   valor: number;
 };
@@ -92,6 +112,7 @@ export type DashboardData = {
     foraDoTimeB2B: number;
     eventoAtrasado: number;
     eventoProximo30: number;
+    porEventoFuturo: Record<string, number>;
   };
   closers: CloserRow[];
 };
@@ -156,6 +177,8 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         dealsEventoAtrasado: [],
         eventoProximo30: 0,
         dealsEventoProximo30: [],
+        porEventoFuturo: emptyBucketMap(EVENT_FUTURE_BUCKET_IDS),
+        dealsPorEventoFuturo: emptyBucketDealsMap(EVENT_FUTURE_BUCKET_IDS),
         total: 0,
         valor: 0,
       };
@@ -194,9 +217,14 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
       if (diffDays < 0) {
         row.eventoAtrasado += 1;
         row.dealsEventoAtrasado.push(dealLite);
-      } else if (diffDays <= 30) {
-        row.eventoProximo30 += 1;
-        row.dealsEventoProximo30.push(dealLite);
+      } else {
+        if (diffDays <= 30) {
+          row.eventoProximo30 += 1;
+          row.dealsEventoProximo30.push(dealLite);
+        }
+        const futuroBucket = bucketForFutureEventDays(diffDays);
+        row.porEventoFuturo[futuroBucket] += 1;
+        row.dealsPorEventoFuturo[futuroBucket].push(dealLite);
       }
     }
   }
@@ -214,6 +242,9 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     foraDoTimeB2B: closers.filter((c) => !B2B_TEAM_IDS.has(c.ownerId)).reduce((s, c) => s + c.total, 0),
     eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
     eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
+    porEventoFuturo: Object.fromEntries(
+      EVENT_FUTURE_BUCKET_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEventoFuturo[id], 0)])
+    ),
   };
 
   return { stages: STAGES, totals, closers };
@@ -238,23 +269,24 @@ export function dealsOutsideTeam(closers: CloserRow[]): AggregatedDealItem[] {
     .flatMap((c) => allDealsOf(c).map((d) => ({ ...d, ownerName: c.nome })));
 }
 
+/** Negócios cuja Data Prevista do Evento já passou, de TODOS os closers. */
+export function dealsForEventoAtrasado(closers: CloserRow[]): AggregatedDealItem[] {
+  return closers.flatMap((c) => c.dealsEventoAtrasado.map((d) => ({ ...d, ownerName: c.nome })));
+}
+
+/** Negócios com Data Prevista do Evento nos próximos 30 dias, de TODOS os closers. */
+export function dealsForEventoProximo30(closers: CloserRow[]): AggregatedDealItem[] {
+  return closers.flatMap((c) => c.dealsEventoProximo30.map((d) => ({ ...d, ownerName: c.nome })));
+}
+
+/** Negócios de uma faixa de evento futuro (0-7/8-15/16-30/30+), de TODOS os closers. */
+export function dealsForFutureEventBucket(closers: CloserRow[], bucketId: string): AggregatedDealItem[] {
+  return closers.flatMap((c) =>
+    (c.dealsPorEventoFuturo[bucketId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
+  );
+}
+
 /** Negócios com Data Prevista do Evento atrasada ou nos próximos 30 dias, de um closer (combinado). */
 export function eventoDealsOf(row: CloserRow): DealLite[] {
   return [...row.dealsEventoAtrasado, ...row.dealsEventoProximo30];
-}
-
-/** Idem, de TODOS os closers — usado pelos cards do cabeçalho. */
-export function dealsForEventBucket(
-  closers: CloserRow[],
-  bucket: "atrasado" | "proximo30" | "total"
-): AggregatedDealItem[] {
-  return closers.flatMap((c) => {
-    const deals =
-      bucket === "atrasado"
-        ? c.dealsEventoAtrasado
-        : bucket === "proximo30"
-        ? c.dealsEventoProximo30
-        : eventoDealsOf(c);
-    return deals.map((d) => ({ ...d, ownerName: c.nome }));
-  });
 }

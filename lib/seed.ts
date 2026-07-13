@@ -3,7 +3,7 @@
 // (dev local sem env, ou preview). Com o token, o painel fica ao vivo.
 
 import { STAGES } from "./hubspot";
-import { AGING_BUCKETS, ACTIVITY_BUCKETS } from "./aggregate";
+import { AGING_BUCKETS, ACTIVITY_BUCKETS, EVENT_FUTURE_BUCKETS } from "./aggregate";
 import { B2B_TEAM_IDS } from "./team";
 import type { CloserRow, DashboardData, DealLite } from "./aggregate";
 
@@ -13,6 +13,7 @@ import type { CloserRow, DashboardData, DealLite } from "./aggregate";
 const STAGE_IDS = STAGES.map((s) => s.id);
 const AGING_BUCKET_IDS = AGING_BUCKETS.map((b) => b.id);
 const ACTIVITY_BUCKET_IDS = ACTIVITY_BUCKETS.map((b) => b.id);
+const EVENT_FUTURE_BUCKET_IDS = EVENT_FUTURE_BUCKETS.map((b) => b.id);
 // Proporções ilustrativas, próximas de amostras reais verificadas em jul/2026.
 // Sem registro individual real — é só pra o modo de exemplo não ficar com os
 // gráficos de faixa vazios.
@@ -20,6 +21,9 @@ const AGING_RATIOS = [0.53, 0.14, 0.12, 0.21]; // 0-20 / 20-30 / 30-40 / 40+
 const ACTIVITY_RATIOS = [0.35, 0.25, 0.2, 0.1, 0.1]; // 0-2 / 3-5 / 6-10 / 11-15 / 16+
 const EVENTO_ATRASADO_RATIO = 0.08;
 const EVENTO_PROXIMO30_RATIO = 0.18;
+// Distribuição do restante dos eventos futuros (excluindo já os 18% em até
+// 30 dias acima) — pra alimentar o gráfico 0-7/8-15/16-30/30+.
+const EVENT_FUTURE_RATIOS = [0.06, 0.05, 0.07, 0.35]; // 0-7 / 8-15 / 16-30 / 30+ (do total de negócios)
 
 // Negócio individual não é preservado no snapshot (só os totais agregados) —
 // os itens abaixo são ilustrativos, sem registro real no HubSpot (url vazia).
@@ -54,8 +58,11 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
   const media = total > 0 ? valor / total : 0;
   const aging = fakeBucketSplit(AGING_BUCKET_IDS, AGING_RATIOS, total, valor);
   const atividade = fakeBucketSplit(ACTIVITY_BUCKET_IDS, ACTIVITY_RATIOS, total, valor);
+  const eventoFuturo = fakeBucketSplit(EVENT_FUTURE_BUCKET_IDS, EVENT_FUTURE_RATIOS, total, valor);
   const eventoAtrasado = Math.round(total * EVENTO_ATRASADO_RATIO);
-  const eventoProximo30 = Math.round(total * EVENTO_PROXIMO30_RATIO);
+  // eventoProximo30 = soma das 3 primeiras faixas do futuro (0-7 + 8-15 + 16-30).
+  const eventoProximo30 =
+    eventoFuturo.porBucket["0-7"] + eventoFuturo.porBucket["8-15"] + eventoFuturo.porBucket["16-30"];
   return {
     ownerId,
     nome,
@@ -71,7 +78,13 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
     eventoAtrasado,
     dealsEventoAtrasado: fakeDeals(`${ownerId}-atrasado`, eventoAtrasado, media * eventoAtrasado),
     eventoProximo30,
-    dealsEventoProximo30: fakeDeals(`${ownerId}-prox30`, eventoProximo30, media * eventoProximo30),
+    dealsEventoProximo30: [
+      ...eventoFuturo.dealsPorBucket["0-7"],
+      ...eventoFuturo.dealsPorBucket["8-15"],
+      ...eventoFuturo.dealsPorBucket["16-30"],
+    ],
+    porEventoFuturo: eventoFuturo.porBucket,
+    dealsPorEventoFuturo: eventoFuturo.dealsPorBucket,
     total,
     valor,
   };
@@ -107,6 +120,9 @@ const totals = {
   foraDoTimeB2B: closers.filter((c) => !B2B_TEAM_IDS.has(c.ownerId)).reduce((s, c) => s + c.total, 0),
   eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
   eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
+  porEventoFuturo: Object.fromEntries(
+    EVENT_FUTURE_BUCKET_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEventoFuturo[id], 0)])
+  ),
 };
 
 export const SEED_DATA: DashboardData = {
