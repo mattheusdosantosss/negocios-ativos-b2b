@@ -283,7 +283,7 @@ export default function Page() {
             <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
               {data ? num(data.totals.foraDoTimeB2B) : 0}
             </div>
-            <div className="mt-1 text-[11px] text-psa-ink-soft">Dono não é um dos 8 Closers do time</div>
+            <div className="mt-1 text-[11px] text-psa-ink-soft">Dono não é um dos Closers do time</div>
           </button>
 
           <button
