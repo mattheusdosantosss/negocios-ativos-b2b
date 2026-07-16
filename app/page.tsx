@@ -238,7 +238,7 @@ export default function Page() {
           label="Negócios ativos"
           value={data ? num(data.totals.total) : 0}
           accent="orange"
-          hint="Soma das 7 etapas ativas"
+          hint="Soma das 5 etapas ativas"
           loading={loading}
         />
         <KpiCard

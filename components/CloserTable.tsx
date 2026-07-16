@@ -9,10 +9,8 @@ const num = (n: number) => n.toLocaleString("pt-BR");
 
 // Rótulos curtos pra caber no cabeçalho da tabela (o rótulo completo vira title/tooltip).
 const SHORT_LABELS: Record<string, string> = {
-  presentationscheduled: "Conexão",
   decisionmakerboughtin: "Reunião",
-  contractsent: "Aguard. Proposta",
-  closedwon: "Proposta env.",
+  closedwon: "Proposta | 1°F",
   closedlost: "Em negoc.",
   "1167445770": "Negoc. avanç.",
   "1367665802": "Resting",

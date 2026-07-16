@@ -13,13 +13,13 @@ export const PIPELINE_B2B = process.env.HUBSPOT_PIPELINE_B2B || "default";
 
 // Etapas consideradas "negócio ativo" nessa pipeline, na ordem do funil.
 // ATENÇÃO: nessa pipeline os IDs internos "closedwon"/"closedlost" foram
-// renomeados pelo negócio para "Proposta enviada"/"Em negociação" — NÃO são
-// os estágios terminais de ganho/perda (confirmado via HubSpot em jul/2026).
+// renomeados pelo negócio para "Proposta enviada | 1° Follow"/"Em negociação"
+// — NÃO são os estágios terminais de ganho/perda (confirmado via HubSpot).
+// jul/2026: as etapas "Conexão" (presentationscheduled) e "Aguardando Envio
+// de Proposta" (contractsent) foram removidas da pipeline B2B.
 export const STAGES: { id: string; label: string }[] = [
-  { id: "presentationscheduled", label: "Conexão" },
   { id: "decisionmakerboughtin", label: "Reunião agendada / Qualificado" },
-  { id: "contractsent", label: "Aguardando Envio de Proposta" },
-  { id: "closedwon", label: "Proposta enviada" },
+  { id: "closedwon", label: "Proposta enviada | 1° Follow" },
   { id: "closedlost", label: "Em negociação" },
   { id: "1167445770", label: "Negociação avançada" },
   { id: "1367665802", label: "Resting" },

@@ -262,7 +262,7 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
   return { stages: STAGES, totals, closers };
 }
 
-/** Todos os negócios ativos de um closer, juntando as 7 etapas (usado pela coluna Total/Valor). */
+/** Todos os negócios ativos de um closer, juntando as 5 etapas (usado pela coluna Total/Valor). */
 export function allDealsOf(row: CloserRow): DealLite[] {
   return STAGE_IDS.flatMap((id) => row.dealsPorEtapa[id]);
 }
