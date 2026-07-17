@@ -6,6 +6,7 @@ import StageFunnel from "@/components/StageFunnel";
 import AgingFunnel from "@/components/AgingFunnel";
 import CloserTable from "@/components/CloserTable";
 import DealListModal from "@/components/DealListModal";
+import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
 import {
   AGING_BUCKETS,
@@ -46,6 +47,7 @@ export default function Page() {
     | { mode: "outside-team" }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
+  const [showCloserSummary, setShowCloserSummary] = useState(false);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
 
   const handlePeriodChange = (next: PeriodValue) => {
@@ -85,6 +87,12 @@ export default function Page() {
   }, [queryString]);
 
   const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  // Closers do time B2B que têm ao menos 1 negócio ativo (base do KPI e do popup).
+  const teamClosers = useMemo(
+    () => (data ? data.closers.filter((c) => B2B_TEAM_IDS.has(c.ownerId)) : []),
+    [data]
+  );
 
   const filteredClosers = useMemo(() => {
     if (!data) return [];
@@ -250,10 +258,11 @@ export default function Page() {
         />
         <KpiCard
           label="Closers com negócios ativos"
-          value={data ? num(data.closers.filter((c) => B2B_TEAM_IDS.has(c.ownerId)).length) : 0}
+          value={data ? num(teamClosers.length) : 0}
           accent="ink"
-          hint="Do time B2B, com ao menos 1 negócio ativo"
+          hint="Do time B2B, com ao menos 1 negócio ativo · ver lista ↗"
           loading={loading}
+          onClick={data && teamClosers.length > 0 ? () => setShowCloserSummary(true) : undefined}
         />
         <KpiCard
           label="Ticket médio"
@@ -396,6 +405,12 @@ export default function Page() {
         stageLabel={modalStageLabel}
         deals={modalDeals}
         dateField={modalDateField}
+      />
+
+      <CloserSummaryModal
+        open={showCloserSummary}
+        onClose={() => setShowCloserSummary(false)}
+        rows={teamClosers}
       />
     </main>
   );

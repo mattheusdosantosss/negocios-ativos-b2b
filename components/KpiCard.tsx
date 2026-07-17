@@ -4,18 +4,37 @@ type Props = {
   hint?: string;
   accent?: "orange" | "blue" | "ink";
   loading?: boolean;
+  /** Quando passado, o card vira clicável (abre um detalhamento). */
+  onClick?: () => void;
 };
 
-export default function KpiCard({ label, value, hint, accent = "ink", loading = false }: Props) {
+export default function KpiCard({ label, value, hint, accent = "ink", loading = false, onClick }: Props) {
   const accentColor =
     accent === "orange" ? "text-psa-orange" : accent === "blue" ? "text-psa-blue" : "text-psa-ink";
   const dotColor =
     accent === "orange" ? "bg-psa-orange" : accent === "blue" ? "bg-psa-blue" : "bg-psa-ink";
 
+  const clickable = !!onClick && !loading;
+
   return (
     <div
-      className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card min-w-0"
+      className={`rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card min-w-0 transition-all ${
+        clickable ? "cursor-pointer hover:border-psa-orange/40 hover:bg-psa-canvas/40" : ""
+      }`}
       style={{ containerType: "inline-size" }}
+      onClick={clickable ? onClick : undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex items-center gap-2">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${dotColor}`} />
