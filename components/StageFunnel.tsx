@@ -19,8 +19,10 @@ export default function StageFunnel({ stages, porEtapa, loading = false, onOpenS
         {stages.map((s) => {
           const count = porEtapa[s.id] || 0;
           const pct = Math.round((count / max) * 100);
-          return (
-            <div key={s.id} className="flex items-center gap-3">
+          const clickable = !loading && count > 0 && !!onOpenStage;
+
+          const rowInner = (
+            <>
               <div className="w-52 shrink-0 text-xs font-medium text-psa-ink-soft truncate" title={s.label}>
                 {s.label}
               </div>
@@ -34,22 +36,29 @@ export default function StageFunnel({ stages, porEtapa, loading = false, onOpenS
                   />
                 )}
               </div>
-              <div className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-psa-ink">
-                {loading ? (
-                  ""
-                ) : count > 0 && onOpenStage ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenStage(s.id)}
-                    className="hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
-                    title={`Ver todos os negócios em "${s.label}"`}
-                  >
-                    {num(count)}
-                  </button>
-                ) : (
-                  num(count)
-                )}
+              <div
+                className={`w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-psa-ink ${
+                  clickable ? "group-hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60" : ""
+                }`}
+              >
+                {loading ? "" : num(count)}
               </div>
+            </>
+          );
+
+          return clickable ? (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onOpenStage!(s.id)}
+              className="group w-full flex items-center gap-3 rounded-lg -mx-2 px-2 py-1 hover:bg-psa-canvas/60 transition-colors text-left"
+              title={`Ver todos os negócios em "${s.label}"`}
+            >
+              {rowInner}
+            </button>
+          ) : (
+            <div key={s.id} className="flex items-center gap-3 -mx-2 px-2 py-1">
+              {rowInner}
             </div>
           );
         })}

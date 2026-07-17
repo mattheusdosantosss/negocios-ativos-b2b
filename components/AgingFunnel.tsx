@@ -30,8 +30,10 @@ export default function AgingFunnel({
         const count = porFaixa[b.id] || 0;
         const pct = Math.round((count / max) * 100);
         const critical = !!criticalBucketId && b.id === criticalBucketId;
-        return (
-          <div key={b.id} className="flex items-center gap-3">
+        const clickable = count > 0 && !!onOpenBucket;
+
+        const rowInner = (
+          <>
             <div
               className={`w-24 shrink-0 text-xs text-psa-ink-soft flex items-center gap-1 ${
                 critical ? "font-bold text-psa-ink" : "font-medium"
@@ -60,21 +62,26 @@ export default function AgingFunnel({
             <div
               className={`w-10 shrink-0 text-right text-sm tabular-nums ${
                 critical ? "font-bold text-psa-ink" : "font-semibold text-psa-ink"
-              }`}
+              } ${clickable ? "group-hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60" : ""}`}
             >
-              {count > 0 && onOpenBucket ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenBucket(b.id)}
-                  className="hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60"
-                  title={`Ver negócios na faixa "${b.label}"`}
-                >
-                  {num(count)}
-                </button>
-              ) : (
-                num(count)
-              )}
+              {num(count)}
             </div>
+          </>
+        );
+
+        return clickable ? (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onOpenBucket!(b.id)}
+            className="group w-full flex items-center gap-3 rounded-lg -mx-2 px-2 py-1 hover:bg-psa-canvas/60 transition-colors text-left"
+            title={`Ver negócios na faixa "${b.label}"`}
+          >
+            {rowInner}
+          </button>
+        ) : (
+          <div key={b.id} className="flex items-center gap-3 -mx-2 px-2 py-1">
+            {rowInner}
           </div>
         );
       })}
