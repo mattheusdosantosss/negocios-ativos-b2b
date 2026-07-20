@@ -1,5 +1,30 @@
-import { STAGES, STAGE_IDS, ownerDisplayName, dealUrl, type Deal, type Owner } from "./hubspot";
+import {
+  STAGES,
+  STAGE_IDS,
+  TEMP_STAGE_IDS,
+  ownerDisplayName,
+  dealUrl,
+  type Deal,
+  type Owner,
+} from "./hubspot";
 import { B2B_TEAM_IDS } from "./team";
+
+// Temperatura Atual (leitura do curador). "Sem leitura" = campo vazio no
+// HubSpot. A ordem aqui é a ordem de exibição (quente → frio).
+export const TEMPERATURES: { id: string; label: string; raw: string | null }[] = [
+  { id: "vou_vender", label: "Vou vender", raw: "Vou vender" },
+  { id: "forecast", label: "Forecast", raw: "Forecast" },
+  { id: "cafe", label: "Café com leite", raw: "Café com leite" },
+  { id: "larguei", label: "Larguei de mão", raw: "Não levo fé" },
+  { id: "sem_leitura", label: "Sem leitura", raw: null },
+];
+export const TEMPERATURE_IDS = TEMPERATURES.map((t) => t.id);
+const TEMP_BY_RAW = new Map(TEMPERATURES.filter((t) => t.raw).map((t) => [t.raw as string, t.id]));
+
+function temperaturaId(raw?: string): string {
+  const v = (raw || "").trim();
+  return (v && TEMP_BY_RAW.get(v)) || "sem_leitura";
+}
 
 // Chave de agrupamento pra qualquer negócio cujo dono não dá pra resolver
 // (sem hubspot_owner_id, ou owner não encontrado no mapa de owners). Compila
@@ -107,6 +132,9 @@ export type CloserRow = {
   /** Distribuição de negócios com evento futuro (0-7/8-15/16-30/30+ dias). */
   porEventoFuturo: Record<string, number>;
   dealsPorEventoFuturo: Record<string, DealLite[]>;
+  /** Matriz Temperatura Atual × etapa (4 etapas ativas, sem Resting). */
+  tempPorEtapa: Record<string, Record<string, number>>;
+  dealsTempPorEtapa: Record<string, Record<string, DealLite[]>>;
   total: number;
   valor: number;
 };
@@ -122,6 +150,8 @@ export type DashboardData = {
     eventoAtrasado: number;
     eventoProximo30: number;
     porEventoFuturo: Record<string, number>;
+    /** Matriz Temperatura × etapa agregada (todos os closers). */
+    tempPorEtapa: Record<string, Record<string, number>>;
   };
   closers: CloserRow[];
 };
@@ -140,6 +170,18 @@ function emptyBucketMap(ids: string[]): Record<string, number> {
 
 function emptyBucketDealsMap(ids: string[]): Record<string, DealLite[]> {
   return Object.fromEntries([...ids, SEM_DATA_BUCKET].map((id) => [id, []]));
+}
+
+function emptyTempMatrix(): Record<string, Record<string, number>> {
+  return Object.fromEntries(
+    TEMP_STAGE_IDS.map((sid) => [sid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
+  );
+}
+
+function emptyTempDealsMatrix(): Record<string, Record<string, DealLite[]>> {
+  return Object.fromEntries(
+    TEMP_STAGE_IDS.map((sid) => [sid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
+  );
 }
 
 /** Property tipo "date" ("AAAA-MM-DD") ou "datetime" (ISO) — new Date() lê os dois. */
@@ -188,6 +230,8 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         dealsEventoProximo30: [],
         porEventoFuturo: emptyBucketMap(EVENT_FUTURE_BUCKET_IDS),
         dealsPorEventoFuturo: emptyBucketDealsMap(EVENT_FUTURE_BUCKET_IDS),
+        tempPorEtapa: emptyTempMatrix(),
+        dealsTempPorEtapa: emptyTempDealsMatrix(),
         total: 0,
         valor: 0,
       };
@@ -239,6 +283,13 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         row.dealsPorEventoFuturo[futuroBucket].push(dealLite);
       }
     }
+
+    // Temperatura — só nas 4 etapas ativas (sem Resting).
+    if (TEMP_STAGE_IDS.includes(stage)) {
+      const tid = temperaturaId(deal.properties.temperatura_atual);
+      row.tempPorEtapa[stage][tid] += 1;
+      row.dealsTempPorEtapa[stage][tid].push(dealLite);
+    }
   }
 
   const closers = [...byOwner.values()].sort(
@@ -257,9 +308,69 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     porEventoFuturo: Object.fromEntries(
       EVENT_FUTURE_BUCKET_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEventoFuturo[id], 0)])
     ),
+    tempPorEtapa: Object.fromEntries(
+      TEMP_STAGE_IDS.map((sid) => [
+        sid,
+        Object.fromEntries(
+          TEMPERATURE_IDS.map((tid) => [tid, closers.reduce((s, c) => s + c.tempPorEtapa[sid][tid], 0)])
+        ),
+      ])
+    ),
   };
 
   return { stages: STAGES, totals, closers };
+}
+
+/** Negócios de uma etapa+temperatura, de TODOS os closers (bloco geral). */
+export function dealsForTemp(
+  closers: CloserRow[],
+  stageId: string,
+  tempId: string
+): AggregatedDealItem[] {
+  return closers.flatMap((c) =>
+    (c.dealsTempPorEtapa[stageId]?.[tempId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
+  );
+}
+
+/** Soma de uma temperatura numa etapa, na matriz agregada. */
+export function tempStageTotal(matrix: Record<string, Record<string, number>>, stageId: string): number {
+  return TEMPERATURE_IDS.reduce((s, tid) => s + (matrix[stageId]?.[tid] ?? 0), 0);
+}
+
+/** Convicção de uma etapa = "Vou vender" ÷ lidos (total - sem leitura). */
+export function conviccaoEtapa(matrix: Record<string, Record<string, number>>, stageId: string): number {
+  const total = tempStageTotal(matrix, stageId);
+  const semLeitura = matrix[stageId]?.sem_leitura ?? 0;
+  const lidos = total - semLeitura;
+  return lidos > 0 ? (matrix[stageId]?.vou_vender ?? 0) / lidos : 0;
+}
+
+/** Convicção e cobertura gerais sobre a matriz inteira (4 etapas). */
+export function conviccaoGeral(matrix: Record<string, Record<string, number>>): {
+  total: number;
+  lidos: number;
+  semLeitura: number;
+  vouVender: number;
+  conviccao: number;
+  cobertura: number;
+} {
+  let total = 0;
+  let semLeitura = 0;
+  let vouVender = 0;
+  for (const sid of TEMP_STAGE_IDS) {
+    total += tempStageTotal(matrix, sid);
+    semLeitura += matrix[sid]?.sem_leitura ?? 0;
+    vouVender += matrix[sid]?.vou_vender ?? 0;
+  }
+  const lidos = total - semLeitura;
+  return {
+    total,
+    lidos,
+    semLeitura,
+    vouVender,
+    conviccao: lidos > 0 ? vouVender / lidos : 0,
+    cobertura: total > 0 ? lidos / total : 0,
+  };
 }
 
 /** Todos os negócios ativos de um closer, juntando as 5 etapas (usado pela coluna Total/Valor). */

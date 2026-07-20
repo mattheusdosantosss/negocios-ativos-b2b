@@ -2,8 +2,8 @@
 // 09/07/2026, usado como fallback quando HUBSPOT_TOKEN não está configurado
 // (dev local sem env, ou preview). Com o token, o painel fica ao vivo.
 
-import { STAGES } from "./hubspot";
-import { AGING_BUCKETS, ACTIVITY_BUCKETS, EVENT_FUTURE_BUCKETS } from "./aggregate";
+import { STAGES, TEMP_STAGE_IDS } from "./hubspot";
+import { AGING_BUCKETS, ACTIVITY_BUCKETS, EVENT_FUTURE_BUCKETS, TEMPERATURE_IDS } from "./aggregate";
 import { B2B_TEAM_IDS } from "./team";
 import type { CloserRow, DashboardData, DealLite } from "./aggregate";
 
@@ -24,6 +24,24 @@ const EVENTO_PROXIMO30_RATIO = 0.18;
 // Distribuição do restante dos eventos futuros (excluindo já os 18% em até
 // 30 dias acima) — pra alimentar o gráfico 0-7/8-15/16-30/30+.
 const EVENT_FUTURE_RATIOS = [0.06, 0.05, 0.07, 0.35]; // 0-7 / 8-15 / 16-30 / 30+ (do total de negócios)
+// Temperatura por etapa (ordem: vou_vender / forecast / cafe / larguei / sem_leitura).
+// Uma proporção ilustrativa por etapa das 4 ativas (convicção sobe no fim).
+const TEMP_RATIOS_BY_STAGE = [
+  [0.05, 0, 0.25, 0.1, 0.6], // Reunião agendada / Qualificado
+  [0.07, 0, 0.75, 0.18, 0], // Proposta enviada | 1° Follow
+  [0.15, 0.02, 0.55, 0.28, 0], // Em negociação
+  [0.61, 0.33, 0.06, 0, 0], // Negociação avançada
+];
+
+function splitInts(total: number, ratios: number[]): number[] {
+  const counts = ratios.map((r) => Math.round(total * r));
+  const diff = total - counts.reduce((a, b) => a + b, 0);
+  if (diff !== 0) {
+    const maxIdx = ratios.indexOf(Math.max(...ratios));
+    counts[maxIdx] += diff;
+  }
+  return counts.map((c) => Math.max(0, c));
+}
 
 // Negócio individual não é preservado no snapshot (só os totais agregados) —
 // os itens abaixo são ilustrativos, sem registro real no HubSpot (url vazia).
@@ -69,6 +87,19 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
   // eventoProximo30 = soma das 3 primeiras faixas do futuro (0-7 + 8-15 + 16-30).
   const eventoProximo30 =
     eventoFuturo.porBucket["0-7"] + eventoFuturo.porBucket["8-15"] + eventoFuturo.porBucket["16-30"];
+
+  // Matriz temperatura × etapa (só as 4 ativas, na ordem de TEMP_STAGE_IDS).
+  const tempPorEtapa: Record<string, Record<string, number>> = {};
+  const dealsTempPorEtapa: Record<string, Record<string, DealLite[]>> = {};
+  TEMP_STAGE_IDS.forEach((sid, i) => {
+    const stageCount = counts[i] || 0;
+    const split = splitInts(stageCount, TEMP_RATIOS_BY_STAGE[i]);
+    tempPorEtapa[sid] = Object.fromEntries(TEMPERATURE_IDS.map((tid, k) => [tid, split[k]]));
+    dealsTempPorEtapa[sid] = Object.fromEntries(
+      TEMPERATURE_IDS.map((tid, k) => [tid, fakeDeals(`${ownerId}-${sid}-${tid}`, split[k], media * split[k])])
+    );
+  });
+
   return {
     ownerId,
     nome,
@@ -91,6 +122,8 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
     ],
     porEventoFuturo: eventoFuturo.porBucket,
     dealsPorEventoFuturo: eventoFuturo.dealsPorBucket,
+    tempPorEtapa,
+    dealsTempPorEtapa,
     total,
     valor,
   };
@@ -128,6 +161,14 @@ const totals = {
   eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
   porEventoFuturo: Object.fromEntries(
     EVENT_FUTURE_BUCKET_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEventoFuturo[id], 0)])
+  ),
+  tempPorEtapa: Object.fromEntries(
+    TEMP_STAGE_IDS.map((sid) => [
+      sid,
+      Object.fromEntries(
+        TEMPERATURE_IDS.map((tid) => [tid, closers.reduce((s, c) => s + c.tempPorEtapa[sid][tid], 0)])
+      ),
+    ])
   ),
 };
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
 import StageFunnel from "@/components/StageFunnel";
 import AgingFunnel from "@/components/AgingFunnel";
+import TemperatureStacked from "@/components/TemperatureStacked";
 import CloserTable from "@/components/CloserTable";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
@@ -12,15 +13,19 @@ import {
   AGING_BUCKETS,
   ACTIVITY_BUCKETS,
   EVENT_FUTURE_BUCKETS,
+  TEMPERATURES,
   allDealsOf,
   dealsForStage,
   dealsForEventoAtrasado,
   dealsForEventoProximo30,
   dealsForFutureEventBucket,
+  dealsForTemp,
   dealsOutsideTeam,
+  conviccaoGeral,
   type CloserRow,
   type DashboardData,
 } from "@/lib/aggregate";
+import { TEMP_STAGES } from "@/lib/hubspot";
 import { B2B_TEAM_IDS } from "@/lib/team";
 import { computePeriod, type PeriodValue } from "@/lib/periods";
 
@@ -45,6 +50,8 @@ export default function Page() {
     | { mode: "evento-futuro-agg"; bucketId: string }
     | { mode: "evento-atrasado-closer"; row: CloserRow }
     | { mode: "outside-team" }
+    | { mode: "temp-agg"; stageId: string; tempId: string }
+    | { mode: "temp-closer"; row: CloserRow; stageId: string; tempId: string }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [showCloserSummary, setShowCloserSummary] = useState(false);
@@ -124,6 +131,8 @@ export default function Page() {
     if (modal.mode === "evento-futuro-agg") return dealsForFutureEventBucket(data.closers, modal.bucketId);
     if (modal.mode === "evento-atrasado-closer") return modal.row.dealsEventoAtrasado;
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
+    if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
+    if (modal.mode === "temp-closer") return modal.row.dealsTempPorEtapa[modal.stageId]?.[modal.tempId] ?? [];
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
   }, [modal, data]);
 
@@ -137,6 +146,11 @@ export default function Page() {
       return EVENT_FUTURE_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
     if (modal.mode === "evento-atrasado-closer") return EVENTO_ATRASADO_LABEL;
     if (modal.mode === "outside-team") return "Fora do time B2B";
+    if (modal.mode === "temp-agg" || modal.mode === "temp-closer") {
+      const etapa = TEMP_STAGES.find((s) => s.id === modal.stageId)?.label ?? "";
+      const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
+      return `${temp} · ${etapa}`;
+    }
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data]);
@@ -155,6 +169,8 @@ export default function Page() {
       return "eventdate";
     return "createdate";
   }, [modal]);
+
+  const conviccao = useMemo(() => (data ? conviccaoGeral(data.totals.tempPorEtapa) : null), [data]);
 
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
@@ -353,6 +369,31 @@ export default function Page() {
         />
       )}
 
+      {/* Negócios ativos por temperatura (leitura do curador) */}
+      {data && conviccao && (
+        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios ativos por temperatura</h2>
+            <span className="text-[11px] text-psa-ink-soft">
+              convicção{" "}
+              <b className="text-psa-ink">
+                {(conviccao.conviccao * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+              </b>{" "}
+              · cobertura{" "}
+              <b className="text-psa-ink">
+                {(conviccao.cobertura * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+              </b>{" "}
+              · 4 etapas (sem Resting)
+            </span>
+          </div>
+          <TemperatureStacked
+            stages={TEMP_STAGES}
+            matrix={data.totals.tempPorEtapa}
+            onOpen={(stageId, tempId) => setModal({ mode: "temp-agg", stageId, tempId })}
+          />
+        </div>
+      )}
+
       {/* Tabela por closer */}
       <section>
         <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
@@ -388,6 +429,7 @@ export default function Page() {
           onOpenAgingBucket={(row, bucketId) => setModal({ mode: "aging", row, bucketId })}
           onOpenActivityBucket={(row, bucketId) => setModal({ mode: "activity", row, bucketId })}
           onOpenEventoAtrasado={(row) => setModal({ mode: "evento-atrasado-closer", row })}
+          onOpenTemp={(row, stageId, tempId) => setModal({ mode: "temp-closer", row, stageId, tempId })}
         />
       </section>
 
@@ -398,7 +440,8 @@ export default function Page() {
           modal?.mode === "single" ||
           modal?.mode === "aging" ||
           modal?.mode === "activity" ||
-          modal?.mode === "evento-atrasado-closer"
+          modal?.mode === "evento-atrasado-closer" ||
+          modal?.mode === "temp-closer"
             ? modal.row.nome
             : undefined
         }

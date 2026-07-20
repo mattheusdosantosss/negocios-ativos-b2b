@@ -2,7 +2,9 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { AGING_BUCKETS, ACTIVITY_BUCKETS, type CloserRow } from "@/lib/aggregate";
+import { TEMP_STAGES } from "@/lib/hubspot";
 import AgingFunnel from "./AgingFunnel";
+import TemperatureStacked from "./TemperatureStacked";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -30,6 +32,8 @@ type Props = {
   onOpenActivityBucket?: (row: CloserRow, bucketId: string) => void;
   /** Clique na coluna em destaque "Evento atrasado" (só data já passada). */
   onOpenEventoAtrasado?: (row: CloserRow) => void;
+  /** Clique num segmento do gráfico de temperatura (etapa + temperatura). */
+  onOpenTemp?: (row: CloserRow, stageId: string, tempId: string) => void;
 };
 
 type SortKey = "nome" | "total" | "valor" | "eventoAtrasado";
@@ -43,6 +47,7 @@ export default function CloserTable({
   onOpenAgingBucket,
   onOpenActivityBucket,
   onOpenEventoAtrasado,
+  onOpenTemp,
 }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
   const [expandedOwnerId, setExpandedOwnerId] = useState<string | null>(null);
@@ -263,6 +268,17 @@ export default function CloserTable({
                         criticalBucketId="16+"
                         criticalLabel="sem contato"
                         criticalHint="Mais de 15 dias sem nota, ligação, e-mail, reunião ou tarefa registrada"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
+                        Temperatura por etapa · {r.nome}
+                      </div>
+                      <TemperatureStacked
+                        stages={TEMP_STAGES}
+                        matrix={r.tempPorEtapa}
+                        compact
+                        onOpen={onOpenTemp ? (stageId, tempId) => onOpenTemp(r, stageId, tempId) : undefined}
                       />
                     </div>
                   </td>

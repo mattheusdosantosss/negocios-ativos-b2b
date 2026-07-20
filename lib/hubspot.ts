@@ -27,6 +27,11 @@ export const STAGES: { id: string; label: string }[] = [
 
 export const STAGE_IDS = STAGES.map((s) => s.id);
 
+// Etapas consideradas na visão de Temperatura — 4 etapas ativas SEM Resting
+// (decisão de negócio: alinhar ao relatório "overview-funil-b2b").
+export const TEMP_STAGE_IDS = STAGE_IDS.filter((id) => id !== "1367665802");
+export const TEMP_STAGES = STAGES.filter((s) => TEMP_STAGE_IDS.includes(s.id));
+
 // Portal (Hub) ID — usado pra montar o link de cada negócio no HubSpot.
 const PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || "49656171";
 
@@ -53,6 +58,8 @@ export type Deal = {
     notes_last_updated?: string;
     /** Data prevista do evento contratado. */
     data_prevista_do_evento?: string;
+    /** Temperatura Atual — leitura do curador: "Vou vender", "Forecast", "Café com leite", "Não levo fé". */
+    temperatura_atual?: string;
     [key: string]: string | undefined;
   };
 };
@@ -161,6 +168,7 @@ const DEAL_PROPS = [
   "pipedrive___data_de_qualificacao",
   "notes_last_updated",
   "data_prevista_do_evento",
+  "temperatura_atual",
 ];
 
 // Helpers de timezone (Brasília = UTC-3, sem DST desde 2019) pro filtro por
