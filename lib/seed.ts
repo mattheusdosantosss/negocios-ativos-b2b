@@ -25,12 +25,13 @@ const EVENTO_PROXIMO30_RATIO = 0.18;
 // 30 dias acima) — pra alimentar o gráfico 0-7/8-15/16-30/30+.
 const EVENT_FUTURE_RATIOS = [0.06, 0.05, 0.07, 0.35]; // 0-7 / 8-15 / 16-30 / 30+ (do total de negócios)
 // Temperatura por etapa (ordem: vou_vender / forecast / cafe / larguei / sem_leitura).
-// Uma proporção ilustrativa por etapa das 4 ativas (convicção sobe no fim).
+// Uma proporção ilustrativa por etapa das 5 ativas (convicção sobe no fim).
 const TEMP_RATIOS_BY_STAGE = [
   [0.05, 0, 0.25, 0.1, 0.6], // Reunião agendada / Qualificado
   [0.07, 0, 0.75, 0.18, 0], // Proposta enviada | 1° Follow
   [0.15, 0.02, 0.55, 0.28, 0], // Em negociação
   [0.61, 0.33, 0.06, 0, 0], // Negociação avançada
+  [0.05, 0, 0.4, 0.3, 0.25], // Resting (adormecido)
 ];
 
 function splitInts(total: number, ratios: number[]): number[] {

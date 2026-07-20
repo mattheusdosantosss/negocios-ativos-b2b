@@ -27,10 +27,10 @@ export const STAGES: { id: string; label: string }[] = [
 
 export const STAGE_IDS = STAGES.map((s) => s.id);
 
-// Etapas consideradas na visão de Temperatura — 4 etapas ativas SEM Resting
-// (decisão de negócio: alinhar ao relatório "overview-funil-b2b").
-export const TEMP_STAGE_IDS = STAGE_IDS.filter((id) => id !== "1367665802");
-export const TEMP_STAGES = STAGES.filter((s) => TEMP_STAGE_IDS.includes(s.id));
+// Etapas consideradas na visão de Temperatura — as 5 etapas ativas, incluindo
+// Resting (decisão do usuário em jul/2026: incluir Resting também).
+export const TEMP_STAGE_IDS = STAGE_IDS;
+export const TEMP_STAGES = STAGES;
 
 // Portal (Hub) ID — usado pra montar o link de cada negócio no HubSpot.
 const PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || "49656171";

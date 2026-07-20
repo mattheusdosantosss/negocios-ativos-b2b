@@ -383,7 +383,7 @@ export default function Page() {
               <b className="text-psa-ink">
                 {(conviccao.cobertura * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
               </b>{" "}
-              · 4 etapas (sem Resting)
+              · 5 etapas (com Resting)
             </span>
           </div>
           <TemperatureStacked
