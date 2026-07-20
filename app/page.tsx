@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
-import StageFunnel from "@/components/StageFunnel";
 import AgingFunnel from "@/components/AgingFunnel";
 import TemperatureStacked from "@/components/TemperatureStacked";
 import CloserTable from "@/components/CloserTable";
@@ -15,7 +14,6 @@ import {
   EVENT_FUTURE_BUCKETS,
   TEMPERATURES,
   allDealsOf,
-  dealsForStage,
   dealsForEventoAtrasado,
   dealsForEventoProximo30,
   dealsForFutureEventBucket,
@@ -42,7 +40,6 @@ export default function Page() {
   const [search, setSearch] = useState("");
   type ModalState =
     | { mode: "single"; row: CloserRow; stageId: string | "total" }
-    | { mode: "aggregated"; stageId: string }
     | { mode: "aging"; row: CloserRow; bucketId: string }
     | { mode: "activity"; row: CloserRow; bucketId: string }
     | { mode: "evento-atrasado-agg" }
@@ -123,7 +120,6 @@ export default function Page() {
 
   const modalDeals = useMemo(() => {
     if (!modal || !data) return [];
-    if (modal.mode === "aggregated") return dealsForStage(data.closers, modal.stageId);
     if (modal.mode === "aging") return modal.row.dealsPorFaixa[modal.bucketId] ?? [];
     if (modal.mode === "activity") return modal.row.dealsPorAtividade[modal.bucketId] ?? [];
     if (modal.mode === "evento-atrasado-agg") return dealsForEventoAtrasado(data.closers);
@@ -358,16 +354,6 @@ export default function Page() {
           </div>
         </div>
       </section>
-
-      {/* Funil por etapa */}
-      {data && (
-        <StageFunnel
-          stages={data.stages}
-          porEtapa={data.totals.porEtapa}
-          loading={loading}
-          onOpenStage={(stageId) => setModal({ mode: "aggregated", stageId })}
-        />
-      )}
 
       {/* Negócios ativos por temperatura (leitura do curador) */}
       {data && conviccao && (
