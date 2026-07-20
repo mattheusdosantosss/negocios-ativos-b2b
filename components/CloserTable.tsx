@@ -250,7 +250,7 @@ export default function CloserTable({
                         buckets={AGING_BUCKETS}
                         porFaixa={r.porFaixa}
                         onOpenBucket={onOpenAgingBucket ? (bucketId) => onOpenAgingBucket(r, bucketId) : undefined}
-                        criticalBucketId="40+"
+                        criticalBucketId="30+"
                         criticalLabel="acima do ciclo"
                         criticalHint="Acima do ciclo de vendas (~20-25 dias)"
                       />

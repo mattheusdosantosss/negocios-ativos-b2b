@@ -60,20 +60,18 @@ const SEM_DATA_BUCKET = "sem-data";
 
 // Faixas de tempo desde a Data de qualificação (mesmo campo usado nos outros
 // painéis da PSA: pipedrive___data_de_qualificacao). Ciclo de vendas da PSA
-// é de ~20-25 dias — "40+" é a faixa crítica (negócio muito além do ciclo).
+// é de ~20-25 dias — "30+" é a faixa crítica (negócio muito além do ciclo).
 export const AGING_BUCKETS: { id: string; label: string }[] = [
   { id: "0-20", label: "0–20 dias" },
   { id: "20-30", label: "20–30 dias" },
-  { id: "30-40", label: "30–40 dias" },
-  { id: "40+", label: "40+ dias" },
+  { id: "30+", label: "30+ dias" },
 ];
 const AGING_BUCKET_IDS = AGING_BUCKETS.map((b) => b.id);
 
 function bucketForQualificationDays(days: number): string {
   if (days < 20) return "0-20";
   if (days < 30) return "20-30";
-  if (days < 40) return "30-40";
-  return "40+";
+  return "30+";
 }
 
 // Faixas de tempo desde a última atividade (notes_last_updated — última nota,

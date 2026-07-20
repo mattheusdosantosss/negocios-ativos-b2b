@@ -17,7 +17,7 @@ const EVENT_FUTURE_BUCKET_IDS = EVENT_FUTURE_BUCKETS.map((b) => b.id);
 // Proporções ilustrativas, próximas de amostras reais verificadas em jul/2026.
 // Sem registro individual real — é só pra o modo de exemplo não ficar com os
 // gráficos de faixa vazios.
-const AGING_RATIOS = [0.53, 0.14, 0.12, 0.21]; // 0-20 / 20-30 / 30-40 / 40+
+const AGING_RATIOS = [0.53, 0.14, 0.33]; // 0-20 / 20-30 / 30+
 const ACTIVITY_RATIOS = [0.35, 0.25, 0.2, 0.1, 0.1]; // 0-2 / 3-5 / 6-10 / 11-15 / 16+
 const EVENTO_ATRASADO_RATIO = 0.08;
 const EVENTO_PROXIMO30_RATIO = 0.18;
