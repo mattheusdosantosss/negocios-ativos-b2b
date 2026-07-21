@@ -60,6 +60,8 @@ export type Deal = {
     data_prevista_do_evento?: string;
     /** Temperatura Atual — leitura do curador: "Vou vender", "Forecast", "Café com leite", "Não levo fé". */
     temperatura_atual?: string;
+    /** "Valor líquido -10%" — valor do negócio com 10% de desconto aplicado. */
+    valor_liquido_b2c_10?: string;
     [key: string]: string | undefined;
   };
 };
@@ -169,6 +171,7 @@ const DEAL_PROPS = [
   "notes_last_updated",
   "data_prevista_do_evento",
   "temperatura_atual",
+  "valor_liquido_b2c_10",
 ];
 
 // Helpers de timezone (Brasília = UTC-3, sem DST desde 2019) pro filtro por

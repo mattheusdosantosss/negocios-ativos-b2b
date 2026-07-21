@@ -175,7 +175,7 @@ export default function Page() {
   const conviccao = useMemo(() => (data ? conviccaoGeral(data.totals.tempPorEtapa) : null), [data]);
 
   const forecast = useMemo(() => (data ? dealsForecast(data.closers) : []), [data]);
-  const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.amount, 0), [forecast]);
+  const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.valorLiquido, 0), [forecast]);
 
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
@@ -276,8 +276,8 @@ export default function Page() {
           accent="blue"
           hint={
             data && forecast.length > 0
-              ? `${num(forecast.length)} negócios em Forecast · valor bruto · ver lista ↗`
-              : "Negócios com temperatura Forecast (previsão firme) · valor bruto"
+              ? `${num(forecast.length)} negócios em Forecast · valor líquido (-10%) · ver lista ↗`
+              : "Negócios com temperatura Forecast (previsão firme) · valor líquido (-10%)"
           }
           loading={loading}
           onClick={data && forecast.length > 0 ? () => setModal({ mode: "forecast" }) : undefined}
@@ -448,6 +448,7 @@ export default function Page() {
         stageLabel={modalStageLabel}
         deals={modalDeals}
         dateField={modalDateField}
+        netValue={modal?.mode === "forecast"}
       />
 
       <CloserSummaryModal

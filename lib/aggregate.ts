@@ -37,6 +37,8 @@ export type DealLite = {
   id: string;
   dealname: string;
   amount: number;
+  /** "Valor líquido -10%" (valor_liquido_b2c_10). Cai pro amount se vazio. */
+  valorLiquido: number;
   createdate?: string;
   /** Data de qualificação (pipedrive___data_de_qualificacao). */
   qualdate?: string;
@@ -251,10 +253,12 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
       byOwner.set(ownerId, row);
     }
 
+    const liquidoRaw = Number(deal.properties.valor_liquido_b2c_10 || "");
     const dealLite: DealLite = {
       id: deal.id,
       dealname: deal.properties.dealname || `Negócio ${deal.id}`,
       amount,
+      valorLiquido: Number.isFinite(liquidoRaw) && liquidoRaw > 0 ? liquidoRaw : amount,
       createdate: deal.properties.createdate,
       qualdate: deal.properties.pipedrive___data_de_qualificacao,
       activitydate: deal.properties.notes_last_updated,

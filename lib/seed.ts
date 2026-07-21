@@ -53,6 +53,7 @@ function fakeDeals(prefix: string, count: number, valorTotal: number, temp?: str
     id: `demo-${prefix}-${j}`,
     dealname: `Negócio de exemplo ${prefix}.${j + 1}`,
     amount: media,
+    valorLiquido: media * 0.9,
     createdate: "2026-06-20",
     qualdate: "2026-06-22",
     activitydate: "2026-07-07",

@@ -30,6 +30,8 @@ type Props = {
   deals: Array<DealLite | AggregatedDealItem>;
   /** Qual data mostrar ao lado do valor. Default: data de criação. */
   dateField?: DateField;
+  /** Quando true, usa o valor líquido (-10%) em vez do bruto. */
+  netValue?: boolean;
 };
 
 const ownerOf = (d: DealLite | AggregatedDealItem): string | null =>
@@ -42,7 +44,10 @@ export default function DealListModal({
   stageLabel,
   deals,
   dateField = "createdate",
+  netValue = false,
 }: Props) {
+  const valueOf = (d: DealLite | AggregatedDealItem) => (netValue ? d.valorLiquido : d.amount);
+  const valueLabel = netValue ? "Valor líquido (-10%)" : "Valor bruto";
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -64,7 +69,7 @@ export default function DealListModal({
   if (!open) return null;
 
   const total = deals.length;
-  const valorTotal = deals.reduce((s, d) => s + d.amount, 0);
+  const valorTotal = deals.reduce((s, d) => s + valueOf(d), 0);
   const dateInfo = DATE_FIELD_INFO[dateField];
 
   return (
@@ -107,7 +112,7 @@ export default function DealListModal({
                 <div className="mt-1 font-display text-2xl font-bold text-psa-orange tabular-nums">{total}</div>
               </div>
               <div className="bg-white/5 rounded-xl px-4 py-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Valor Total (bruto)</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Valor Total · {netValue ? "líquido" : "bruto"}</div>
                 <div className="mt-1 font-display text-xl font-bold text-psa-orange tabular-nums whitespace-nowrap">
                   {brl(valorTotal)}
                 </div>
@@ -124,7 +129,7 @@ export default function DealListModal({
             <div className="px-6 py-2 flex items-center gap-4 border-b border-white/10 text-[10px] font-bold uppercase tracking-wider text-white/40 sticky top-0 bg-psa-ink z-10">
               <span className="w-8">#</span>
               <span className="flex-1">Negócio</span>
-              <span className="whitespace-nowrap">Valor bruto</span>
+              <span className="whitespace-nowrap">{valueLabel}</span>
               <span className="w-16 text-right whitespace-nowrap">{dateInfo.short}</span>
             </div>
             <ol className="divide-y divide-white/10">
@@ -149,7 +154,7 @@ export default function DealListModal({
                     </div>
                     {hasLink && <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>}
                     <div className="text-xs font-medium text-psa-orange tabular-nums whitespace-nowrap">
-                      {brl(d.amount)}
+                      {brl(valueOf(d))}
                     </div>
                     <div
                       className="text-xs text-white/60 tabular-nums whitespace-nowrap w-16 text-right"
