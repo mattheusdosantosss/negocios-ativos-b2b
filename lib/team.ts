@@ -19,6 +19,9 @@ export const B2B_TEAM: TeamMember[] = [
   { ownerId: "80454585", nome: "Leandro Bengochea" },
   { ownerId: "92333469", nome: "Rafael Oliveira Alves" },
   { ownerId: "94316538", nome: "Gabriel Oliveira Alves" },
+  { ownerId: "80454584", nome: "Cesar Luiz dos Santos Filho" },
+  { ownerId: "94028856", nome: "Andrei Felippe Freitas de Mello" },
+  { ownerId: "95811085", nome: "Wagner Macedo Freitas" },
 ];
 
 export const B2B_TEAM_IDS = new Set(B2B_TEAM.map((m) => m.ownerId));

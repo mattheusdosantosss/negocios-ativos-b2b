@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
 import TemperatureStacked from "@/components/TemperatureStacked";
-import CloserTable from "@/components/CloserTable";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
@@ -37,7 +36,6 @@ export default function Page() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   type ModalState =
     | { mode: "single"; row: CloserRow; stageId: string | "total" }
     | { mode: "aging"; row: CloserRow; bucketId: string }
@@ -91,31 +89,11 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryString]);
 
-  const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-
   // Closers do time B2B que têm ao menos 1 negócio ativo (base do KPI e do popup).
   const teamClosers = useMemo(
     () => (data ? data.closers.filter((c) => B2B_TEAM_IDS.has(c.ownerId)) : []),
     [data]
   );
-
-  const filteredClosers = useMemo(() => {
-    if (!data) return [];
-    const q = normalize(search.trim());
-    if (!q) return data.closers;
-    return data.closers.filter((c) => normalize(c.nome).includes(q));
-  }, [data, search]);
-
-  const updatedAtFormatted = useMemo(() => {
-    if (!data?.meta.updatedAt) return null;
-    return new Date(data.meta.updatedAt).toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }, [data?.meta.updatedAt]);
 
   const ticketMedio = data && data.totals.total > 0 ? data.totals.valor / data.totals.total : 0;
 
@@ -175,7 +153,7 @@ export default function Page() {
   const conviccao = useMemo(() => (data ? conviccaoGeral(data.totals.tempPorEtapa) : null), [data]);
 
   const forecast = useMemo(() => (data ? dealsForecast(data.closers) : []), [data]);
-  const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.valorLiquido, 0), [forecast]);
+  const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.amount, 0), [forecast]);
 
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
@@ -276,8 +254,8 @@ export default function Page() {
           accent="blue"
           hint={
             data && forecast.length > 0
-              ? `${num(forecast.length)} negócios em Forecast · valor líquido (-10%) · ver lista ↗`
-              : "Negócios com temperatura Forecast (previsão firme) · valor líquido (-10%)"
+              ? `${num(forecast.length)} negócios em Forecast · valor bruto · ver lista ↗`
+              : "Negócios com temperatura Forecast (previsão firme) · valor bruto"
           }
           loading={loading}
           onClick={data && forecast.length > 0 ? () => setModal({ mode: "forecast" }) : undefined}
@@ -394,45 +372,6 @@ export default function Page() {
         </div>
       )}
 
-      {/* Tabela por closer */}
-      <section>
-        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-          <h2 className="font-display text-lg font-semibold text-psa-ink">Detalhe por Closer</h2>
-          {data && !loading && (
-            <span className="text-xs text-psa-ink-soft">
-              {filteredClosers.length}/{data.closers.length} closers
-              {updatedAtFormatted && (
-                <>
-                  {" · "}
-                  <span title="Última atualização dos dados">Atualizado {updatedAtFormatted}</span>
-                </>
-              )}
-            </span>
-          )}
-        </div>
-
-        <div className="mb-4">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar closer…"
-            className="w-full max-w-xs rounded-xl border border-psa-line bg-psa-surface px-4 py-2 text-sm shadow-card focus:outline-none focus:ring-2 focus:ring-psa-orange/40"
-          />
-        </div>
-
-        <CloserTable
-          rows={filteredClosers}
-          stages={data?.stages ?? []}
-          loading={loading}
-          onOpenStage={(row, stageId) => setModal({ mode: "single", row, stageId })}
-          onOpenAgingBucket={(row, bucketId) => setModal({ mode: "aging", row, bucketId })}
-          onOpenActivityBucket={(row, bucketId) => setModal({ mode: "activity", row, bucketId })}
-          onOpenEventoAtrasado={(row) => setModal({ mode: "evento-atrasado-closer", row })}
-          onOpenTemp={(row, stageId, tempId) => setModal({ mode: "temp-closer", row, stageId, tempId })}
-        />
-      </section>
-
       <DealListModal
         open={modal !== null}
         onClose={() => setModal(null)}
@@ -448,7 +387,6 @@ export default function Page() {
         stageLabel={modalStageLabel}
         deals={modalDeals}
         dateField={modalDateField}
-        netValue={modal?.mode === "forecast"}
       />
 
       <CloserSummaryModal
