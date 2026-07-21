@@ -15,6 +15,7 @@ import {
   allDealsOf,
   dealsForEventoAtrasado,
   dealsForEventoProximo30,
+  dealsForecast,
   dealsForEvento30Temp,
   dealsForTemp,
   dealsOutsideTeam,
@@ -46,6 +47,7 @@ export default function Page() {
     | { mode: "evento30-temp"; bucketId: string; tempId: string }
     | { mode: "evento-atrasado-closer"; row: CloserRow }
     | { mode: "outside-team" }
+    | { mode: "forecast" }
     | { mode: "temp-agg"; stageId: string; tempId: string }
     | { mode: "temp-closer"; row: CloserRow; stageId: string; tempId: string }
     | null;
@@ -126,6 +128,7 @@ export default function Page() {
     if (modal.mode === "evento30-temp") return dealsForEvento30Temp(data.closers, modal.bucketId, modal.tempId);
     if (modal.mode === "evento-atrasado-closer") return modal.row.dealsEventoAtrasado;
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
+    if (modal.mode === "forecast") return dealsForecast(data.closers);
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
     if (modal.mode === "temp-closer") return modal.row.dealsTempPorEtapa[modal.stageId]?.[modal.tempId] ?? [];
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
@@ -144,6 +147,7 @@ export default function Page() {
     }
     if (modal.mode === "evento-atrasado-closer") return EVENTO_ATRASADO_LABEL;
     if (modal.mode === "outside-team") return "Fora do time B2B";
+    if (modal.mode === "forecast") return "Forecast · negócios no forecast";
     if (modal.mode === "temp-agg" || modal.mode === "temp-closer") {
       const etapa = TEMP_STAGES.find((s) => s.id === modal.stageId)?.label ?? "";
       const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
@@ -169,6 +173,9 @@ export default function Page() {
   }, [modal]);
 
   const conviccao = useMemo(() => (data ? conviccaoGeral(data.totals.tempPorEtapa) : null), [data]);
+
+  const forecast = useMemo(() => (data ? dealsForecast(data.closers) : []), [data]);
+  const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.amount, 0), [forecast]);
 
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
@@ -264,11 +271,16 @@ export default function Page() {
           loading={loading}
         />
         <KpiCard
-          label="Valor total em aberto"
-          value={data ? brl(data.totals.valor) : "R$ 0,00"}
+          label="Valor previsto (Forecast)"
+          value={data ? brl(forecastValor) : "R$ 0,00"}
           accent="blue"
-          hint="Soma do valor dos negócios ativos"
+          hint={
+            data && forecast.length > 0
+              ? `${num(forecast.length)} negócios em Forecast · ver lista ↗`
+              : "Negócios com temperatura Forecast (previsão firme)"
+          }
           loading={loading}
+          onClick={data && forecast.length > 0 ? () => setModal({ mode: "forecast" }) : undefined}
         />
         <KpiCard
           label="Closers com negócios ativos"

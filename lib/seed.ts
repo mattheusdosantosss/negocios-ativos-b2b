@@ -45,7 +45,7 @@ function splitInts(total: number, ratios: number[]): number[] {
 
 // Negócio individual não é preservado no snapshot (só os totais agregados) —
 // os itens abaixo são ilustrativos, sem registro real no HubSpot (url vazia).
-function fakeDeals(prefix: string, count: number, valorTotal: number): DealLite[] {
+function fakeDeals(prefix: string, count: number, valorTotal: number, temp?: string): DealLite[] {
   const media = count > 0 ? valorTotal / count : 0;
   // Datas ilustrativas fixas (snapshot 09/07/2026) só pra os popups do modo de
   // exemplo não ficarem cheios de "—". Com HUBSPOT_TOKEN vêm as datas reais.
@@ -57,6 +57,7 @@ function fakeDeals(prefix: string, count: number, valorTotal: number): DealLite[
     qualdate: "2026-06-22",
     activitydate: "2026-07-07",
     eventdate: "2026-08-15",
+    temp,
     url: "",
   }));
 }
@@ -104,15 +105,22 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
   });
 
   // Matriz temperatura × etapa (só as 4 ativas, na ordem de TEMP_STAGE_IDS).
+  // Guarda também os deals por etapa (concatenando as temperaturas) pra o
+  // dealsPorEtapa carregar o temp certo em cada negócio (modo de exemplo).
   const tempPorEtapa: Record<string, Record<string, number>> = {};
   const dealsTempPorEtapa: Record<string, Record<string, DealLite[]>> = {};
+  const dealsPorEtapaFromTemp: Record<string, DealLite[]> = {};
   TEMP_STAGE_IDS.forEach((sid, i) => {
     const stageCount = counts[i] || 0;
     const split = splitInts(stageCount, TEMP_RATIOS_BY_STAGE[i]);
     tempPorEtapa[sid] = Object.fromEntries(TEMPERATURE_IDS.map((tid, k) => [tid, split[k]]));
     dealsTempPorEtapa[sid] = Object.fromEntries(
-      TEMPERATURE_IDS.map((tid, k) => [tid, fakeDeals(`${ownerId}-${sid}-${tid}`, split[k], media * split[k])])
+      TEMPERATURE_IDS.map((tid, k) => [
+        tid,
+        fakeDeals(`${ownerId}-${sid}-${tid}`, split[k], media * split[k], tid),
+      ])
     );
+    dealsPorEtapaFromTemp[sid] = TEMPERATURE_IDS.flatMap((tid) => dealsTempPorEtapa[sid][tid]);
   });
 
   return {
@@ -121,7 +129,12 @@ function row(ownerId: string, nome: string, counts: number[], valores: number[])
     porEtapa: Object.fromEntries(STAGE_IDS.map((id, i) => [id, counts[i]])),
     valorPorEtapa: Object.fromEntries(STAGE_IDS.map((id, i) => [id, valores[i]])),
     dealsPorEtapa: Object.fromEntries(
-      STAGE_IDS.map((id, i) => [id, fakeDeals(String(i + 1), counts[i], valores[i])])
+      STAGE_IDS.map((id, i) => [
+        id,
+        // Etapas com matriz de temperatura reusam os deals já com temp; Resting
+        // (fora da matriz) gera deals soltos, sem temperatura.
+        dealsPorEtapaFromTemp[id] ?? fakeDeals(String(i + 1), counts[i], valores[i]),
+      ])
     ),
     porFaixa: aging.porBucket,
     dealsPorFaixa: aging.dealsPorBucket,

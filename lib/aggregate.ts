@@ -44,6 +44,8 @@ export type DealLite = {
   activitydate?: string;
   /** Data prevista do evento (data_prevista_do_evento). */
   eventdate?: string;
+  /** Id da Temperatura Atual (vou_vender / forecast / cafe / larguei / sem_leitura). */
+  temp?: string;
   /** Vazio no modo de exemplo (sem HUBSPOT_TOKEN) — sem registro real no HubSpot. */
   url: string;
 };
@@ -257,6 +259,7 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
       qualdate: deal.properties.pipedrive___data_de_qualificacao,
       activitydate: deal.properties.notes_last_updated,
       eventdate: deal.properties.data_prevista_do_evento,
+      temp: temperaturaId(deal.properties.temperatura_atual),
       url: dealUrl(deal.id),
     };
 
@@ -411,6 +414,15 @@ export function dealsOutsideTeam(closers: CloserRow[]): AggregatedDealItem[] {
 /** Negócios cuja Data Prevista do Evento já passou, de TODOS os closers. */
 export function dealsForEventoAtrasado(closers: CloserRow[]): AggregatedDealItem[] {
   return closers.flatMap((c) => c.dealsEventoAtrasado.map((d) => ({ ...d, ownerName: c.nome })));
+}
+
+/** Negócios marcados como "Forecast" na Temperatura Atual, de TODOS os closers (qualquer etapa). */
+export function dealsForecast(closers: CloserRow[]): AggregatedDealItem[] {
+  return closers.flatMap((c) =>
+    allDealsOf(c)
+      .filter((d) => d.temp === "forecast")
+      .map((d) => ({ ...d, ownerName: c.nome }))
+  );
 }
 
 /** Negócios com Data Prevista do Evento nos próximos 30 dias, de TODOS os closers. */
