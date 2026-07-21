@@ -276,7 +276,7 @@ export default function Page() {
           accent="ink"
           hint={
             data
-              ? `${num(data.totals.ganhoCount)} negócios ganhos no período · valor bruto`
+              ? `${num(data.totals.ganhoCount)} ganhos (todo o histórico) · valor bruto`
               : "Valor dos ganhos ÷ nº de ganhos (fechado + contrato assinado)"
           }
           loading={loading}
