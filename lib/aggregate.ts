@@ -94,15 +94,15 @@ function bucketForActivityDays(days: number): string {
   return "16+";
 }
 
-// Faixas de negócios cuja Data Prevista do Evento ainda está no futuro
-// (diffDays >= 0) — distribuição usada no card "Evento em até 30 dias".
-export const EVENT_FUTURE_BUCKETS: { id: string; label: string }[] = [
+// Janelas de negócios cuja Data Prevista do Evento está nos próximos 30 dias.
+// Usadas como "eixo" do gráfico "Evento em até 30 dias" (empilhado por
+// temperatura). Sem "30+" — o card é só dos eventos dentro de 30 dias.
+export const EVENT_30D_BUCKETS: { id: string; label: string }[] = [
   { id: "0-7", label: "0–7 dias" },
   { id: "8-15", label: "8–15 dias" },
   { id: "16-30", label: "16–30 dias" },
-  { id: "30+", label: "30+ dias" },
 ];
-const EVENT_FUTURE_BUCKET_IDS = EVENT_FUTURE_BUCKETS.map((b) => b.id);
+const EVENT_30D_BUCKET_IDS = EVENT_30D_BUCKETS.map((b) => b.id);
 
 function bucketForFutureEventDays(days: number): string {
   if (days <= 7) return "0-7";
@@ -127,9 +127,9 @@ export type CloserRow = {
   /** Data Prevista do Evento dentro dos próximos 30 dias. */
   eventoProximo30: number;
   dealsEventoProximo30: DealLite[];
-  /** Distribuição de negócios com evento futuro (0-7/8-15/16-30/30+ dias). */
-  porEventoFuturo: Record<string, number>;
-  dealsPorEventoFuturo: Record<string, DealLite[]>;
+  /** Matriz janela de evento (≤30 dias: 0-7/8-15/16-30) × Temperatura. */
+  eventoProx30PorTemp: Record<string, Record<string, number>>;
+  dealsEventoProx30PorTemp: Record<string, Record<string, DealLite[]>>;
   /** Matriz Temperatura Atual × etapa (4 etapas ativas, sem Resting). */
   tempPorEtapa: Record<string, Record<string, number>>;
   dealsTempPorEtapa: Record<string, Record<string, DealLite[]>>;
@@ -147,7 +147,8 @@ export type DashboardData = {
     foraDoTimeB2B: number;
     eventoAtrasado: number;
     eventoProximo30: number;
-    porEventoFuturo: Record<string, number>;
+    /** Matriz janela de evento (≤30 dias) × Temperatura, agregada. */
+    eventoProx30PorTemp: Record<string, Record<string, number>>;
     /** Matriz Temperatura × etapa agregada (todos os closers). */
     tempPorEtapa: Record<string, Record<string, number>>;
   };
@@ -179,6 +180,18 @@ function emptyTempMatrix(): Record<string, Record<string, number>> {
 function emptyTempDealsMatrix(): Record<string, Record<string, DealLite[]>> {
   return Object.fromEntries(
     TEMP_STAGE_IDS.map((sid) => [sid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
+  );
+}
+
+function emptyEvent30Matrix(): Record<string, Record<string, number>> {
+  return Object.fromEntries(
+    EVENT_30D_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
+  );
+}
+
+function emptyEvent30DealsMatrix(): Record<string, Record<string, DealLite[]>> {
+  return Object.fromEntries(
+    EVENT_30D_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
   );
 }
 
@@ -226,8 +239,8 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         dealsEventoAtrasado: [],
         eventoProximo30: 0,
         dealsEventoProximo30: [],
-        porEventoFuturo: emptyBucketMap(EVENT_FUTURE_BUCKET_IDS),
-        dealsPorEventoFuturo: emptyBucketDealsMap(EVENT_FUTURE_BUCKET_IDS),
+        eventoProx30PorTemp: emptyEvent30Matrix(),
+        dealsEventoProx30PorTemp: emptyEvent30DealsMatrix(),
         tempPorEtapa: emptyTempMatrix(),
         dealsTempPorEtapa: emptyTempDealsMatrix(),
         total: 0,
@@ -271,14 +284,14 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
       if (diffDays < 0) {
         row.eventoAtrasado += 1;
         row.dealsEventoAtrasado.push(dealLite);
-      } else {
-        if (diffDays <= 30) {
-          row.eventoProximo30 += 1;
-          row.dealsEventoProximo30.push(dealLite);
-        }
-        const futuroBucket = bucketForFutureEventDays(diffDays);
-        row.porEventoFuturo[futuroBucket] += 1;
-        row.dealsPorEventoFuturo[futuroBucket].push(dealLite);
+      } else if (diffDays <= 30) {
+        row.eventoProximo30 += 1;
+        row.dealsEventoProximo30.push(dealLite);
+        // Janela (0-7/8-15/16-30) × temperatura, pro gráfico "Evento em 30 dias".
+        const janela = bucketForFutureEventDays(diffDays);
+        const tid = temperaturaId(deal.properties.temperatura_atual);
+        row.eventoProx30PorTemp[janela][tid] += 1;
+        row.dealsEventoProx30PorTemp[janela][tid].push(dealLite);
       }
     }
 
@@ -303,8 +316,13 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
     foraDoTimeB2B: closers.filter((c) => !B2B_TEAM_IDS.has(c.ownerId)).reduce((s, c) => s + c.total, 0),
     eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
     eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
-    porEventoFuturo: Object.fromEntries(
-      EVENT_FUTURE_BUCKET_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEventoFuturo[id], 0)])
+    eventoProx30PorTemp: Object.fromEntries(
+      EVENT_30D_BUCKET_IDS.map((bid) => [
+        bid,
+        Object.fromEntries(
+          TEMPERATURE_IDS.map((tid) => [tid, closers.reduce((s, c) => s + c.eventoProx30PorTemp[bid][tid], 0)])
+        ),
+      ])
     ),
     tempPorEtapa: Object.fromEntries(
       TEMP_STAGE_IDS.map((sid) => [
@@ -400,10 +418,14 @@ export function dealsForEventoProximo30(closers: CloserRow[]): AggregatedDealIte
   return closers.flatMap((c) => c.dealsEventoProximo30.map((d) => ({ ...d, ownerName: c.nome })));
 }
 
-/** Negócios de uma faixa de evento futuro (0-7/8-15/16-30/30+), de TODOS os closers. */
-export function dealsForFutureEventBucket(closers: CloserRow[], bucketId: string): AggregatedDealItem[] {
+/** Negócios de uma janela de evento (≤30 dias) + temperatura, de TODOS os closers. */
+export function dealsForEvento30Temp(
+  closers: CloserRow[],
+  bucketId: string,
+  tempId: string
+): AggregatedDealItem[] {
   return closers.flatMap((c) =>
-    (c.dealsPorEventoFuturo[bucketId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
+    (c.dealsEventoProx30PorTemp[bucketId]?.[tempId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
   );
 }
 

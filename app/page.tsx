@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
-import AgingFunnel from "@/components/AgingFunnel";
 import TemperatureStacked from "@/components/TemperatureStacked";
 import CloserTable from "@/components/CloserTable";
 import DealListModal from "@/components/DealListModal";
@@ -11,12 +10,12 @@ import PeriodFilter from "@/components/PeriodFilter";
 import {
   AGING_BUCKETS,
   ACTIVITY_BUCKETS,
-  EVENT_FUTURE_BUCKETS,
+  EVENT_30D_BUCKETS,
   TEMPERATURES,
   allDealsOf,
   dealsForEventoAtrasado,
   dealsForEventoProximo30,
-  dealsForFutureEventBucket,
+  dealsForEvento30Temp,
   dealsForTemp,
   dealsOutsideTeam,
   conviccaoGeral,
@@ -44,7 +43,7 @@ export default function Page() {
     | { mode: "activity"; row: CloserRow; bucketId: string }
     | { mode: "evento-atrasado-agg" }
     | { mode: "evento-proximo30-agg" }
-    | { mode: "evento-futuro-agg"; bucketId: string }
+    | { mode: "evento30-temp"; bucketId: string; tempId: string }
     | { mode: "evento-atrasado-closer"; row: CloserRow }
     | { mode: "outside-team" }
     | { mode: "temp-agg"; stageId: string; tempId: string }
@@ -124,7 +123,7 @@ export default function Page() {
     if (modal.mode === "activity") return modal.row.dealsPorAtividade[modal.bucketId] ?? [];
     if (modal.mode === "evento-atrasado-agg") return dealsForEventoAtrasado(data.closers);
     if (modal.mode === "evento-proximo30-agg") return dealsForEventoProximo30(data.closers);
-    if (modal.mode === "evento-futuro-agg") return dealsForFutureEventBucket(data.closers, modal.bucketId);
+    if (modal.mode === "evento30-temp") return dealsForEvento30Temp(data.closers, modal.bucketId, modal.tempId);
     if (modal.mode === "evento-atrasado-closer") return modal.row.dealsEventoAtrasado;
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
@@ -138,8 +137,11 @@ export default function Page() {
     if (modal.mode === "activity") return ACTIVITY_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
     if (modal.mode === "evento-atrasado-agg") return EVENTO_ATRASADO_LABEL;
     if (modal.mode === "evento-proximo30-agg") return EVENTO_PROXIMO30_LABEL;
-    if (modal.mode === "evento-futuro-agg")
-      return EVENT_FUTURE_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
+    if (modal.mode === "evento30-temp") {
+      const janela = EVENT_30D_BUCKETS.find((b) => b.id === modal.bucketId)?.label ?? "";
+      const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
+      return `${temp} · evento em ${janela}`;
+    }
     if (modal.mode === "evento-atrasado-closer") return EVENTO_ATRASADO_LABEL;
     if (modal.mode === "outside-team") return "Fora do time B2B";
     if (modal.mode === "temp-agg" || modal.mode === "temp-closer") {
@@ -159,7 +161,7 @@ export default function Page() {
     if (
       modal.mode === "evento-atrasado-agg" ||
       modal.mode === "evento-proximo30-agg" ||
-      modal.mode === "evento-futuro-agg" ||
+      modal.mode === "evento30-temp" ||
       modal.mode === "evento-atrasado-closer"
     )
       return "eventdate";
@@ -340,15 +342,15 @@ export default function Page() {
                   {data ? num(data.totals.eventoProximo30) : 0}
                 </button>
                 <div className="mt-1 text-[11px] text-psa-ink-soft">
-                  Data Prevista do Evento nos próximos 30 dias
+                  Data Prevista do Evento nos próximos 30 dias · por temperatura
                 </div>
               </div>
             </div>
             {data && (
-              <AgingFunnel
-                buckets={EVENT_FUTURE_BUCKETS}
-                porFaixa={data.totals.porEventoFuturo}
-                onOpenBucket={(bucketId) => setModal({ mode: "evento-futuro-agg", bucketId })}
+              <TemperatureStacked
+                stages={EVENT_30D_BUCKETS}
+                matrix={data.totals.eventoProx30PorTemp}
+                onOpen={(bucketId, tempId) => setModal({ mode: "evento30-temp", bucketId, tempId })}
               />
             )}
           </div>
