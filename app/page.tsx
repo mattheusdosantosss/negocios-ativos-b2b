@@ -276,8 +276,8 @@ export default function Page() {
           accent="blue"
           hint={
             data && forecast.length > 0
-              ? `${num(forecast.length)} negócios em Forecast · ver lista ↗`
-              : "Negócios com temperatura Forecast (previsão firme)"
+              ? `${num(forecast.length)} negócios em Forecast · valor bruto · ver lista ↗`
+              : "Negócios com temperatura Forecast (previsão firme) · valor bruto"
           }
           loading={loading}
           onClick={data && forecast.length > 0 ? () => setModal({ mode: "forecast" }) : undefined}

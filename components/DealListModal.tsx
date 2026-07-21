@@ -107,7 +107,7 @@ export default function DealListModal({
                 <div className="mt-1 font-display text-2xl font-bold text-psa-orange tabular-nums">{total}</div>
               </div>
               <div className="bg-white/5 rounded-xl px-4 py-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Valor Total</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">Valor Total (bruto)</div>
                 <div className="mt-1 font-display text-xl font-bold text-psa-orange tabular-nums whitespace-nowrap">
                   {brl(valorTotal)}
                 </div>
@@ -124,7 +124,7 @@ export default function DealListModal({
             <div className="px-6 py-2 flex items-center gap-4 border-b border-white/10 text-[10px] font-bold uppercase tracking-wider text-white/40 sticky top-0 bg-psa-ink z-10">
               <span className="w-8">#</span>
               <span className="flex-1">Negócio</span>
-              <span className="whitespace-nowrap">Valor</span>
+              <span className="whitespace-nowrap">Valor bruto</span>
               <span className="w-16 text-right whitespace-nowrap">{dateInfo.short}</span>
             </div>
             <ol className="divide-y divide-white/10">
