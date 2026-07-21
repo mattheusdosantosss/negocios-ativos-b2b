@@ -155,6 +155,9 @@ export type DashboardData = {
     eventoProx30PorTemp: Record<string, Record<string, number>>;
     /** Matriz Temperatura × etapa agregada (todos os closers). */
     tempPorEtapa: Record<string, Record<string, number>>;
+    /** Negócios ganhos (fechado + contrato assinado) no período — pro ticket médio de ganho. */
+    ganhoCount: number;
+    ganhoValor: number;
   };
   closers: CloserRow[];
 };
@@ -210,7 +213,11 @@ function daysSince(now: number, raw?: string): number {
   return Number.isFinite(t) ? Math.floor((now - t) / 86_400_000) : NaN;
 }
 
-export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<DashboardData, "meta"> {
+export function aggregate(
+  deals: Deal[],
+  owners: Map<string, Owner>,
+  won: { count: number; valor: number } = { count: 0, valor: 0 }
+): Omit<DashboardData, "meta"> {
   const byOwner = new Map<string, CloserRow>();
   const now = Date.now();
 
@@ -339,6 +346,8 @@ export function aggregate(deals: Deal[], owners: Map<string, Owner>): Omit<Dashb
         ),
       ])
     ),
+    ganhoCount: won.count,
+    ganhoValor: won.valor,
   };
 
   return { stages: STAGES, totals, closers };

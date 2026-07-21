@@ -222,3 +222,56 @@ export async function fetchActiveDeals(opts?: { from?: string; to?: string }): P
 
   return all;
 }
+
+// Etapas terminais de GANHO (fechamento) nessa pipeline:
+// "Negócio fechado" + "Ganho / Contrato assinado".
+export const WON_STAGE_IDS = ["1076664462", "1076664460"];
+
+/**
+ * Agregado dos negócios GANHOS (fechado + contrato assinado) — só contagem e
+ * soma do amount, pro "ticket médio de ganho". Filtra por data de fechamento
+ * (closedate) quando `from`/`to` são passados. Busca só a prop amount.
+ */
+export async function fetchWonAggregate(opts?: {
+  from?: string;
+  to?: string;
+}): Promise<{ count: number; valor: number }> {
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
+    { propertyName: "pipeline", operator: "EQ", value: PIPELINE_B2B },
+    { propertyName: "dealstage", operator: "IN", values: WON_STAGE_IDS },
+  ];
+  if (opts?.from) {
+    filters.push({ propertyName: "closedate", operator: "GTE", value: brStartOfDayMs(opts.from).toString() });
+  }
+  if (opts?.to) {
+    filters.push({ propertyName: "closedate", operator: "LTE", value: brEndOfDayMs(opts.to).toString() });
+  }
+
+  let count = 0;
+  let valor = 0;
+  let after: string | undefined;
+  do {
+    // limit 200 (máx da Search API) e sem sleep entre páginas: menos
+    // requisições, evita timeout no "Todo o período" (~3.9k ganhos). O retry
+    // automático em 429 já protege contra rate limit.
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters }],
+      properties: ["amount"],
+      limit: 200,
+    };
+    if (after) body.after = after;
+
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    for (const d of data.results) {
+      count += 1;
+      valor += Number(d.properties.amount || 0) || 0;
+    }
+    after = data.paging?.next?.after;
+  } while (after);
+
+  return { count, valor };
+}

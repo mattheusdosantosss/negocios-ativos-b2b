@@ -95,7 +95,9 @@ export default function Page() {
     [data]
   );
 
-  const ticketMedio = data && data.totals.total > 0 ? data.totals.valor / data.totals.total : 0;
+  // Ticket médio de ganho = valor dos negócios ganhos ÷ nº de ganhos (no período).
+  const ticketMedioGanho =
+    data && data.totals.ganhoCount > 0 ? data.totals.ganhoValor / data.totals.ganhoCount : 0;
 
   const modalDeals = useMemo(() => {
     if (!modal || !data) return [];
@@ -269,10 +271,14 @@ export default function Page() {
           onClick={data && teamClosers.length > 0 ? () => setShowCloserSummary(true) : undefined}
         />
         <KpiCard
-          label="Ticket médio"
-          value={data ? brl(ticketMedio) : "R$ 0,00"}
+          label="Ticket médio de ganho"
+          value={data ? brl(ticketMedioGanho) : "R$ 0,00"}
           accent="ink"
-          hint="Valor total ÷ negócios ativos"
+          hint={
+            data
+              ? `${num(data.totals.ganhoCount)} negócios ganhos no período · valor bruto`
+              : "Valor dos ganhos ÷ nº de ganhos (fechado + contrato assinado)"
+          }
           loading={loading}
         />
       </section>

@@ -200,6 +200,9 @@ const totals = {
       ),
     ])
   ),
+  // Ganhos ilustrativos (modo de exemplo): ticket médio de ganho ~R$ 14.900.
+  ganhoCount: 3919,
+  ganhoValor: 58305753,
 };
 
 export const SEED_DATA: DashboardData = {

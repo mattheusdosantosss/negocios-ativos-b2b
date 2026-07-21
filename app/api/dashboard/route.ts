@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllOwners, fetchActiveDeals } from "@/lib/hubspot";
+import { fetchAllOwners, fetchActiveDeals, fetchWonAggregate } from "@/lib/hubspot";
 import { aggregate, type DashboardData } from "@/lib/aggregate";
 import { SEED_DATA } from "@/lib/seed";
 
@@ -17,8 +17,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals] = await Promise.all([fetchAllOwners(), fetchActiveDeals({ from, to })]);
-    const { stages, totals, closers } = aggregate(deals, owners);
+    const [owners, deals, won] = await Promise.all([
+      fetchAllOwners(),
+      fetchActiveDeals({ from, to }),
+      fetchWonAggregate({ from, to }),
+    ]);
+    const { stages, totals, closers } = aggregate(deals, owners, won);
 
     const data: DashboardData = {
       meta: { updatedAt: new Date().toISOString(), usingLiveData: true },
