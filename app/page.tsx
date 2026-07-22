@@ -151,7 +151,7 @@ export default function Page() {
     if (modal.mode === "meeting-time") {
       const faixa = data.meetingTime?.buckets.find((b) => b.id === modal.bucketId)?.label ?? "";
       const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
-      return `${temp} · reunião em ${faixa}`;
+      return `${temp} · proposta em ${faixa}`;
     }
     if (modal.mode === "temp-agg" || modal.mode === "temp-closer") {
       const etapa = data.tempStages.find((s) => s.id === modal.stageId)?.label ?? "";
@@ -467,13 +467,14 @@ export default function Page() {
         </div>
       )}
 
-      {/* Tempo até a reunião — da criação do negócio à reunião, por temperatura */}
+      {/* Tempo até a proposta — da chegada do lead à proposta, que no B2C é
+          apresentada na reunião (por isso a data usada é a da reunião). */}
       {data && data.meetingTime && (
         <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
           <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Tempo até a reunião</h2>
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Tempo até a proposta</h2>
             <span className="text-[11px] text-psa-ink-soft">
-              {num(data.meetingTime.total)} negócios em aberto com reunião · da criação à reunião
+              {num(data.meetingTime.total)} negócios em aberto · da chegada do lead à proposta (apresentada na reunião)
             </span>
           </div>
           <TemperatureStacked
