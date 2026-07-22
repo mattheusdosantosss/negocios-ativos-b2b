@@ -93,7 +93,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
     hasEvento: false,
     hasMeetingTime: true,
-    hasCloserBreakdown: false,
+    hasCloserBreakdown: true,
     team: B2C_TEAM,
   },
 };
