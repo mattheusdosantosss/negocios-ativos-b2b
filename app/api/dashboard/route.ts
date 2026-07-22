@@ -24,26 +24,6 @@ export const maxDuration = 60;
 const getWonAggregateCached = (config: SegmentConfig) =>
   unstable_cache(() => fetchWonAggregate(config), ["won-aggregate", config.id], { revalidate: 900 })();
 
-// "Tempo até a proposta": negócios em aberto + a 1ª reunião com closer de cada
-// um. Varredura pesada (associações + reuniões) → cacheia por segmento (15 min).
-// Se a leitura de reuniões falhar (ex.: escopo), guarda o aviso e segue.
-const getMeetingRawCached = (config: SegmentConfig) =>
-  unstable_cache(
-    async () => {
-      const openDeals = await fetchMeetingScopeDeals(config);
-      try {
-        const starts = await fetchFirstCloserMeeting(config, openDeals.map((d) => d.id));
-        return { openDeals, starts: [...starts.entries()], warning: undefined as string | undefined };
-      } catch (e) {
-        const warning = e instanceof Error ? e.message : "erro ao ler reuniões";
-        return { openDeals, starts: [] as [string, string][], warning };
-      }
-    },
-    // v6: chave nova a cada mudança de lógica pra não servir resultado antigo
-    // (v6 = reunião direto no negócio, não via contato).
-    ["meeting-raw-v6", config.id],
-    { revalidate: 900 }
-  )();
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -57,12 +37,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, meetingRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, meetingScope] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config),
-      config.hasMeetingTime ? getMeetingRawCached(config) : Promise.resolve(null),
+      // escopo FRESCO (não cacheado): negócio que muda de etapa — ex.: vira
+      // Perdido — sai da métrica na hora, sem janela de cache velho.
+      config.hasMeetingTime ? fetchMeetingScopeDeals(config) : Promise.resolve([]),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -72,9 +54,17 @@ export async function GET(req: NextRequest) {
       checkoutDeals
     );
 
-    const meetingTime = meetingRaw
-      ? meetingTimeMatrix(meetingRaw.openDeals, new Map(meetingRaw.starts), owners)
-      : undefined;
+    let meetingTime;
+    let meetingWarning: string | undefined;
+    if (config.hasMeetingTime) {
+      try {
+        const starts = await fetchFirstCloserMeeting(config, meetingScope.map((d) => d.id));
+        meetingTime = meetingTimeMatrix(meetingScope, starts, owners);
+      } catch (e) {
+        meetingWarning = e instanceof Error ? e.message : "erro ao ler reuniões";
+        meetingTime = meetingTimeMatrix(meetingScope, new Map(), owners);
+      }
+    }
 
     const data: DashboardData = {
       meta: {
@@ -84,7 +74,7 @@ export async function GET(req: NextRequest) {
         label: config.label,
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
-        meetingWarning: meetingRaw?.warning,
+        meetingWarning,
       },
       stages,
       tempStages,
