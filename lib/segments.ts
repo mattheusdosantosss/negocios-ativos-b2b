@@ -40,6 +40,9 @@ export type SegmentConfig = {
   /** O segmento exibe o gráfico "Tempo até a reunião" (distribuição do tempo
    *  da criação do negócio até a reunião, por temperatura)? */
   hasMeetingTime: boolean;
+  /** O segmento exibe a seção "Negócios abertos por Closer" (lista por closer
+   *  com gráfico de temperatura por etapa)? */
+  hasCloserBreakdown: boolean;
   /** Roster oficial de closers do segmento (métrica "fora do time"). */
   team: TeamMember[];
 };
@@ -65,6 +68,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     checkoutStages: [],
     hasEvento: true,
     hasMeetingTime: false,
+    hasCloserBreakdown: true,
     team: B2B_TEAM,
   },
   b2c: {
@@ -89,6 +93,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
     hasEvento: false,
     hasMeetingTime: true,
+    hasCloserBreakdown: false,
     team: B2C_TEAM,
   },
 };

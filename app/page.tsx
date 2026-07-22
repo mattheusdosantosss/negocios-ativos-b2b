@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
 import TemperatureStacked from "@/components/TemperatureStacked";
+import CloserOpenDeals from "@/components/CloserOpenDeals";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
@@ -463,6 +464,25 @@ export default function Page() {
             stages={data.tempStages}
             matrix={data.totals.tempPorEtapa}
             onOpen={(stageId, tempId) => setModal({ mode: "temp-agg", stageId, tempId })}
+          />
+        </div>
+      )}
+
+      {/* Negócios abertos por Closer — lista por closer com gráfico de
+          temperatura por etapa (só B2B por ora) */}
+      {data && cfg.hasCloserBreakdown && (
+        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios abertos por Closer</h2>
+            <span className="text-[11px] text-psa-ink-soft">
+              clique no closer pra abrir a temperatura · no nº de ativos pra listar os negócios
+            </span>
+          </div>
+          <CloserOpenDeals
+            closers={data.closers}
+            tempStages={data.tempStages}
+            onOpenTemp={(row, stageId, tempId) => setModal({ mode: "temp-closer", row, stageId, tempId })}
+            onOpenTotal={(row) => setModal({ mode: "single", row, stageId: "total" })}
           />
         </div>
       )}
