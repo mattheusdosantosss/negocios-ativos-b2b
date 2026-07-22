@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
 import TemperatureStacked from "@/components/TemperatureStacked";
 import CloserOpenDeals from "@/components/CloserOpenDeals";
+import CloseTimeChart from "@/components/CloseTimeChart";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
@@ -48,7 +49,7 @@ export default function Page() {
     | { mode: "outside-team" }
     | { mode: "forecast" }
     | { mode: "checkout"; stageId: string }
-    | { mode: "meeting-time"; bucketId: string; tempId: string }
+    | { mode: "close-time"; bucketId: string; outcomeId: string }
     | { mode: "temp-agg"; stageId: string; tempId: string }
     | { mode: "temp-closer"; row: CloserRow; stageId: string; tempId: string }
     | null;
@@ -126,7 +127,7 @@ export default function Page() {
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
     if (modal.mode === "forecast") return dealsForecast(data.closers);
     if (modal.mode === "checkout") return data.checkout?.dealsPorEtapa[modal.stageId] ?? [];
-    if (modal.mode === "meeting-time") return data.meetingTime?.deals[modal.bucketId]?.[modal.tempId] ?? [];
+    if (modal.mode === "close-time") return data.closeTime?.deals[modal.bucketId]?.[modal.outcomeId] ?? [];
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
     if (modal.mode === "temp-closer") return modal.row.dealsTempPorEtapa[modal.stageId]?.[modal.tempId] ?? [];
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
@@ -149,10 +150,10 @@ export default function Page() {
     if (modal.mode === "checkout") {
       return data.checkout?.stages.find((s) => s.id === modal.stageId)?.label ?? "Checkout";
     }
-    if (modal.mode === "meeting-time") {
-      const faixa = data.meetingTime?.buckets.find((b) => b.id === modal.bucketId)?.label ?? "";
-      const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
-      return `${temp} · proposta em ${faixa}`;
+    if (modal.mode === "close-time") {
+      const faixa = data.closeTime?.buckets.find((b) => b.id === modal.bucketId)?.label ?? "";
+      const outcome = data.closeTime?.outcomes.find((o) => o.id === modal.outcomeId)?.label ?? "";
+      return `${outcome} · fechou em ${faixa}`;
     }
     if (modal.mode === "temp-agg" || modal.mode === "temp-closer") {
       const etapa = data.tempStages.find((s) => s.id === modal.stageId)?.label ?? "";
@@ -164,11 +165,11 @@ export default function Page() {
   }, [modal, data, cfg.label]);
 
   // Cada tipo de popup mostra ao lado do valor a data mais relevante ao seu contexto.
-  const modalDateField = useMemo((): "createdate" | "qualdate" | "activitydate" | "eventdate" | "meetingdate" => {
+  const modalDateField = useMemo((): "createdate" | "qualdate" | "activitydate" | "eventdate" | "meetingdate" | "closedate" => {
     if (!modal) return "createdate";
     if (modal.mode === "aging") return "qualdate";
     if (modal.mode === "activity") return "activitydate";
-    if (modal.mode === "meeting-time") return "meetingdate";
+    if (modal.mode === "close-time") return "closedate";
     if (
       modal.mode === "evento-atrasado-agg" ||
       modal.mode === "evento-proximo30-agg" ||
@@ -487,22 +488,21 @@ export default function Page() {
         </div>
       )}
 
-      {/* Tempo até a proposta — da chegada do lead à proposta, que no B2C é
-          apresentada na reunião (por isso a data usada é a da reunião). */}
-      {data && data.meetingTime && (
+      {/* Tempo da reunião ao fechamento — dias da 1ª reunião concluída com o
+          closer até o negócio virar Ganho/Perdido (só negócios dos closers). */}
+      {data && data.closeTime && (
         <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
           <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Tempo até a proposta</h2>
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Tempo da reunião ao fechamento</h2>
             <span className="text-[11px] text-psa-ink-soft">
-              {num(data.meetingTime.total)} negócios em aberto · da chegada do lead à proposta (apresentada na reunião)
+              {num(data.closeTime.total)} negócios fechados dos closers · mediana{" "}
+              <b className="text-psa-ink">{num(data.closeTime.medianDays.all)}d</b> (ganho{" "}
+              {num(data.closeTime.medianDays.won)}d · perdido {num(data.closeTime.medianDays.lost)}d)
             </span>
           </div>
-          <TemperatureStacked
-            stages={data.meetingTime.buckets}
-            matrix={data.meetingTime.matrix}
-            unitLabel="negócios"
-            showConviccao={false}
-            onOpen={(bucketId, tempId) => setModal({ mode: "meeting-time", bucketId, tempId })}
+          <CloseTimeChart
+            data={data.closeTime}
+            onOpen={(bucketId, outcomeId) => setModal({ mode: "close-time", bucketId, outcomeId })}
           />
         </div>
       )}

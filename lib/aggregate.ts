@@ -39,8 +39,10 @@ export type DealLite = {
   activitydate?: string;
   /** Data prevista do evento (data_prevista_do_evento). */
   eventdate?: string;
-  /** Data da 1ª reunião com closer (hs_meeting_start_time mais antiga). */
+  /** Data da 1ª reunião concluída com closer (hs_meeting_start_time mais antiga). */
   meetingdate?: string;
+  /** Data de fechamento (Ganho/Perdido) — closedate. */
+  closedate?: string;
   /** Id da Temperatura Atual (vou_vender / forecast / cafe / larguei / sem_leitura). */
   temp?: string;
   /** Vazio no modo de exemplo (sem HUBSPOT_TOKEN) — sem registro real no HubSpot. */
@@ -48,7 +50,13 @@ export type DealLite = {
 };
 
 /** Qual campo de data cada popup exibe ao lado do valor. */
-export type DateField = "createdate" | "qualdate" | "activitydate" | "eventdate" | "meetingdate";
+export type DateField =
+  | "createdate"
+  | "qualdate"
+  | "activitydate"
+  | "eventdate"
+  | "meetingdate"
+  | "closedate";
 
 /** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa/faixa). */
 export type AggregatedDealItem = DealLite & { ownerName: string };
@@ -110,17 +118,24 @@ function bucketForFutureEventDays(days: number): string {
   return "30+";
 }
 
-// Faixas de tempo (em dias) da criação do negócio até a reunião — usadas no
-// gráfico "Tempo até a reunião".
-export const MEETING_TIME_BUCKETS: { id: string; label: string }[] = [
+// Faixas de tempo (em dias) da 1ª reunião concluída até o fechamento — usadas
+// no gráfico "Tempo da reunião ao fechamento".
+export const CLOSE_TIME_BUCKETS: { id: string; label: string }[] = [
   { id: "0-7", label: "0–7 dias" },
   { id: "8-15", label: "8–15 dias" },
   { id: "16-30", label: "16–30 dias" },
   { id: "30+", label: "30+ dias" },
 ];
-export const MEETING_TIME_BUCKET_IDS = MEETING_TIME_BUCKETS.map((b) => b.id);
+export const CLOSE_TIME_BUCKET_IDS = CLOSE_TIME_BUCKETS.map((b) => b.id);
 
-function bucketForMeetingDays(days: number): string {
+// Resultado do fechamento — as duas "séries" empilhadas no gráfico.
+export const CLOSE_OUTCOMES: { id: string; label: string }[] = [
+  { id: "won", label: "Ganho" },
+  { id: "lost", label: "Perdido" },
+];
+export const CLOSE_OUTCOME_IDS = CLOSE_OUTCOMES.map((o) => o.id);
+
+function bucketForCloseDays(days: number): string {
   if (days <= 7) return "0-7";
   if (days <= 15) return "8-15";
   if (days <= 30) return "16-30";
@@ -175,7 +190,7 @@ export type DashboardData = {
     eyebrow: string;
     pipelineName: string;
     /** Diagnóstico: mensagem se a leitura de reuniões falhar (ex.: falta de escopo). */
-    meetingWarning?: string;
+    closeTimeWarning?: string;
   };
   stages: StageDef[];
   /** Etapas que entram na visão de Temperatura (subconjunto de stages). */
@@ -199,19 +214,22 @@ export type DashboardData = {
   closers: CloserRow[];
   /** Presente só nos segmentos com etapas de checkout. */
   checkout?: CheckoutData;
-  /** Presente só nos segmentos com hasMeetingTime — distribuição do tempo da
-   *  criação do negócio até a reunião, por temperatura. */
-  meetingTime?: MeetingTimeData;
+  /** Presente só nos segmentos com hasCloseTime — distribuição do tempo da 1ª
+   *  reunião concluída com closer até o fechamento (Ganho/Perdido). */
+  closeTime?: CloseTimeData;
 };
 
-/** Distribuição "tempo até a reunião" (faixas de dias × temperatura). */
-export type MeetingTimeData = {
+/** Distribuição "tempo da reunião ao fechamento" (faixas de dias × Ganho/Perdido). */
+export type CloseTimeData = {
   buckets: StageDef[];
-  /** matrix[faixa][temperatura] = nº de negócios. */
+  outcomes: StageDef[];
+  /** matrix[faixa][won|lost] = nº de negócios. */
   matrix: Record<string, Record<string, number>>;
-  /** deals[faixa][temperatura] = negócios (pro popup clicável). */
+  /** deals[faixa][won|lost] = negócios (pro popup clicável). */
   deals: Record<string, Record<string, AggregatedDealItem[]>>;
   total: number;
+  /** Mediana de dias reunião→fechamento (won, lost, geral). */
+  medianDays: { won: number; lost: number; all: number };
 };
 
 function emptyMap(ids: string[]): Record<string, number> {
@@ -277,6 +295,7 @@ function toDealLite(deal: Deal): DealLite {
     qualdate: deal.properties.pipedrive___data_de_qualificacao,
     activitydate: deal.properties.notes_last_updated,
     eventdate: deal.properties.data_prevista_do_evento,
+    closedate: deal.properties.closedate,
     // meetingdate é preenchido caso a caso (1ª reunião com closer), não vem do deal.
     temp: temperaturaId(deal.properties.temperatura_atual),
     url: dealUrl(deal.id),
@@ -455,23 +474,34 @@ export function aggregate(
   };
 }
 
+function median(nums: number[]): number {
+  if (nums.length === 0) return 0;
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
 /**
- * Distribuição "tempo até a proposta": dias entre a criação do negócio e a 1ª
- * reunião com um closer/curador (a proposta é apresentada nessa reunião), em
- * faixas × Temperatura Atual. `meetingStartByDealId` mapeia dealId -> ISO da 1ª
- * reunião. Negócios sem reunião de closer ficam de fora. Dias negativos → 0.
+ * Distribuição "tempo da reunião ao fechamento": dias entre a 1ª reunião
+ * concluída com closer e a data de fechamento (Ganho/Perdido), em faixas ×
+ * resultado (won/lost). `meetingStartByDealId` mapeia dealId -> ISO da 1ª
+ * reunião concluída. Negócio sem reunião de closer ou sem closedate fica de
+ * fora. Dias negativos (reunião registrada após o fechamento) → 0.
  */
-export function meetingTimeMatrix(
+export function closeTimeMatrix(
   deals: Deal[],
   meetingStartByDealId: Map<string, string>,
-  owners: Map<string, Owner>
-): MeetingTimeData {
+  owners: Map<string, Owner>,
+  wonStageIds: string[]
+): CloseTimeData {
+  const wonSet = new Set(wonStageIds);
   const matrix: Record<string, Record<string, number>> = Object.fromEntries(
-    MEETING_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
+    CLOSE_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(CLOSE_OUTCOME_IDS.map((o) => [o, 0]))])
   );
   const dealsMap: Record<string, Record<string, AggregatedDealItem[]>> = Object.fromEntries(
-    MEETING_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
+    CLOSE_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(CLOSE_OUTCOME_IDS.map((o) => [o, []]))])
   );
+  const daysArr: Record<string, number[]> = { won: [], lost: [] };
   let total = 0;
 
   for (const deal of deals) {
@@ -479,19 +509,31 @@ export function meetingTimeMatrix(
     if (!startIso) continue;
     const meetMs = parseDateMs(startIso);
     if (!Number.isFinite(meetMs)) continue;
-    const createMs = parseDateMs(deal.properties.createdate);
-    if (!Number.isFinite(createMs)) continue;
+    const closeMs = parseDateMs(deal.properties.closedate);
+    if (!Number.isFinite(closeMs)) continue;
 
-    const days = Math.max(0, Math.floor((meetMs - createMs) / 86_400_000));
-    const bucket = bucketForMeetingDays(days);
-    const tid = temperaturaId(deal.properties.temperatura_atual);
+    const days = Math.max(0, Math.floor((closeMs - meetMs) / 86_400_000));
+    const bucket = bucketForCloseDays(days);
+    const outcome = wonSet.has(deal.properties.dealstage || "") ? "won" : "lost";
     const { nome } = resolveOwner(deal, owners);
-    matrix[bucket][tid] += 1;
-    dealsMap[bucket][tid].push({ ...toDealLite(deal), meetingdate: startIso, ownerName: nome });
+    matrix[bucket][outcome] += 1;
+    dealsMap[bucket][outcome].push({ ...toDealLite(deal), meetingdate: startIso, ownerName: nome });
+    daysArr[outcome].push(days);
     total += 1;
   }
 
-  return { buckets: MEETING_TIME_BUCKETS, matrix, deals: dealsMap, total };
+  return {
+    buckets: CLOSE_TIME_BUCKETS,
+    outcomes: CLOSE_OUTCOMES,
+    matrix,
+    deals: dealsMap,
+    total,
+    medianDays: {
+      won: median(daysArr.won),
+      lost: median(daysArr.lost),
+      all: median([...daysArr.won, ...daysArr.lost]),
+    },
+  };
 }
 
 /** Negócios de uma etapa+temperatura, de TODOS os closers (bloco geral). */

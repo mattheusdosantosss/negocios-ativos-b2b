@@ -5,25 +5,43 @@ import {
   fetchActiveDeals,
   fetchWonAggregate,
   fetchCheckoutDeals,
-  fetchMeetingScopeDeals,
+  fetchClosedCloserDeals,
   fetchFirstCloserMeeting,
 } from "@/lib/hubspot";
-import { aggregate, meetingTimeMatrix, type DashboardData } from "@/lib/aggregate";
+import { aggregate, closeTimeMatrix, type DashboardData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
 import { seedFor } from "@/lib/seed";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// A varredura de reuniões (associações + meetings) pode passar de 10s no cache
-// frio; a Vercel Hobby permite até 60s. O resultado é cacheado 15 min.
+// A varredura de fechados dos closers + reuniões pode passar de 10s no cache
+// frio; a Vercel Hobby permite até 60s. O resultado é cacheado.
 export const maxDuration = 60;
 
 // Ticket médio de ganho é sobre TODOS os ganhos (não sofre o filtro de
-// período). Como pode ser alto volume, cacheia por 15 min — por segmento
-// (chave inclui config.id) — pra não pagar a busca inteira a cada visita.
+// período). Cacheia por 15 min por segmento pra não pagar a busca a cada visita.
 const getWonAggregateCached = (config: SegmentConfig) =>
   unstable_cache(() => fetchWonAggregate(config), ["won-aggregate", config.id], { revalidate: 900 })();
 
+// "Tempo da reunião ao fechamento": negócios FECHADOS dos closers + a 1ª reunião
+// concluída de cada um. Negócio fechado é terminal (não muda mais de etapa),
+// então dá pra cachear a lista com segurança (30 min). Se a leitura de reuniões
+// falhar, guarda o aviso e segue.
+const getCloseTimeRawCached = (config: SegmentConfig) =>
+  unstable_cache(
+    async () => {
+      const closed = await fetchClosedCloserDeals(config);
+      try {
+        const starts = await fetchFirstCloserMeeting(config, closed.map((d) => d.id));
+        return { closed, starts: [...starts.entries()], warning: undefined as string | undefined };
+      } catch (e) {
+        const warning = e instanceof Error ? e.message : "erro ao ler reuniões";
+        return { closed, starts: [] as [string, string][], warning };
+      }
+    },
+    ["close-time-v1", config.id],
+    { revalidate: 1800 }
+  )();
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -37,14 +55,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, meetingScope] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config),
-      // escopo FRESCO (não cacheado): negócio que muda de etapa — ex.: vira
-      // Perdido — sai da métrica na hora, sem janela de cache velho.
-      config.hasMeetingTime ? fetchMeetingScopeDeals(config) : Promise.resolve([]),
+      config.hasCloseTime ? getCloseTimeRawCached(config) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -54,17 +70,9 @@ export async function GET(req: NextRequest) {
       checkoutDeals
     );
 
-    let meetingTime;
-    let meetingWarning: string | undefined;
-    if (config.hasMeetingTime) {
-      try {
-        const starts = await fetchFirstCloserMeeting(config, meetingScope.map((d) => d.id));
-        meetingTime = meetingTimeMatrix(meetingScope, starts, owners);
-      } catch (e) {
-        meetingWarning = e instanceof Error ? e.message : "erro ao ler reuniões";
-        meetingTime = meetingTimeMatrix(meetingScope, new Map(), owners);
-      }
-    }
+    const closeTime = closeRaw
+      ? closeTimeMatrix(closeRaw.closed, new Map(closeRaw.starts), owners, config.wonStageIds)
+      : undefined;
 
     const data: DashboardData = {
       meta: {
@@ -74,14 +82,14 @@ export async function GET(req: NextRequest) {
         label: config.label,
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
-        meetingWarning,
+        closeTimeWarning: closeRaw?.warning,
       },
       stages,
       tempStages,
       totals,
       closers,
       checkout,
-      meetingTime,
+      closeTime,
     };
 
     return NextResponse.json(data);

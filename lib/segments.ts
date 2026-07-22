@@ -31,15 +31,17 @@ export type SegmentConfig = {
   tempStageIds: string[];
   /** Etapas terminais de GANHO — base do "ticket médio de ganho". */
   wonStageIds: string[];
+  /** Etapas terminais de PERDA — usado no "tempo da reunião ao fechamento". */
+  lostStageIds: string[];
   /** Etapas de checkout/pagamento, exibidas num bloco à parte (fora do total
    *  de "ativos"). Vazio quando o segmento não tem essa fase. */
   checkoutStages: StageDef[];
   /** O segmento usa a "Data Prevista do Evento"? Se false, o bloco de Evento
    *  (atrasado / próximos 30 dias) some da seção Atenção. */
   hasEvento: boolean;
-  /** O segmento exibe o gráfico "Tempo até a reunião" (distribuição do tempo
-   *  da criação do negócio até a reunião, por temperatura)? */
-  hasMeetingTime: boolean;
+  /** O segmento exibe o gráfico "Tempo da reunião ao fechamento" (dias da 1ª
+   *  reunião concluída com closer até o negócio virar Ganho/Perdido)? */
+  hasCloseTime: boolean;
   /** O segmento exibe a seção "Negócios abertos por Closer" (lista por closer
    *  com gráfico de temperatura por etapa)? */
   hasCloserBreakdown: boolean;
@@ -65,9 +67,10 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     tempStageIds: ["decisionmakerboughtin", "closedwon", "closedlost", "1167445770"],
     // Etapas terminais de ganho: "Negócio fechado" + "Ganho / Contrato assinado".
     wonStageIds: ["1076664462", "1076664460"],
+    lostStageIds: ["1076664461"],
     checkoutStages: [],
     hasEvento: true,
-    hasMeetingTime: false,
+    hasCloseTime: false,
     hasCloserBreakdown: true,
     team: B2B_TEAM,
   },
@@ -87,12 +90,13 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     tempStageIds: ["1057266721", "1057266722", "1275670104", "1275670105"],
     // Ganho terminal do funil B2C.
     wonStageIds: ["1105295876"],
+    lostStageIds: ["1059939760"],
     // "Pagamento realizado" (1057266725) foi descontinuada — só resta
     // "Aguardando pagamento" no bloco de checkout.
     checkoutStages: [{ id: "1149710517", label: "Aguardando pagamento" }],
     // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
     hasEvento: false,
-    hasMeetingTime: true,
+    hasCloseTime: true,
     hasCloserBreakdown: true,
     team: B2C_TEAM,
   },

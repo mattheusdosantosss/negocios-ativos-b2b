@@ -44,6 +44,8 @@ export type Deal = {
     pipeline?: string;
     hubspot_owner_id?: string;
     createdate?: string;
+    /** Data de fechamento (Ganho/Perdido) — set automático do HubSpot. */
+    closedate?: string;
     /** Data de qualificação — mesma definição usada nos outros painéis da PSA. */
     pipedrive___data_de_qualificacao?: string;
     /** "Last Activity Date" — última nota, ligação, e-mail, reunião ou tarefa registrada no negócio. */
@@ -237,13 +239,59 @@ export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string
   return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
 }
 
+const CLOSED_PROPS = [
+  "closedate",
+  "dealstage",
+  "dealname",
+  "amount",
+  "valor_liquido_b2c_10",
+  "hubspot_owner_id",
+  "createdate",
+  "temperatura_atual",
+];
+
 /**
- * Negócios nas ETAPAS ATIVAS do segmento (sem checkout, sem Ganho/Perdido) —
- * base do gráfico "Tempo até a proposta". Checkout ("Aguardando pagamento") NÃO
- * entra: esses já passaram da proposta. Todo o histórico (sem filtro de período).
+ * Negócios FECHADOS (Ganho + Perdido) cujo dono é um closer do roster —
+ * base do gráfico "Tempo da reunião ao fechamento". Todo o histórico. Busca em
+ * paralelo por closer (cada dono pagina o seu) pra cortar o tempo. Negócio
+ * fechado é terminal, então pode cachear sem risco de defasar etapa.
  */
-export function fetchMeetingScopeDeals(config: SegmentConfig): Promise<Deal[]> {
-  return fetchDealsInStages(config, config.stages.map((s) => s.id));
+export async function fetchClosedCloserDeals(config: SegmentConfig): Promise<Deal[]> {
+  const stages = [...config.wonStageIds, ...config.lostStageIds];
+  if (stages.length === 0 || config.team.length === 0) return [];
+  const pipeline = pipelineIdFor(config);
+
+  const perOwner = await Promise.all(
+    config.team.map(async (member) => {
+      const all: Deal[] = [];
+      let after: string | undefined;
+      do {
+        const body: Record<string, unknown> = {
+          filterGroups: [
+            {
+              filters: [
+                { propertyName: "pipeline", operator: "EQ", value: pipeline },
+                { propertyName: "dealstage", operator: "IN", values: stages },
+                { propertyName: "hubspot_owner_id", operator: "EQ", value: member.ownerId },
+              ],
+            },
+          ],
+          properties: CLOSED_PROPS,
+          limit: 200,
+        };
+        if (after) body.after = after;
+        const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        all.push(...data.results);
+        after = data.paging?.next?.after;
+        if (after) await sleep(120);
+      } while (after);
+      return all;
+    })
+  );
+  return perOwner.flat();
 }
 
 // ------------------------------------------------------------------

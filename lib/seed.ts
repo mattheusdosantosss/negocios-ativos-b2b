@@ -9,8 +9,9 @@ import {
   ACTIVITY_BUCKETS,
   EVENT_30D_BUCKETS,
   TEMPERATURE_IDS,
-  MEETING_TIME_BUCKETS,
-  MEETING_TIME_BUCKET_IDS,
+  CLOSE_TIME_BUCKETS,
+  CLOSE_TIME_BUCKET_IDS,
+  CLOSE_OUTCOMES,
 } from "./aggregate";
 import type {
   AggregatedDealItem,
@@ -18,7 +19,7 @@ import type {
   CloserRow,
   DashboardData,
   DealLite,
-  MeetingTimeData,
+  CloseTimeData,
 } from "./aggregate";
 import { tempStagesOf, type SegmentConfig } from "./segments";
 
@@ -44,8 +45,11 @@ type SegmentSeedSpec = {
   ganho: { count: number; valor: number };
   /** counts/valores alinhados à ordem de config.checkoutStages. */
   checkout?: CheckoutStageSpec[];
-  /** Distribuição ilustrativa "tempo até a reunião" (faixas × temperatura). */
-  meetingTime?: { total: number; bucketRatios: number[]; tempRatios: number[] };
+  /** Distribuição ilustrativa "tempo da reunião ao fechamento" (won/lost × faixas). */
+  closeTime?: {
+    won: { total: number; bucketRatios: number[] };
+    lost: { total: number; bucketRatios: number[] };
+  };
 };
 
 function splitInts(total: number, ratios: number[]): number[] {
@@ -70,6 +74,7 @@ function fakeDeals(prefix: string, count: number, valorTotal: number, temp?: str
     activitydate: "2026-07-07",
     eventdate: "2026-08-15",
     meetingdate: "2026-07-10",
+    closedate: "2026-07-20",
     temp,
     url: "",
   }));
@@ -195,27 +200,43 @@ function makeCheckout(config: SegmentConfig, specs?: CheckoutStageSpec[]): Check
   return { stages: config.checkoutStages, porEtapa, valorPorEtapa, dealsPorEtapa, total, valor };
 }
 
-function makeMeetingTime(config: SegmentConfig, spec: SegmentSeedSpec): MeetingTimeData | undefined {
-  if (!config.hasMeetingTime || !spec.meetingTime) return undefined;
-  const { total, bucketRatios, tempRatios } = spec.meetingTime;
-  const bucketTotals = splitInts(total, bucketRatios);
+const BUCKET_REP_DAYS: Record<string, number> = { "0-7": 4, "8-15": 11, "16-30": 22, "30+": 40 };
+
+function makeCloseTime(config: SegmentConfig, spec: SegmentSeedSpec): CloseTimeData | undefined {
+  if (!config.hasCloseTime || !spec.closeTime) return undefined;
   const nomes = config.team.map((m) => m.nome);
+  const owner = (j: number) => (nomes.length ? nomes[j % nomes.length] : "Sem dono");
+  const wonCounts = splitInts(spec.closeTime.won.total, spec.closeTime.won.bucketRatios);
+  const lostCounts = splitInts(spec.closeTime.lost.total, spec.closeTime.lost.bucketRatios);
+
   const matrix: Record<string, Record<string, number>> = {};
   const dealsMap: Record<string, Record<string, AggregatedDealItem[]>> = {};
-  MEETING_TIME_BUCKET_IDS.forEach((bid, i) => {
-    const split = splitInts(bucketTotals[i], tempRatios);
-    matrix[bid] = Object.fromEntries(TEMPERATURE_IDS.map((tid, k) => [tid, split[k]]));
-    dealsMap[bid] = Object.fromEntries(
-      TEMPERATURE_IDS.map((tid, k) => [
-        tid,
-        fakeDeals(`meet-${bid}-${tid}`, split[k], split[k] * 1500, tid).map((d, j) => ({
-          ...d,
-          ownerName: nomes.length ? nomes[j % nomes.length] : "Sem dono",
-        })),
-      ])
-    );
+  const daysArr: Record<string, number[]> = { won: [], lost: [] };
+  CLOSE_TIME_BUCKET_IDS.forEach((bid, i) => {
+    const w = wonCounts[i];
+    const l = lostCounts[i];
+    matrix[bid] = { won: w, lost: l };
+    dealsMap[bid] = {
+      won: fakeDeals(`cw-${bid}`, w, w * 3000).map((d, j) => ({ ...d, ownerName: owner(j) })),
+      lost: fakeDeals(`cl-${bid}`, l, 0).map((d, j) => ({ ...d, ownerName: owner(j) })),
+    };
+    for (let k = 0; k < w; k++) daysArr.won.push(BUCKET_REP_DAYS[bid]);
+    for (let k = 0; k < l; k++) daysArr.lost.push(BUCKET_REP_DAYS[bid]);
   });
-  return { buckets: MEETING_TIME_BUCKETS, matrix, deals: dealsMap, total };
+  const med = (a: number[]) => {
+    if (a.length === 0) return 0;
+    const s = [...a].sort((x, y) => x - y);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+  };
+  return {
+    buckets: CLOSE_TIME_BUCKETS,
+    outcomes: CLOSE_OUTCOMES,
+    matrix,
+    deals: dealsMap,
+    total: spec.closeTime.won.total + spec.closeTime.lost.total,
+    medianDays: { won: med(daysArr.won), lost: med(daysArr.lost), all: med([...daysArr.won, ...daysArr.lost]) },
+  };
 }
 
 function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
@@ -267,7 +288,7 @@ function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
     totals,
     closers,
     checkout: makeCheckout(config, spec.checkout),
-    meetingTime: makeMeetingTime(config, spec),
+    closeTime: makeCloseTime(config, spec),
   };
 }
 
@@ -338,11 +359,11 @@ const B2C_SPEC: SegmentSeedSpec = {
   checkout: [
     { count: 344, valor: 2333430 }, // Aguardando pagamento
   ],
-  // Só negócios em aberto com reunião (sem Ganho/Perdido) — ~322 no real.
-  meetingTime: {
-    total: 322,
-    bucketRatios: [0.4, 0.28, 0.2, 0.12], // 0-7 / 8-15 / 16-30 / 30+
-    tempRatios: [0.3, 0.1, 0.35, 0.1, 0.15], // vv / forecast / cafe / larguei / sem_leitura
+  // Tempo da reunião ao fechamento — números ~ amostra real (jul/2026):
+  // Ganho 359 e Perdido 2350 com reunião concluída de closer.
+  closeTime: {
+    won: { total: 359, bucketRatios: [0.62, 0.17, 0.11, 0.1] }, // 0-7 / 8-15 / 16-30 / 30+
+    lost: { total: 2350, bucketRatios: [0.59, 0.18, 0.14, 0.09] },
   },
   closers: [
     b2c("79760746", "Mayda Quadros", [70, 2, 12, 4]),
