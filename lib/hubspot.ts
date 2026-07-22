@@ -253,8 +253,15 @@ export function fetchOpenDeals(config: SegmentConfig): Promise<Deal[]> {
 
 type AssocBatchResponse = { results?: Array<{ from: { id: string }; to: Array<{ toObjectId: string | number }> }> };
 type MeetingBatchResponse = {
-  results?: Array<{ id: string; properties: { hs_meeting_start_time?: string; hubspot_owner_id?: string } }>;
+  results?: Array<{
+    id: string;
+    properties: { hs_meeting_start_time?: string; hubspot_owner_id?: string; hs_meeting_outcome?: string };
+  }>;
 };
+
+// Resultado da reunião que conta como "reunião realizada" (proposta apresentada).
+// NO_SHOW / CANCELED / RESCHEDULED / SCHEDULED não contam.
+const MEETING_OUTCOME_DONE = "COMPLETED";
 
 /** Associações batch (v4) de um tipo de objeto para outro. Lotes de 100 em
  *  paralelo (o retry de 429 no hsFetch protege contra rate limit). */
@@ -284,8 +291,8 @@ async function fetchAssocIds(fromType: string, toType: string, ids: string[]): P
 /** Lê "Hora de início da reunião" + dono de um lote de reuniões (100 por vez). */
 async function fetchMeetingsByIds(
   meetingIds: string[]
-): Promise<Map<string, { start?: string; ownerId?: string }>> {
-  const map = new Map<string, { start?: string; ownerId?: string }>();
+): Promise<Map<string, { start?: string; ownerId?: string; outcome?: string }>> {
+  const map = new Map<string, { start?: string; ownerId?: string; outcome?: string }>();
   const chunks: string[][] = [];
   for (let i = 0; i < meetingIds.length; i += 100) chunks.push(meetingIds.slice(i, i + 100));
 
@@ -294,7 +301,7 @@ async function fetchMeetingsByIds(
       hsFetch<MeetingBatchResponse>(`/crm/v3/objects/meetings/batch/read`, {
         method: "POST",
         body: JSON.stringify({
-          properties: ["hs_meeting_start_time", "hubspot_owner_id"],
+          properties: ["hs_meeting_start_time", "hubspot_owner_id", "hs_meeting_outcome"],
           inputs: chunk.map((id) => ({ id })),
         }),
       })
@@ -302,7 +309,11 @@ async function fetchMeetingsByIds(
   );
   for (const data of responses) {
     for (const m of data.results ?? []) {
-      map.set(m.id, { start: m.properties.hs_meeting_start_time, ownerId: m.properties.hubspot_owner_id });
+      map.set(m.id, {
+        start: m.properties.hs_meeting_start_time,
+        ownerId: m.properties.hubspot_owner_id,
+        outcome: m.properties.hs_meeting_outcome,
+      });
     }
   }
   return map;
@@ -310,9 +321,10 @@ async function fetchMeetingsByIds(
 
 /**
  * Para cada negócio, a "Hora de início da reunião" MAIS ANTIGA entre as
- * reuniões cujo dono é um closer/curador do segmento (config.team). As reuniões
- * ficam associadas ao CONTATO (não ao negócio), então o caminho é
- * negócio → contatos → reuniões. Devolve dealId -> ISO da 1ª reunião com closer.
+ * reuniões que (a) têm dono = closer do segmento (config.team) E (b) foram de
+ * fato REALIZADAS (hs_meeting_outcome = COMPLETED — ignora no-show, cancelada,
+ * remarcada). As reuniões ficam no CONTATO, então o caminho é
+ * negócio → contatos → reuniões. Devolve dealId -> ISO da 1ª reunião concluída.
  */
 export async function fetchFirstCloserMeeting(
   config: SegmentConfig,
@@ -337,6 +349,7 @@ export async function fetchFirstCloserMeeting(
       for (const mid of contactMeetings.get(cid) ?? []) {
         const m = meetings.get(mid);
         if (!m?.start || !m.ownerId || !closerIds.has(m.ownerId)) continue;
+        if (m.outcome !== MEETING_OUTCOME_DONE) continue; // só reunião realizada
         const t = new Date(m.start).getTime();
         if (Number.isFinite(t) && t < earliestMs) {
           earliestMs = t;

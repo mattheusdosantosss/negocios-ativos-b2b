@@ -39,8 +39,9 @@ const getMeetingRawCached = (config: SegmentConfig) =>
         return { openDeals, starts: [] as [string, string][], warning };
       }
     },
-    // v3: chave nova a cada mudança de lógica pra não servir resultado antigo.
-    ["meeting-raw-v3", config.id],
+    // v4: chave nova a cada mudança de lógica pra não servir resultado antigo
+    // (v4 = filtra reuniões por outcome=COMPLETED).
+    ["meeting-raw-v4", config.id],
     { revalidate: 900 }
   )();
 
