@@ -190,28 +190,6 @@ export default function Page() {
         <div aria-hidden className="pointer-events-none absolute top-0 right-0 h-full w-1.5 bg-psa-orange" />
 
         <div className="relative px-8 py-8">
-          {/* Abas de segmento B2B | B2C */}
-          <div className="mb-6 inline-flex rounded-xl bg-white/[0.06] border border-white/10 p-1">
-            {SEGMENT_TABS.map((t) => {
-              const active = t.id === segment;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => handleSegmentChange(t.id)}
-                  aria-pressed={active}
-                  className={`px-5 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${
-                    active
-                      ? "bg-psa-orange text-white shadow"
-                      : "text-white/60 hover:text-white hover:bg-white/[0.06]"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-
           <div className="flex items-start justify-between gap-8 flex-wrap">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-psa-orange/15 border border-psa-orange/30">
@@ -231,35 +209,60 @@ export default function Page() {
               </p>
             </div>
 
-            <div className="flex flex-nowrap items-end gap-2.5 shrink-0">
+            <div className="flex items-end gap-2.5 shrink-0">
+              {/* Filtro de período */}
               <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
               </div>
 
-              <button
-                type="button"
-                onClick={load}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-2 min-w-[150px] px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
-                title="Rebuscar os dados no HubSpot agora"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={loading ? "animate-spin" : ""}
+              {/* Coluna direita: abas B2B|B2C logo acima do Atualizar (mesma largura) */}
+              <div className="flex flex-col gap-2.5">
+                <div className="flex rounded-xl bg-white/[0.06] border border-white/10 p-1">
+                  {SEGMENT_TABS.map((t) => {
+                    const active = t.id === segment;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleSegmentChange(t.id)}
+                        aria-pressed={active}
+                        className={`flex-1 text-center px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
+                          active
+                            ? "bg-psa-orange text-white shadow"
+                            : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={load}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center gap-2 min-w-[150px] px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
+                  title="Rebuscar os dados no HubSpot agora"
                 >
-                  <polyline points="23 4 23 10 17 10" />
-                  <polyline points="1 20 1 14 7 14" />
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                </svg>
-                {loading ? "Atualizando…" : "Atualizar"}
-              </button>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={loading ? "animate-spin" : ""}
+                  >
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                  {loading ? "Atualizando…" : "Atualizar"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
