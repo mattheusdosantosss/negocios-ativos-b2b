@@ -39,9 +39,9 @@ const getMeetingRawCached = (config: SegmentConfig) =>
         return { openDeals, starts: [] as [string, string][], warning };
       }
     },
-    // v5: chave nova a cada mudança de lógica pra não servir resultado antigo
-    // (v5 = exclui checkout "Aguardando pagamento" da métrica).
-    ["meeting-raw-v5", config.id],
+    // v6: chave nova a cada mudança de lógica pra não servir resultado antigo
+    // (v6 = reunião direto no negócio, não via contato).
+    ["meeting-raw-v6", config.id],
     { revalidate: 900 }
   )();
 

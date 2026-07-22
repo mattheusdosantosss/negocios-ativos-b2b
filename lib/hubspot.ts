@@ -322,8 +322,9 @@ async function fetchMeetingsByIds(
  * Para cada negócio, a "Hora de início da reunião" MAIS ANTIGA entre as
  * reuniões que (a) têm dono = closer do segmento (config.team) E (b) foram de
  * fato REALIZADAS (hs_meeting_outcome = COMPLETED — ignora no-show, cancelada,
- * remarcada). As reuniões ficam no CONTATO, então o caminho é
- * negócio → contatos → reuniões. Devolve dealId -> ISO da 1ª reunião concluída.
+ * remarcada). Usa a associação DIRETA negócio→reunião (não via contato): um
+ * contato pode ter vários negócios ao longo do tempo, e a reunião pertence ao
+ * negócio da ocasião. Devolve dealId -> ISO da 1ª reunião concluída.
  */
 export async function fetchFirstCloserMeeting(
   config: SegmentConfig,
@@ -333,27 +334,22 @@ export async function fetchFirstCloserMeeting(
   if (dealIds.length === 0) return result;
   const closerIds = new Set(config.team.map((m) => m.ownerId));
 
-  const dealContacts = await fetchAssocIds("deals", "contacts", dealIds);
-  const allContactIds = [...new Set([...dealContacts.values()].flat())];
-  if (allContactIds.length === 0) return result;
-  const contactMeetings = await fetchAssocIds("contacts", "meetings", allContactIds);
-  const allMeetingIds = [...new Set([...contactMeetings.values()].flat())];
+  const dealMeetings = await fetchAssocIds("deals", "meetings", dealIds);
+  const allMeetingIds = [...new Set([...dealMeetings.values()].flat())];
   if (allMeetingIds.length === 0) return result;
   const meetings = await fetchMeetingsByIds(allMeetingIds);
 
-  for (const [dealId, contactIds] of dealContacts) {
+  for (const [dealId, mids] of dealMeetings) {
     let earliestMs = Infinity;
     let earliestIso: string | undefined;
-    for (const cid of contactIds) {
-      for (const mid of contactMeetings.get(cid) ?? []) {
-        const m = meetings.get(mid);
-        if (!m?.start || !m.ownerId || !closerIds.has(m.ownerId)) continue;
-        if (m.outcome !== MEETING_OUTCOME_DONE) continue; // só reunião realizada
-        const t = new Date(m.start).getTime();
-        if (Number.isFinite(t) && t < earliestMs) {
-          earliestMs = t;
-          earliestIso = m.start;
-        }
+    for (const mid of mids) {
+      const m = meetings.get(mid);
+      if (!m?.start || !m.ownerId || !closerIds.has(m.ownerId)) continue;
+      if (m.outcome !== MEETING_OUTCOME_DONE) continue; // só reunião realizada
+      const t = new Date(m.start).getTime();
+      if (Number.isFinite(t) && t < earliestMs) {
+        earliestMs = t;
+        earliestIso = m.start;
       }
     }
     if (earliestIso) result.set(dealId, earliestIso);
