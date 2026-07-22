@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { fetchAllOwners, fetchActiveDeals, fetchWonAggregate, fetchCheckoutDeals } from "@/lib/hubspot";
-import { aggregate, type DashboardData } from "@/lib/aggregate";
+import {
+  fetchAllOwners,
+  fetchActiveDeals,
+  fetchWonAggregate,
+  fetchCheckoutDeals,
+  fetchProposalDeals,
+} from "@/lib/hubspot";
+import { aggregate, proposalTimeMatrix, type DashboardData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
 import { seedFor } from "@/lib/seed";
 
@@ -13,6 +19,11 @@ export const dynamic = "force-dynamic";
 // (chave inclui config.id) — pra não pagar a busca inteira a cada visita.
 const getWonAggregateCached = (config: SegmentConfig) =>
   unstable_cache(() => fetchWonAggregate(config), ["won-aggregate", config.id], { revalidate: 900 })();
+
+// "Tempo até a proposta" é sobre TODO o histórico de propostas enviadas — mesma
+// lógica de cache do ticket de ganho (por segmento, 15 min).
+const getProposalDealsCached = (config: SegmentConfig) =>
+  unstable_cache(() => fetchProposalDeals(config), ["proposal-deals", config.id], { revalidate: 900 })();
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -26,11 +37,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, proposalDeals] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config),
+      config.hasProposalTime ? getProposalDealsCached(config) : Promise.resolve([]),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -54,6 +66,7 @@ export async function GET(req: NextRequest) {
       totals,
       closers,
       checkout,
+      proposalTime: config.hasProposalTime ? proposalTimeMatrix(proposalDeals) : undefined,
     };
 
     return NextResponse.json(data);

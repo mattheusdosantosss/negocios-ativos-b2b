@@ -54,6 +54,8 @@ export type Deal = {
     temperatura_atual?: string;
     /** "Valor líquido -10%" — valor do negócio com 10% de desconto aplicado. */
     valor_liquido_b2c_10?: string;
+    /** "Data de envio da última proposta" — marco do "proposta enviada". */
+    data_de_envio_da_ultima_proposta?: string;
     [key: string]: string | undefined;
   };
 };
@@ -235,6 +237,47 @@ export function fetchActiveDeals(config: SegmentConfig, opts?: { from?: string; 
  */
 export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string; to?: string }): Promise<Deal[]> {
   return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
+}
+
+// Props mínimas pro gráfico "Tempo até a proposta enviada".
+const PROPOSAL_PROPS = [
+  "data_de_envio_da_ultima_proposta",
+  "pipedrive___data_de_qualificacao",
+  "createdate",
+  "temperatura_atual",
+];
+
+/**
+ * Todos os negócios do segmento que têm "Data de envio da última proposta"
+ * preenchida (qualquer etapa — a maioria já é ganho). Base do gráfico "Tempo
+ * até a proposta enviada". Todo o histórico, sem filtro de período.
+ */
+export async function fetchProposalDeals(config: SegmentConfig): Promise<Deal[]> {
+  const filters = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: "data_de_envio_da_ultima_proposta", operator: "HAS_PROPERTY" },
+  ];
+
+  const all: Deal[] = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters }],
+      properties: PROPOSAL_PROPS,
+      limit: 200,
+    };
+    if (after) body.after = after;
+
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    all.push(...data.results);
+    after = data.paging?.next?.after;
+  } while (after);
+
+  return all;
 }
 
 /**

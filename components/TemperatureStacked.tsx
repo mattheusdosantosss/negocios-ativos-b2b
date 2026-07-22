@@ -24,9 +24,20 @@ type Props = {
   onOpen?: (stageId: string, tempId: string) => void;
   /** Menor (usado no dropdown do closer). */
   compact?: boolean;
+  /** Palavra ao lado do total de cada barra (default "ativos"). */
+  unitLabel?: string;
+  /** Mostra convicção · sem leitura no fim de cada linha (default true). */
+  showConviccao?: boolean;
 };
 
-export default function TemperatureStacked({ stages, matrix, onOpen, compact = false }: Props) {
+export default function TemperatureStacked({
+  stages,
+  matrix,
+  onOpen,
+  compact = false,
+  unitLabel = "ativos",
+  showConviccao = true,
+}: Props) {
   const barH = compact ? 22 : 26;
 
   return (
@@ -51,11 +62,13 @@ export default function TemperatureStacked({ stages, matrix, onOpen, compact = f
             <div key={s.id}>
               <div className="flex justify-between items-baseline mb-1.5 gap-2">
                 <span className={`font-medium ${compact ? "text-xs" : "text-[13px]"}`}>
-                  {s.label} <span className="text-psa-ink-soft font-normal">{num(total)} ativos</span>
+                  {s.label} <span className="text-psa-ink-soft font-normal">{num(total)} {unitLabel}</span>
                 </span>
-                <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
-                  convicção <b className="text-psa-ink">{pct(conviccaoEtapa(matrix, s.id))}</b> · {num(semLeitura)} sem leitura
-                </span>
+                {showConviccao && (
+                  <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
+                    convicção <b className="text-psa-ink">{pct(conviccaoEtapa(matrix, s.id))}</b> · {num(semLeitura)} sem leitura
+                  </span>
+                )}
               </div>
               <div className="flex rounded-md overflow-hidden" style={{ height: barH }}>
                 {total === 0 ? (

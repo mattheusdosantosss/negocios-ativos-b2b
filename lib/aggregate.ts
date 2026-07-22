@@ -108,6 +108,23 @@ function bucketForFutureEventDays(days: number): string {
   return "30+";
 }
 
+// Faixas de tempo (em dias) da Data de qualificação até a Data de envio da
+// proposta — usadas no gráfico "Tempo até a proposta enviada".
+export const PROPOSAL_TIME_BUCKETS: { id: string; label: string }[] = [
+  { id: "0-7", label: "0–7 dias" },
+  { id: "8-15", label: "8–15 dias" },
+  { id: "16-30", label: "16–30 dias" },
+  { id: "30+", label: "30+ dias" },
+];
+export const PROPOSAL_TIME_BUCKET_IDS = PROPOSAL_TIME_BUCKETS.map((b) => b.id);
+
+function bucketForProposalDays(days: number): string {
+  if (days <= 7) return "0-7";
+  if (days <= 15) return "8-15";
+  if (days <= 30) return "16-30";
+  return "30+";
+}
+
 export type CloserRow = {
   ownerId: string;
   nome: string;
@@ -178,6 +195,17 @@ export type DashboardData = {
   closers: CloserRow[];
   /** Presente só nos segmentos com etapas de checkout. */
   checkout?: CheckoutData;
+  /** Presente só nos segmentos com hasProposalTime — distribuição do tempo da
+   *  qualificação até o envio da proposta, por temperatura. */
+  proposalTime?: ProposalTimeData;
+};
+
+/** Distribuição "tempo até a proposta enviada" (faixas de dias × temperatura). */
+export type ProposalTimeData = {
+  buckets: StageDef[];
+  /** matrix[faixa][temperatura] = nº de negócios. */
+  matrix: Record<string, Record<string, number>>;
+  total: number;
 };
 
 function emptyMap(ids: string[]): Record<string, number> {
@@ -418,6 +446,35 @@ export function aggregate(
     closers,
     checkout: aggregateCheckout(checkoutDeals, owners, config),
   };
+}
+
+/**
+ * Distribuição "tempo até a proposta enviada": para cada negócio com Data de
+ * envio da proposta, dias entre a Data de qualificação (fallback: criação) e o
+ * envio, em faixas × Temperatura Atual. Dias negativos (quirk de cadastro) são
+ * clampados em 0.
+ */
+export function proposalTimeMatrix(deals: Deal[]): ProposalTimeData {
+  const matrix: Record<string, Record<string, number>> = Object.fromEntries(
+    PROPOSAL_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
+  );
+  let total = 0;
+
+  for (const deal of deals) {
+    const propMs = parseDateMs(deal.properties.data_de_envio_da_ultima_proposta);
+    if (!Number.isFinite(propMs)) continue;
+    const startMs = parseDateMs(deal.properties.pipedrive___data_de_qualificacao);
+    const baseMs = Number.isFinite(startMs) ? startMs : parseDateMs(deal.properties.createdate);
+    if (!Number.isFinite(baseMs)) continue;
+
+    const days = Math.max(0, Math.floor((propMs - baseMs) / 86_400_000));
+    const bucket = bucketForProposalDays(days);
+    const tid = temperaturaId(deal.properties.temperatura_atual);
+    matrix[bucket][tid] += 1;
+    total += 1;
+  }
+
+  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, total };
 }
 
 /** Negócios de uma etapa+temperatura, de TODOS os closers (bloco geral). */

@@ -459,6 +459,24 @@ export default function Page() {
         </div>
       )}
 
+      {/* Tempo até a proposta enviada — da qualificação ao envio, por temperatura */}
+      {data && data.proposalTime && (
+        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Tempo até a proposta enviada</h2>
+            <span className="text-[11px] text-psa-ink-soft">
+              {num(data.proposalTime.total)} negócios com proposta · da qualificação ao envio · todo o histórico
+            </span>
+          </div>
+          <TemperatureStacked
+            stages={data.proposalTime.buckets}
+            matrix={data.proposalTime.matrix}
+            unitLabel="negócios"
+            showConviccao={false}
+          />
+        </div>
+      )}
+
       <DealListModal
         open={modal !== null}
         onClose={() => setModal(null)}

@@ -4,13 +4,21 @@
 // (jul/2026) só pra os gráficos não ficarem vazios — não há registro
 // individual real (url vazia).
 
-import { AGING_BUCKETS, ACTIVITY_BUCKETS, EVENT_30D_BUCKETS, TEMPERATURE_IDS } from "./aggregate";
+import {
+  AGING_BUCKETS,
+  ACTIVITY_BUCKETS,
+  EVENT_30D_BUCKETS,
+  TEMPERATURE_IDS,
+  PROPOSAL_TIME_BUCKETS,
+  PROPOSAL_TIME_BUCKET_IDS,
+} from "./aggregate";
 import type {
   AggregatedDealItem,
   CheckoutData,
   CloserRow,
   DashboardData,
   DealLite,
+  ProposalTimeData,
 } from "./aggregate";
 import { tempStagesOf, type SegmentConfig } from "./segments";
 
@@ -36,6 +44,8 @@ type SegmentSeedSpec = {
   ganho: { count: number; valor: number };
   /** counts/valores alinhados à ordem de config.checkoutStages. */
   checkout?: CheckoutStageSpec[];
+  /** Distribuição ilustrativa "tempo até a proposta" (faixas × temperatura). */
+  proposalTime?: { total: number; bucketRatios: number[]; tempRatios: number[] };
 };
 
 function splitInts(total: number, ratios: number[]): number[] {
@@ -184,6 +194,18 @@ function makeCheckout(config: SegmentConfig, specs?: CheckoutStageSpec[]): Check
   return { stages: config.checkoutStages, porEtapa, valorPorEtapa, dealsPorEtapa, total, valor };
 }
 
+function makeProposalTime(config: SegmentConfig, spec: SegmentSeedSpec): ProposalTimeData | undefined {
+  if (!config.hasProposalTime || !spec.proposalTime) return undefined;
+  const { total, bucketRatios, tempRatios } = spec.proposalTime;
+  const bucketTotals = splitInts(total, bucketRatios);
+  const matrix: Record<string, Record<string, number>> = {};
+  PROPOSAL_TIME_BUCKET_IDS.forEach((bid, i) => {
+    const split = splitInts(bucketTotals[i], tempRatios);
+    matrix[bid] = Object.fromEntries(TEMPERATURE_IDS.map((tid, k) => [tid, split[k]]));
+  });
+  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, total };
+}
+
 function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
   const stageIds = config.stages.map((s) => s.id);
   const tempStageIds = config.tempStageIds;
@@ -233,6 +255,7 @@ function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
     totals,
     closers,
     checkout: makeCheckout(config, spec.checkout),
+    proposalTime: makeProposalTime(config, spec),
   };
 }
 
@@ -303,6 +326,11 @@ const B2C_SPEC: SegmentSeedSpec = {
   checkout: [
     { count: 344, valor: 2333430 }, // Aguardando pagamento
   ],
+  proposalTime: {
+    total: 1050,
+    bucketRatios: [0.72, 0.14, 0.09, 0.05], // 0-7 / 8-15 / 16-30 / 30+
+    tempRatios: [0.2, 0.05, 0.15, 0.05, 0.55], // vv / forecast / cafe / larguei / sem_leitura
+  },
   closers: [
     b2c("79760746", "Mayda Quadros", [70, 2, 12, 4]),
     b2c("88628309", "João Paulo da Silveira Araújo", [55, 1, 10, 3]),
