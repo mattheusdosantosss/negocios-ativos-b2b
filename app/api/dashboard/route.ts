@@ -37,7 +37,9 @@ const getMeetingRawCached = (config: SegmentConfig) =>
         return { openDeals, starts: [] as [string, string][], warning };
       }
     },
-    ["meeting-raw", config.id],
+    // v2: chave nova pra invalidar o cache "vazio" gravado quando a busca ia
+    // direto no negócio (reuniões estão no contato).
+    ["meeting-raw-v2", config.id],
     { revalidate: 900 }
   )();
 
@@ -56,8 +58,12 @@ export async function GET(req: NextRequest) {
     // Diagnóstico temporário: /api/dashboard?segment=b2c&debug=meetings
     if (url.searchParams.get("debug") === "meetings" && config.hasMeetingTime) {
       const openDeals = await fetchOpenDeals(config);
-      const dbg = await debugMeetings(config, openDeals.map((d) => d.id));
-      return NextResponse.json({ openDeals: openDeals.length, ...dbg });
+      const dealIds = openDeals.map((d) => d.id);
+      const dbg = await debugMeetings(config, dealIds);
+      // Roda o filtro REAL dos closers sobre TODOS os negócios em aberto — é o
+      // número que o card vai mostrar.
+      const firstCloser = await fetchFirstCloserMeeting(config, dealIds);
+      return NextResponse.json({ openDeals: openDeals.length, firstCloserMeetingCount: firstCloser.size, ...dbg });
     }
 
     const [owners, deals, checkoutDeals, won, meetingRaw] = await Promise.all([
