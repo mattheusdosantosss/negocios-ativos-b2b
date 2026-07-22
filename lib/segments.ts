@@ -34,6 +34,9 @@ export type SegmentConfig = {
   /** Etapas de checkout/pagamento, exibidas num bloco à parte (fora do total
    *  de "ativos"). Vazio quando o segmento não tem essa fase. */
   checkoutStages: StageDef[];
+  /** O segmento usa a "Data Prevista do Evento"? Se false, o bloco de Evento
+   *  (atrasado / próximos 30 dias) some da seção Atenção. */
+  hasEvento: boolean;
   /** Roster oficial de closers do segmento (métrica "fora do time"). */
   team: TeamMember[];
 };
@@ -57,6 +60,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     // Etapas terminais de ganho: "Negócio fechado" + "Ganho / Contrato assinado".
     wonStageIds: ["1076664462", "1076664460"],
     checkoutStages: [],
+    hasEvento: true,
     team: B2B_TEAM,
   },
   b2c: {
@@ -79,6 +83,8 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
       { id: "1149710517", label: "Aguardando pagamento" },
       { id: "1057266725", label: "Pagamento realizado" },
     ],
+    // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
+    hasEvento: false,
     team: B2C_TEAM,
   },
 };

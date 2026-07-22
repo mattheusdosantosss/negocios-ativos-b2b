@@ -366,7 +366,7 @@ export default function Page() {
           <span className="text-lg leading-none">⚠️</span>
           <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Atenção</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+        <div className={`grid grid-cols-1 gap-4 p-5 ${cfg.hasEvento ? "md:grid-cols-2" : ""}`}>
           <button
             type="button"
             disabled={!data || data.totals.foraDoTime === 0}
@@ -382,52 +382,56 @@ export default function Page() {
             <div className="mt-1 text-[11px] text-psa-ink-soft">Dono não é um dos Closers do time</div>
           </button>
 
-          <button
-            type="button"
-            disabled={!data || data.totals.eventoAtrasado === 0}
-            onClick={() => setModal({ mode: "evento-atrasado-agg" })}
-            className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
-          >
-            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
-              {EVENTO_ATRASADO_LABEL}
-            </div>
-            <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
-              {data ? num(data.totals.eventoAtrasado) : 0}
-            </div>
-            <div className="mt-1 text-[11px] text-psa-ink-soft">Data Prevista do Evento já passou</div>
-          </button>
+          {cfg.hasEvento && (
+            <button
+              type="button"
+              disabled={!data || data.totals.eventoAtrasado === 0}
+              onClick={() => setModal({ mode: "evento-atrasado-agg" })}
+              className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
+            >
+              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+                {EVENTO_ATRASADO_LABEL}
+              </div>
+              <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
+                {data ? num(data.totals.eventoAtrasado) : 0}
+              </div>
+              <div className="mt-1 text-[11px] text-psa-ink-soft">Data Prevista do Evento já passou</div>
+            </button>
+          )}
         </div>
 
         {/* Evento em até 30 dias — número + distribuição dos eventos futuros */}
-        <div className="px-5 pb-5">
-          <div className="rounded-xl border border-psa-line p-4">
-            <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
-                  Evento em até 30 dias
-                </div>
-                <button
-                  type="button"
-                  disabled={!data || data.totals.eventoProximo30 === 0}
-                  onClick={() => setModal({ mode: "evento-proximo30-agg" })}
-                  className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60 disabled:hover:no-underline"
-                >
-                  {data ? num(data.totals.eventoProximo30) : 0}
-                </button>
-                <div className="mt-1 text-[11px] text-psa-ink-soft">
-                  Data Prevista do Evento nos próximos 30 dias · por temperatura
+        {cfg.hasEvento && (
+          <div className="px-5 pb-5">
+            <div className="rounded-xl border border-psa-line p-4">
+              <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+                    Evento em até 30 dias
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!data || data.totals.eventoProximo30 === 0}
+                    onClick={() => setModal({ mode: "evento-proximo30-agg" })}
+                    className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums hover:underline underline-offset-2 decoration-2 decoration-psa-orange/60 disabled:hover:no-underline"
+                  >
+                    {data ? num(data.totals.eventoProximo30) : 0}
+                  </button>
+                  <div className="mt-1 text-[11px] text-psa-ink-soft">
+                    Data Prevista do Evento nos próximos 30 dias · por temperatura
+                  </div>
                 </div>
               </div>
+              {data && (
+                <TemperatureStacked
+                  stages={EVENT_30D_BUCKETS}
+                  matrix={data.totals.eventoProx30PorTemp}
+                  onOpen={(bucketId, tempId) => setModal({ mode: "evento30-temp", bucketId, tempId })}
+                />
+              )}
             </div>
-            {data && (
-              <TemperatureStacked
-                stages={EVENT_30D_BUCKETS}
-                matrix={data.totals.eventoProx30PorTemp}
-                onOpen={(bucketId, tempId) => setModal({ mode: "evento30-temp", bucketId, tempId })}
-              />
-            )}
           </div>
-        </div>
+        )}
       </section>
 
       {/* Negócios ativos por temperatura (leitura do curador) */}
