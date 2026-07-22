@@ -251,7 +251,7 @@ export function fetchOpenDeals(config: SegmentConfig): Promise<Deal[]> {
 // Reuniões (engagements) — 1ª reunião com um closer/curador por negócio
 // ------------------------------------------------------------------
 
-type AssocBatchResponse = { results?: Array<{ from: { id: string }; to: Array<{ toObjectId: string }> }> };
+type AssocBatchResponse = { results?: Array<{ from: { id: string }; to: Array<{ toObjectId: string | number }> }> };
 type MeetingBatchResponse = {
   results?: Array<{ id: string; properties: { hs_meeting_start_time?: string; hubspot_owner_id?: string } }>;
 };
@@ -266,7 +266,9 @@ async function fetchAssocIds(fromType: string, toType: string, ids: string[]): P
       body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
     });
     for (const r of data.results ?? []) {
-      map.set(r.from.id, (r.to ?? []).map((t) => t.toObjectId));
+      // toObjectId vem como número na v4; normaliza pra string (as chaves dos
+      // mapas — from.id / meeting.id — são strings).
+      map.set(r.from.id, (r.to ?? []).map((t) => String(t.toObjectId)));
     }
     if (i + 100 < ids.length) await sleep(120);
   }
