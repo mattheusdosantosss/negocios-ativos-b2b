@@ -30,17 +30,19 @@ const getWonAggregateCached = (config: SegmentConfig) =>
 const getCloseTimeRawCached = (config: SegmentConfig) =>
   unstable_cache(
     async () => {
-      const closed = await fetchClosedCloserDeals(config);
       try {
+        const closed = await fetchClosedCloserDeals(config);
         const starts = await fetchFirstCloserMeeting(config, closed.map((d) => d.id));
         return { closed, starts: [...starts.entries()], warning: undefined as string | undefined };
       } catch (e) {
-        const warning = e instanceof Error ? e.message : "erro ao ler reuniões";
-        return { closed, starts: [] as [string, string][], warning };
+        const warning = e instanceof Error ? e.message : "erro ao carregar fechados/reuniões";
+        return { closed: [] as Awaited<ReturnType<typeof fetchClosedCloserDeals>>, starts: [] as [string, string][], warning };
       }
     },
-    ["close-time-v1", config.id],
-    { revalidate: 1800 }
+    // Dado histórico (fechados) — muda devagar; cacheia 1h. A maioria das
+    // visitas pega do cache; só a 1ª após expirar paga o custo da varredura.
+    ["close-time-v2", config.id],
+    { revalidate: 3600 }
   )();
 
 export async function GET(req: NextRequest) {

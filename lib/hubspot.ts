@@ -80,6 +80,17 @@ function assertToken() {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Roda `fn` sobre os itens em grupos de no máx `lim` em paralelo, com uma pausa
+// curta entre as ondas — segura o limite por segundo do HubSpot.
+async function mapLimit<T, R>(items: T[], lim: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += lim) {
+    out.push(...(await Promise.all(items.slice(i, i + lim).map(fn))));
+    if (i + lim < items.length) await sleep(100);
+  }
+  return out;
+}
+
 async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
   assertToken();
   const res = await fetch(`${HUBSPOT_API}${path}`, {
@@ -92,8 +103,8 @@ async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0): Promis
     cache: "no-store",
   });
 
-  // Retry automático em 429 (rate limit) — até 3 tentativas com backoff
-  if (res.status === 429 && attempt < 3) {
+  // Retry automático em 429 (rate limit) — até 6 tentativas com backoff
+  if (res.status === 429 && attempt < 6) {
     const retryAfter = Number(res.headers.get("Retry-After"));
     const waitMs =
       Number.isFinite(retryAfter) && retryAfter > 0
@@ -252,46 +263,40 @@ const CLOSED_PROPS = [
 
 /**
  * Negócios FECHADOS (Ganho + Perdido) cujo dono é um closer do roster —
- * base do gráfico "Tempo da reunião ao fechamento". Todo o histórico. Busca em
- * paralelo por closer (cada dono pagina o seu) pra cortar o tempo. Negócio
- * fechado é terminal, então pode cachear sem risco de defasar etapa.
+ * base do gráfico "Tempo da reunião ao fechamento". Todo o histórico. UMA busca
+ * paginada (owner IN roster), SEQUENCIAL — buscas paralelas estouravam o limite
+ * por segundo do HubSpot (429). Negócio fechado é terminal → pode cachear.
  */
 export async function fetchClosedCloserDeals(config: SegmentConfig): Promise<Deal[]> {
   const stages = [...config.wonStageIds, ...config.lostStageIds];
-  if (stages.length === 0 || config.team.length === 0) return [];
-  const pipeline = pipelineIdFor(config);
+  const ownerIds = config.team.map((m) => m.ownerId);
+  if (stages.length === 0 || ownerIds.length === 0) return [];
 
-  const perOwner = await Promise.all(
-    config.team.map(async (member) => {
-      const all: Deal[] = [];
-      let after: string | undefined;
-      do {
-        const body: Record<string, unknown> = {
-          filterGroups: [
-            {
-              filters: [
-                { propertyName: "pipeline", operator: "EQ", value: pipeline },
-                { propertyName: "dealstage", operator: "IN", values: stages },
-                { propertyName: "hubspot_owner_id", operator: "EQ", value: member.ownerId },
-              ],
-            },
+  const all: Deal[] = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [
+        {
+          filters: [
+            { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+            { propertyName: "dealstage", operator: "IN", values: stages },
+            { propertyName: "hubspot_owner_id", operator: "IN", values: ownerIds },
           ],
-          properties: CLOSED_PROPS,
-          limit: 200,
-        };
-        if (after) body.after = after;
-        const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-        all.push(...data.results);
-        after = data.paging?.next?.after;
-        if (after) await sleep(120);
-      } while (after);
-      return all;
-    })
-  );
-  return perOwner.flat();
+        },
+      ],
+      properties: CLOSED_PROPS,
+      limit: 200,
+    };
+    if (after) body.after = after;
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    all.push(...data.results);
+    after = data.paging?.next?.after;
+  } while (after);
+  return all;
 }
 
 // ------------------------------------------------------------------
@@ -310,20 +315,18 @@ type MeetingBatchResponse = {
 // NO_SHOW / CANCELED / RESCHEDULED / SCHEDULED não contam.
 const MEETING_OUTCOME_DONE = "COMPLETED";
 
-/** Associações batch (v4) de um tipo de objeto para outro. Lotes de 100 em
- *  paralelo (o retry de 429 no hsFetch protege contra rate limit). */
+/** Associações batch (v4) de um tipo de objeto para outro. Lotes de 100, no
+ *  máx 5 em paralelo (segura o limite por segundo do HubSpot). */
 async function fetchAssocIds(fromType: string, toType: string, ids: string[]): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
 
-  const responses = await Promise.all(
-    chunks.map((chunk) =>
-      hsFetch<AssocBatchResponse>(`/crm/v4/associations/${fromType}/${toType}/batch/read`, {
-        method: "POST",
-        body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
-      })
-    )
+  const responses = await mapLimit(chunks, 6, (chunk) =>
+    hsFetch<AssocBatchResponse>(`/crm/v4/associations/${fromType}/${toType}/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
+    })
   );
   for (const data of responses) {
     for (const r of data.results ?? []) {
@@ -343,16 +346,14 @@ async function fetchMeetingsByIds(
   const chunks: string[][] = [];
   for (let i = 0; i < meetingIds.length; i += 100) chunks.push(meetingIds.slice(i, i + 100));
 
-  const responses = await Promise.all(
-    chunks.map((chunk) =>
-      hsFetch<MeetingBatchResponse>(`/crm/v3/objects/meetings/batch/read`, {
-        method: "POST",
-        body: JSON.stringify({
-          properties: ["hs_meeting_start_time", "hubspot_owner_id", "hs_meeting_outcome"],
-          inputs: chunk.map((id) => ({ id })),
-        }),
-      })
-    )
+  const responses = await mapLimit(chunks, 6, (chunk) =>
+    hsFetch<MeetingBatchResponse>(`/crm/v3/objects/meetings/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({
+        properties: ["hs_meeting_start_time", "hubspot_owner_id", "hs_meeting_outcome"],
+        inputs: chunk.map((id) => ({ id })),
+      }),
+    })
   );
   for (const data of responses) {
     for (const m of data.results ?? []) {

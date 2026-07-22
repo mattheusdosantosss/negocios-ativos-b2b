@@ -469,25 +469,6 @@ export default function Page() {
         </div>
       )}
 
-      {/* Negócios abertos por Closer — lista por closer com gráfico de
-          temperatura por etapa (só B2B por ora) */}
-      {data && cfg.hasCloserBreakdown && (
-        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios abertos por Closer</h2>
-            <span className="text-[11px] text-psa-ink-soft">
-              clique no closer pra abrir a temperatura · no nº de ativos pra listar os negócios
-            </span>
-          </div>
-          <CloserOpenDeals
-            closers={data.closers}
-            tempStages={data.tempStages}
-            onOpenTemp={(row, stageId, tempId) => setModal({ mode: "temp-closer", row, stageId, tempId })}
-            onOpenTotal={(row) => setModal({ mode: "single", row, stageId: "total" })}
-          />
-        </div>
-      )}
-
       {/* Tempo da reunião ao fechamento — dias da 1ª reunião concluída com o
           closer até o negócio virar Ganho/Perdido (só negócios dos closers). */}
       {data && data.closeTime && (
@@ -503,6 +484,24 @@ export default function Page() {
           <CloseTimeChart
             data={data.closeTime}
             onOpen={(bucketId, outcomeId) => setModal({ mode: "close-time", bucketId, outcomeId })}
+          />
+        </div>
+      )}
+
+      {/* Negócios abertos por Closer — sempre por último (após os gráficos). */}
+      {data && cfg.hasCloserBreakdown && (
+        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios abertos por Closer</h2>
+            <span className="text-[11px] text-psa-ink-soft">
+              clique no closer pra abrir a temperatura · no nº de ativos pra listar os negócios
+            </span>
+          </div>
+          <CloserOpenDeals
+            closers={data.closers}
+            tempStages={data.tempStages}
+            onOpenTemp={(row, stageId, tempId) => setModal({ mode: "temp-closer", row, stageId, tempId })}
+            onOpenTotal={(row) => setModal({ mode: "single", row, stageId: "total" })}
           />
         </div>
       )}
