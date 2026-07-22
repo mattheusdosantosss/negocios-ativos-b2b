@@ -39,7 +39,7 @@ export type DealLite = {
   activitydate?: string;
   /** Data prevista do evento (data_prevista_do_evento). */
   eventdate?: string;
-  /** Data da reunião (engagements_last_meeting_booked — reunião mais recente). */
+  /** Data da 1ª reunião com closer (hs_meeting_start_time mais antiga). */
   meetingdate?: string;
   /** Id da Temperatura Atual (vou_vender / forecast / cafe / larguei / sem_leitura). */
   temp?: string;
@@ -174,6 +174,8 @@ export type DashboardData = {
     label: string;
     eyebrow: string;
     pipelineName: string;
+    /** Diagnóstico: mensagem se a leitura de reuniões falhar (ex.: falta de escopo). */
+    meetingWarning?: string;
   };
   stages: StageDef[];
   /** Etapas que entram na visão de Temperatura (subconjunto de stages). */
@@ -275,7 +277,7 @@ function toDealLite(deal: Deal): DealLite {
     qualdate: deal.properties.pipedrive___data_de_qualificacao,
     activitydate: deal.properties.notes_last_updated,
     eventdate: deal.properties.data_prevista_do_evento,
-    meetingdate: deal.properties.engagements_last_meeting_booked,
+    // meetingdate é preenchido caso a caso (1ª reunião com closer), não vem do deal.
     temp: temperaturaId(deal.properties.temperatura_atual),
     url: dealUrl(deal.id),
   };
@@ -454,11 +456,16 @@ export function aggregate(
 }
 
 /**
- * Distribuição "tempo até a reunião": para cada negócio com data de reunião,
- * dias entre a criação do negócio e a reunião, em faixas × Temperatura Atual.
- * Dias negativos (quirk) são clampados em 0.
+ * Distribuição "tempo até a proposta": dias entre a criação do negócio e a 1ª
+ * reunião com um closer/curador (a proposta é apresentada nessa reunião), em
+ * faixas × Temperatura Atual. `meetingStartByDealId` mapeia dealId -> ISO da 1ª
+ * reunião. Negócios sem reunião de closer ficam de fora. Dias negativos → 0.
  */
-export function meetingTimeMatrix(deals: Deal[], owners: Map<string, Owner>): MeetingTimeData {
+export function meetingTimeMatrix(
+  deals: Deal[],
+  meetingStartByDealId: Map<string, string>,
+  owners: Map<string, Owner>
+): MeetingTimeData {
   const matrix: Record<string, Record<string, number>> = Object.fromEntries(
     MEETING_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
   );
@@ -468,7 +475,9 @@ export function meetingTimeMatrix(deals: Deal[], owners: Map<string, Owner>): Me
   let total = 0;
 
   for (const deal of deals) {
-    const meetMs = parseDateMs(deal.properties.engagements_last_meeting_booked);
+    const startIso = meetingStartByDealId.get(deal.id);
+    if (!startIso) continue;
+    const meetMs = parseDateMs(startIso);
     if (!Number.isFinite(meetMs)) continue;
     const createMs = parseDateMs(deal.properties.createdate);
     if (!Number.isFinite(createMs)) continue;
@@ -478,7 +487,7 @@ export function meetingTimeMatrix(deals: Deal[], owners: Map<string, Owner>): Me
     const tid = temperaturaId(deal.properties.temperatura_atual);
     const { nome } = resolveOwner(deal, owners);
     matrix[bucket][tid] += 1;
-    dealsMap[bucket][tid].push({ ...toDealLite(deal), ownerName: nome });
+    dealsMap[bucket][tid].push({ ...toDealLite(deal), meetingdate: startIso, ownerName: nome });
     total += 1;
   }
 

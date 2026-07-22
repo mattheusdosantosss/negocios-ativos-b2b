@@ -5,7 +5,8 @@ import {
   fetchActiveDeals,
   fetchWonAggregate,
   fetchCheckoutDeals,
-  fetchMeetingDeals,
+  fetchOpenDeals,
+  fetchFirstCloserMeeting,
 } from "@/lib/hubspot";
 import { aggregate, meetingTimeMatrix, type DashboardData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
@@ -20,10 +21,24 @@ export const dynamic = "force-dynamic";
 const getWonAggregateCached = (config: SegmentConfig) =>
   unstable_cache(() => fetchWonAggregate(config), ["won-aggregate", config.id], { revalidate: 900 })();
 
-// "Tempo até a reunião" varre os negócios em aberto com reunião — cacheia por
-// segmento (15 min) pra não repetir a varredura a cada visita.
-const getMeetingDealsCached = (config: SegmentConfig) =>
-  unstable_cache(() => fetchMeetingDeals(config), ["meeting-deals", config.id], { revalidate: 900 })();
+// "Tempo até a proposta": negócios em aberto + a 1ª reunião com closer de cada
+// um. Varredura pesada (associações + reuniões) → cacheia por segmento (15 min).
+// Se a leitura de reuniões falhar (ex.: escopo), guarda o aviso e segue.
+const getMeetingRawCached = (config: SegmentConfig) =>
+  unstable_cache(
+    async () => {
+      const openDeals = await fetchOpenDeals(config);
+      try {
+        const starts = await fetchFirstCloserMeeting(config, openDeals.map((d) => d.id));
+        return { openDeals, starts: [...starts.entries()], warning: undefined as string | undefined };
+      } catch (e) {
+        const warning = e instanceof Error ? e.message : "erro ao ler reuniões";
+        return { openDeals, starts: [] as [string, string][], warning };
+      }
+    },
+    ["meeting-raw", config.id],
+    { revalidate: 900 }
+  )();
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -37,12 +52,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, meetingDeals] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, meetingRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config),
-      config.hasMeetingTime ? getMeetingDealsCached(config) : Promise.resolve([]),
+      config.hasMeetingTime ? getMeetingRawCached(config) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -52,6 +67,10 @@ export async function GET(req: NextRequest) {
       checkoutDeals
     );
 
+    const meetingTime = meetingRaw
+      ? meetingTimeMatrix(meetingRaw.openDeals, new Map(meetingRaw.starts), owners)
+      : undefined;
+
     const data: DashboardData = {
       meta: {
         updatedAt: new Date().toISOString(),
@@ -60,13 +79,14 @@ export async function GET(req: NextRequest) {
         label: config.label,
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
+        meetingWarning: meetingRaw?.warning,
       },
       stages,
       tempStages,
       totals,
       closers,
       checkout,
-      meetingTime: config.hasMeetingTime ? meetingTimeMatrix(meetingDeals, owners) : undefined,
+      meetingTime,
     };
 
     return NextResponse.json(data);

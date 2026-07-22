@@ -54,8 +54,6 @@ export type Deal = {
     temperatura_atual?: string;
     /** "Valor líquido -10%" — valor do negócio com 10% de desconto aplicado. */
     valor_liquido_b2c_10?: string;
-    /** "Date of last meeting booked" — data da reunião mais recente do negócio. */
-    engagements_last_meeting_booked?: string;
     [key: string]: string | undefined;
   };
 };
@@ -239,51 +237,97 @@ export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string
   return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
 }
 
-// Props pro gráfico "Tempo até a reunião" (+ dados pro popup: nome, valor, dono).
-const MEETING_PROPS = [
-  "engagements_last_meeting_booked",
-  "createdate",
-  "temperatura_atual",
-  "dealname",
-  "amount",
-  "valor_liquido_b2c_10",
-  "hubspot_owner_id",
-];
+/**
+ * Negócios AINDA EM ABERTO (etapas ativas + checkout, sem Ganho/Perdido) do
+ * segmento — base do gráfico "Tempo até a proposta". Todo o histórico (sem
+ * filtro de período), pra medir o ciclo de quem está no funil.
+ */
+export function fetchOpenDeals(config: SegmentConfig): Promise<Deal[]> {
+  const openStageIds = [...config.stages, ...config.checkoutStages].map((s) => s.id);
+  return fetchDealsInStages(config, openStageIds);
+}
+
+// ------------------------------------------------------------------
+// Reuniões (engagements) — 1ª reunião com um closer/curador por negócio
+// ------------------------------------------------------------------
+
+type AssocBatchResponse = { results?: Array<{ from: { id: string }; to: Array<{ toObjectId: string }> }> };
+type MeetingBatchResponse = {
+  results?: Array<{ id: string; properties: { hs_meeting_start_time?: string; hubspot_owner_id?: string } }>;
+};
+
+/** Associações negócio → reuniões (v4), em lotes de 100. */
+async function fetchDealMeetingIds(dealIds: string[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  for (let i = 0; i < dealIds.length; i += 100) {
+    const chunk = dealIds.slice(i, i + 100);
+    const data: AssocBatchResponse = await hsFetch(`/crm/v4/associations/deals/meetings/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
+    });
+    for (const r of data.results ?? []) {
+      map.set(r.from.id, (r.to ?? []).map((t) => t.toObjectId));
+    }
+    if (i + 100 < dealIds.length) await sleep(120);
+  }
+  return map;
+}
+
+/** Lê "Hora de início da reunião" + dono de um lote de reuniões (100 por vez). */
+async function fetchMeetingsByIds(
+  meetingIds: string[]
+): Promise<Map<string, { start?: string; ownerId?: string }>> {
+  const map = new Map<string, { start?: string; ownerId?: string }>();
+  for (let i = 0; i < meetingIds.length; i += 100) {
+    const chunk = meetingIds.slice(i, i + 100);
+    const data: MeetingBatchResponse = await hsFetch(`/crm/v3/objects/meetings/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({
+        properties: ["hs_meeting_start_time", "hubspot_owner_id"],
+        inputs: chunk.map((id) => ({ id })),
+      }),
+    });
+    for (const m of data.results ?? []) {
+      map.set(m.id, { start: m.properties.hs_meeting_start_time, ownerId: m.properties.hubspot_owner_id });
+    }
+    if (i + 100 < meetingIds.length) await sleep(120);
+  }
+  return map;
+}
 
 /**
- * Negócios AINDA EM ABERTO (etapas ativas + checkout, ou seja, sem Ganho nem
- * Perdido) que têm data de reunião. Base do gráfico "Tempo até a reunião" —
- * mede o tempo da criação até a reunião de quem está no funil. Sem filtro de
- * período.
+ * Para cada negócio, a "Hora de início da reunião" MAIS ANTIGA entre as
+ * reuniões cujo dono é um closer/curador do segmento (config.team). Devolve
+ * dealId -> ISO da 1ª reunião com closer. Requer o escopo crm.objects.meetings.read.
  */
-export async function fetchMeetingDeals(config: SegmentConfig): Promise<Deal[]> {
-  const openStageIds = [...config.stages, ...config.checkoutStages].map((s) => s.id);
-  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
-    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
-    { propertyName: "dealstage", operator: "IN", values: openStageIds },
-    { propertyName: "engagements_last_meeting_booked", operator: "HAS_PROPERTY" },
-  ];
+export async function fetchFirstCloserMeeting(
+  config: SegmentConfig,
+  dealIds: string[]
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (dealIds.length === 0) return result;
+  const closerIds = new Set(config.team.map((m) => m.ownerId));
 
-  const all: Deal[] = [];
-  let after: string | undefined;
-  do {
-    const body: Record<string, unknown> = {
-      filterGroups: [{ filters }],
-      properties: MEETING_PROPS,
-      limit: 200,
-    };
-    if (after) body.after = after;
+  const dealMeetings = await fetchDealMeetingIds(dealIds);
+  const allMeetingIds = [...new Set([...dealMeetings.values()].flat())];
+  if (allMeetingIds.length === 0) return result;
+  const meetings = await fetchMeetingsByIds(allMeetingIds);
 
-    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-
-    all.push(...data.results);
-    after = data.paging?.next?.after;
-  } while (after);
-
-  return all;
+  for (const [dealId, mids] of dealMeetings) {
+    let earliestMs = Infinity;
+    let earliestIso: string | undefined;
+    for (const mid of mids) {
+      const m = meetings.get(mid);
+      if (!m?.start || !m.ownerId || !closerIds.has(m.ownerId)) continue;
+      const t = new Date(m.start).getTime();
+      if (Number.isFinite(t) && t < earliestMs) {
+        earliestMs = t;
+        earliestIso = m.start;
+      }
+    }
+    if (earliestIso) result.set(dealId, earliestIso);
+  }
+  return result;
 }
 
 /**
