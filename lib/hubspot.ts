@@ -256,19 +256,19 @@ type MeetingBatchResponse = {
   results?: Array<{ id: string; properties: { hs_meeting_start_time?: string; hubspot_owner_id?: string } }>;
 };
 
-/** Associações negócio → reuniões (v4), em lotes de 100. */
-async function fetchDealMeetingIds(dealIds: string[]): Promise<Map<string, string[]>> {
+/** Associações batch (v4) de um tipo de objeto para outro, em lotes de 100. */
+async function fetchAssocIds(fromType: string, toType: string, ids: string[]): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
-  for (let i = 0; i < dealIds.length; i += 100) {
-    const chunk = dealIds.slice(i, i + 100);
-    const data: AssocBatchResponse = await hsFetch(`/crm/v4/associations/deals/meetings/batch/read`, {
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const data: AssocBatchResponse = await hsFetch(`/crm/v4/associations/${fromType}/${toType}/batch/read`, {
       method: "POST",
       body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
     });
     for (const r of data.results ?? []) {
       map.set(r.from.id, (r.to ?? []).map((t) => t.toObjectId));
     }
-    if (i + 100 < dealIds.length) await sleep(120);
+    if (i + 100 < ids.length) await sleep(120);
   }
   return map;
 }
@@ -297,8 +297,9 @@ async function fetchMeetingsByIds(
 
 /**
  * Para cada negócio, a "Hora de início da reunião" MAIS ANTIGA entre as
- * reuniões cujo dono é um closer/curador do segmento (config.team). Devolve
- * dealId -> ISO da 1ª reunião com closer. Requer o escopo crm.objects.meetings.read.
+ * reuniões cujo dono é um closer/curador do segmento (config.team). As reuniões
+ * ficam associadas ao CONTATO (não ao negócio), então o caminho é
+ * negócio → contatos → reuniões. Devolve dealId -> ISO da 1ª reunião com closer.
  */
 export async function fetchFirstCloserMeeting(
   config: SegmentConfig,
@@ -308,26 +309,59 @@ export async function fetchFirstCloserMeeting(
   if (dealIds.length === 0) return result;
   const closerIds = new Set(config.team.map((m) => m.ownerId));
 
-  const dealMeetings = await fetchDealMeetingIds(dealIds);
-  const allMeetingIds = [...new Set([...dealMeetings.values()].flat())];
+  const dealContacts = await fetchAssocIds("deals", "contacts", dealIds);
+  const allContactIds = [...new Set([...dealContacts.values()].flat())];
+  if (allContactIds.length === 0) return result;
+  const contactMeetings = await fetchAssocIds("contacts", "meetings", allContactIds);
+  const allMeetingIds = [...new Set([...contactMeetings.values()].flat())];
   if (allMeetingIds.length === 0) return result;
   const meetings = await fetchMeetingsByIds(allMeetingIds);
 
-  for (const [dealId, mids] of dealMeetings) {
+  for (const [dealId, contactIds] of dealContacts) {
     let earliestMs = Infinity;
     let earliestIso: string | undefined;
-    for (const mid of mids) {
-      const m = meetings.get(mid);
-      if (!m?.start || !m.ownerId || !closerIds.has(m.ownerId)) continue;
-      const t = new Date(m.start).getTime();
-      if (Number.isFinite(t) && t < earliestMs) {
-        earliestMs = t;
-        earliestIso = m.start;
+    for (const cid of contactIds) {
+      for (const mid of contactMeetings.get(cid) ?? []) {
+        const m = meetings.get(mid);
+        if (!m?.start || !m.ownerId || !closerIds.has(m.ownerId)) continue;
+        const t = new Date(m.start).getTime();
+        if (Number.isFinite(t) && t < earliestMs) {
+          earliestMs = t;
+          earliestIso = m.start;
+        }
       }
     }
     if (earliestIso) result.set(dealId, earliestIso);
   }
   return result;
+}
+
+/** Diagnóstico temporário: mostra o caminho negócio→contato→reunião e os donos
+ *  das reuniões encontradas (pra checar o filtro de closer). */
+export async function debugMeetings(config: SegmentConfig, dealIds: string[]) {
+  const sample = dealIds.slice(0, 25);
+  const dealContacts = await fetchAssocIds("deals", "contacts", sample);
+  const contactIds = [...new Set([...dealContacts.values()].flat())];
+  const contactMeetings = contactIds.length ? await fetchAssocIds("contacts", "meetings", contactIds) : new Map();
+  const meetingIds = [...new Set([...contactMeetings.values()].flat())];
+  const meetings = meetingIds.length ? await fetchMeetingsByIds(meetingIds) : new Map();
+  const ownerCounts: Record<string, number> = {};
+  const starts: string[] = [];
+  for (const m of meetings.values()) {
+    const o = m.ownerId || "(sem dono)";
+    ownerCounts[o] = (ownerCounts[o] || 0) + 1;
+    if (m.start) starts.push(m.start);
+  }
+  return {
+    sampleDeals: sample.length,
+    dealsComContato: dealContacts.size,
+    contatos: contactIds.length,
+    reunioes: meetings.size,
+    reunioesComHora: starts.length,
+    closerIds: config.team.map((m) => m.ownerId),
+    donosDasReunioes: ownerCounts,
+    amostraHoras: starts.slice(0, 8),
+  };
 }
 
 /**

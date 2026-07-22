@@ -7,6 +7,7 @@ import {
   fetchCheckoutDeals,
   fetchOpenDeals,
   fetchFirstCloserMeeting,
+  debugMeetings,
 } from "@/lib/hubspot";
 import { aggregate, meetingTimeMatrix, type DashboardData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
@@ -52,6 +53,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Diagnóstico temporário: /api/dashboard?segment=b2c&debug=meetings
+    if (url.searchParams.get("debug") === "meetings" && config.hasMeetingTime) {
+      const openDeals = await fetchOpenDeals(config);
+      const dbg = await debugMeetings(config, openDeals.map((d) => d.id));
+      return NextResponse.json({ openDeals: openDeals.length, ...dbg });
+    }
+
     const [owners, deals, checkoutDeals, won, meetingRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to }),
