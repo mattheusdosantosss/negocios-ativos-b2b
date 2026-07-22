@@ -7,7 +7,6 @@ import {
   fetchCheckoutDeals,
   fetchOpenDeals,
   fetchFirstCloserMeeting,
-  debugMeetings,
 } from "@/lib/hubspot";
 import { aggregate, meetingTimeMatrix, type DashboardData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
@@ -15,6 +14,9 @@ import { seedFor } from "@/lib/seed";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// A varredura de reuniões (associações + meetings) pode passar de 10s no cache
+// frio; a Vercel Hobby permite até 60s. O resultado é cacheado 15 min.
+export const maxDuration = 60;
 
 // Ticket médio de ganho é sobre TODOS os ganhos (não sofre o filtro de
 // período). Como pode ser alto volume, cacheia por 15 min — por segmento
@@ -37,9 +39,8 @@ const getMeetingRawCached = (config: SegmentConfig) =>
         return { openDeals, starts: [] as [string, string][], warning };
       }
     },
-    // v2: chave nova pra invalidar o cache "vazio" gravado quando a busca ia
-    // direto no negócio (reuniões estão no contato).
-    ["meeting-raw-v2", config.id],
+    // v3: chave nova a cada mudança de lógica pra não servir resultado antigo.
+    ["meeting-raw-v3", config.id],
     { revalidate: 900 }
   )();
 
@@ -55,17 +56,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Diagnóstico temporário: /api/dashboard?segment=b2c&debug=meetings
-    if (url.searchParams.get("debug") === "meetings" && config.hasMeetingTime) {
-      const openDeals = await fetchOpenDeals(config);
-      const dealIds = openDeals.map((d) => d.id);
-      const dbg = await debugMeetings(config, dealIds);
-      // Roda o filtro REAL dos closers sobre TODOS os negócios em aberto — é o
-      // número que o card vai mostrar.
-      const firstCloser = await fetchFirstCloserMeeting(config, dealIds);
-      return NextResponse.json({ openDeals: openDeals.length, firstCloserMeetingCount: firstCloser.size, ...dbg });
-    }
-
     const [owners, deals, checkoutDeals, won, meetingRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to }),

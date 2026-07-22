@@ -256,21 +256,27 @@ type MeetingBatchResponse = {
   results?: Array<{ id: string; properties: { hs_meeting_start_time?: string; hubspot_owner_id?: string } }>;
 };
 
-/** Associações batch (v4) de um tipo de objeto para outro, em lotes de 100. */
+/** Associações batch (v4) de um tipo de objeto para outro. Lotes de 100 em
+ *  paralelo (o retry de 429 no hsFetch protege contra rate limit). */
 async function fetchAssocIds(fromType: string, toType: string, ids: string[]): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
-  for (let i = 0; i < ids.length; i += 100) {
-    const chunk = ids.slice(i, i + 100);
-    const data: AssocBatchResponse = await hsFetch(`/crm/v4/associations/${fromType}/${toType}/batch/read`, {
-      method: "POST",
-      body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
-    });
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      hsFetch<AssocBatchResponse>(`/crm/v4/associations/${fromType}/${toType}/batch/read`, {
+        method: "POST",
+        body: JSON.stringify({ inputs: chunk.map((id) => ({ id })) }),
+      })
+    )
+  );
+  for (const data of responses) {
     for (const r of data.results ?? []) {
       // toObjectId vem como número na v4; normaliza pra string (as chaves dos
       // mapas — from.id / meeting.id — são strings).
       map.set(r.from.id, (r.to ?? []).map((t) => String(t.toObjectId)));
     }
-    if (i + 100 < ids.length) await sleep(120);
   }
   return map;
 }
@@ -280,19 +286,24 @@ async function fetchMeetingsByIds(
   meetingIds: string[]
 ): Promise<Map<string, { start?: string; ownerId?: string }>> {
   const map = new Map<string, { start?: string; ownerId?: string }>();
-  for (let i = 0; i < meetingIds.length; i += 100) {
-    const chunk = meetingIds.slice(i, i + 100);
-    const data: MeetingBatchResponse = await hsFetch(`/crm/v3/objects/meetings/batch/read`, {
-      method: "POST",
-      body: JSON.stringify({
-        properties: ["hs_meeting_start_time", "hubspot_owner_id"],
-        inputs: chunk.map((id) => ({ id })),
-      }),
-    });
+  const chunks: string[][] = [];
+  for (let i = 0; i < meetingIds.length; i += 100) chunks.push(meetingIds.slice(i, i + 100));
+
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      hsFetch<MeetingBatchResponse>(`/crm/v3/objects/meetings/batch/read`, {
+        method: "POST",
+        body: JSON.stringify({
+          properties: ["hs_meeting_start_time", "hubspot_owner_id"],
+          inputs: chunk.map((id) => ({ id })),
+        }),
+      })
+    )
+  );
+  for (const data of responses) {
     for (const m of data.results ?? []) {
       map.set(m.id, { start: m.properties.hs_meeting_start_time, ownerId: m.properties.hubspot_owner_id });
     }
-    if (i + 100 < meetingIds.length) await sleep(120);
   }
   return map;
 }
@@ -336,34 +347,6 @@ export async function fetchFirstCloserMeeting(
     if (earliestIso) result.set(dealId, earliestIso);
   }
   return result;
-}
-
-/** Diagnóstico temporário: mostra o caminho negócio→contato→reunião e os donos
- *  das reuniões encontradas (pra checar o filtro de closer). */
-export async function debugMeetings(config: SegmentConfig, dealIds: string[]) {
-  const sample = dealIds.slice(0, 25);
-  const dealContacts = await fetchAssocIds("deals", "contacts", sample);
-  const contactIds = [...new Set([...dealContacts.values()].flat())];
-  const contactMeetings = contactIds.length ? await fetchAssocIds("contacts", "meetings", contactIds) : new Map();
-  const meetingIds = [...new Set([...contactMeetings.values()].flat())];
-  const meetings = meetingIds.length ? await fetchMeetingsByIds(meetingIds) : new Map();
-  const ownerCounts: Record<string, number> = {};
-  const starts: string[] = [];
-  for (const m of meetings.values()) {
-    const o = m.ownerId || "(sem dono)";
-    ownerCounts[o] = (ownerCounts[o] || 0) + 1;
-    if (m.start) starts.push(m.start);
-  }
-  return {
-    sampleDeals: sample.length,
-    dealsComContato: dealContacts.size,
-    contatos: contactIds.length,
-    reunioes: meetings.size,
-    reunioesComHora: starts.length,
-    closerIds: config.team.map((m) => m.ownerId),
-    donosDasReunioes: ownerCounts,
-    amostraHoras: starts.slice(0, 8),
-  };
 }
 
 /**
