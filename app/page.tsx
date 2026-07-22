@@ -22,8 +22,7 @@ import {
   type CloserRow,
   type DashboardData,
 } from "@/lib/aggregate";
-import { TEMP_STAGES } from "@/lib/hubspot";
-import { B2B_TEAM_IDS } from "@/lib/team";
+import { SEGMENTS, SEGMENT_TABS, type SegmentId } from "@/lib/segments";
 import { computePeriod, type PeriodValue } from "@/lib/periods";
 
 const EVENTO_ATRASADO_LABEL = "Evento que a data já passou";
@@ -33,6 +32,7 @@ const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curren
 const num = (n: number) => n.toLocaleString("pt-BR");
 
 export default function Page() {
+  const [segment, setSegment] = useState<SegmentId>("b2b");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,12 +46,17 @@ export default function Page() {
     | { mode: "evento-atrasado-closer"; row: CloserRow }
     | { mode: "outside-team" }
     | { mode: "forecast" }
+    | { mode: "checkout"; stageId: string }
     | { mode: "temp-agg"; stageId: string; tempId: string }
     | { mode: "temp-closer"; row: CloserRow; stageId: string; tempId: string }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [showCloserSummary, setShowCloserSummary] = useState(false);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
+
+  // Labels estáticos do segmento selecionado (o hero atualiza na hora, sem
+  // esperar o fetch; os números vêm do payload).
+  const cfg = SEGMENTS[segment];
 
   const handlePeriodChange = (next: PeriodValue) => {
     if (next.preset !== period.preset && next.preset !== "custom") {
@@ -61,18 +66,27 @@ export default function Page() {
     }
   };
 
+  const handleSegmentChange = (next: SegmentId) => {
+    if (next === segment) return;
+    setSegment(next);
+    setData(null); // evita piscar dados do segmento anterior
+    setModal(null);
+    setShowCloserSummary(false);
+  };
+
   const queryString = useMemo(() => {
     const qs = new URLSearchParams();
+    qs.set("segment", segment);
     if (period.from) qs.set("from", period.from);
     if (period.to) qs.set("to", period.to);
     return qs.toString();
-  }, [period.from, period.to]);
+  }, [segment, period.from, period.to]);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/dashboard${queryString ? `?${queryString}` : ""}`);
+      const res = await fetch(`/api/dashboard?${queryString}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
       setData(json as DashboardData);
@@ -89,13 +103,13 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryString]);
 
-  // Closers do time B2B que têm ao menos 1 negócio ativo (base do KPI e do popup).
+  // Closers do roster do segmento que têm ao menos 1 negócio ativo.
   const teamClosers = useMemo(
-    () => (data ? data.closers.filter((c) => B2B_TEAM_IDS.has(c.ownerId)) : []),
+    () => (data ? data.closers.filter((c) => c.inTeam) : []),
     [data]
   );
 
-  // Ticket médio de ganho = valor dos negócios ganhos ÷ nº de ganhos (no período).
+  // Ticket médio de ganho = valor dos negócios ganhos ÷ nº de ganhos.
   const ticketMedioGanho =
     data && data.totals.ganhoCount > 0 ? data.totals.ganhoValor / data.totals.ganhoCount : 0;
 
@@ -109,6 +123,7 @@ export default function Page() {
     if (modal.mode === "evento-atrasado-closer") return modal.row.dealsEventoAtrasado;
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
     if (modal.mode === "forecast") return dealsForecast(data.closers);
+    if (modal.mode === "checkout") return data.checkout?.dealsPorEtapa[modal.stageId] ?? [];
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
     if (modal.mode === "temp-closer") return modal.row.dealsTempPorEtapa[modal.stageId]?.[modal.tempId] ?? [];
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
@@ -126,16 +141,19 @@ export default function Page() {
       return `${temp} · evento em ${janela}`;
     }
     if (modal.mode === "evento-atrasado-closer") return EVENTO_ATRASADO_LABEL;
-    if (modal.mode === "outside-team") return "Fora do time B2B";
+    if (modal.mode === "outside-team") return `Fora do time ${cfg.label}`;
     if (modal.mode === "forecast") return "Forecast · negócios no forecast";
+    if (modal.mode === "checkout") {
+      return data.checkout?.stages.find((s) => s.id === modal.stageId)?.label ?? "Checkout";
+    }
     if (modal.mode === "temp-agg" || modal.mode === "temp-closer") {
-      const etapa = TEMP_STAGES.find((s) => s.id === modal.stageId)?.label ?? "";
+      const etapa = data.tempStages.find((s) => s.id === modal.stageId)?.label ?? "";
       const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
       return `${temp} · ${etapa}`;
     }
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
-  }, [modal, data]);
+  }, [modal, data, cfg.label]);
 
   // Cada tipo de popup mostra ao lado do valor a data mais relevante ao seu contexto.
   const modalDateField = useMemo((): "createdate" | "qualdate" | "activitydate" | "eventdate" => {
@@ -172,21 +190,43 @@ export default function Page() {
         <div aria-hidden className="pointer-events-none absolute top-0 right-0 h-full w-1.5 bg-psa-orange" />
 
         <div className="relative px-8 py-8">
+          {/* Abas de segmento B2B | B2C */}
+          <div className="mb-6 inline-flex rounded-xl bg-white/[0.06] border border-white/10 p-1">
+            {SEGMENT_TABS.map((t) => {
+              const active = t.id === segment;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleSegmentChange(t.id)}
+                  aria-pressed={active}
+                  className={`px-5 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${
+                    active
+                      ? "bg-psa-orange text-white shadow"
+                      : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex items-start justify-between gap-8 flex-wrap">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-psa-orange/15 border border-psa-orange/30">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-psa-orange" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white">
-                  PSA · Closers B2B
+                  {cfg.eyebrow}
                 </span>
               </div>
               <h1 className="font-display text-[40px] leading-[1.05] font-extrabold tracking-tight text-white">
                 Negócios Ativos
                 <br />
-                <span className="text-psa-orange">Funil de Vendas B2B.</span>
+                <span className="text-psa-orange">{cfg.pipelineName}.</span>
               </h1>
               <p className="mt-4 text-sm text-white/85 max-w-md">
-                Snapshot ao vivo dos negócios em aberto na pipeline B2B, por Closer.
+                Snapshot ao vivo dos negócios em aberto na pipeline {cfg.label}, por Closer.
                 Filtre por Data de criação pra ver só os negócios abertos no período.
               </p>
             </div>
@@ -247,7 +287,7 @@ export default function Page() {
           label="Negócios ativos"
           value={data ? num(data.totals.total) : 0}
           accent="orange"
-          hint="Soma das 5 etapas ativas"
+          hint={data ? `Soma das ${data.stages.length} etapas ativas` : "Soma das etapas ativas"}
           loading={loading}
         />
         <KpiCard
@@ -266,7 +306,7 @@ export default function Page() {
           label="Closers com negócios ativos"
           value={data ? num(teamClosers.length) : 0}
           accent="ink"
-          hint="Do time B2B, com ao menos 1 negócio ativo · ver lista ↗"
+          hint={`Do time ${cfg.label}, com ao menos 1 negócio ativo · ver lista ↗`}
           loading={loading}
           onClick={data && teamClosers.length > 0 ? () => setShowCloserSummary(true) : undefined}
         />
@@ -277,13 +317,47 @@ export default function Page() {
           hint={
             data
               ? `${num(data.totals.ganhoCount)} ganhos (todo o histórico) · valor bruto`
-              : "Valor dos ganhos ÷ nº de ganhos (fechado + contrato assinado)"
+              : "Valor dos ganhos ÷ nº de ganhos"
           }
           loading={loading}
         />
       </section>
 
-      {/* Atenção — fora do time B2B + Data Prevista do Evento */}
+      {/* Checkout — só nos segmentos com fase de pagamento (ex.: B2C) */}
+      {data && data.checkout && data.checkout.stages.length > 0 && (
+        <section className="rounded-2xl border border-psa-line bg-psa-surface shadow-card overflow-hidden">
+          <div className="flex items-center gap-2 px-5 pt-4 flex-wrap">
+            <span className="text-lg leading-none">💳</span>
+            <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Checkout</h2>
+            <span className="text-[11px] text-psa-ink-soft">Fase de pagamento · fora do total de ativos</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+            {data.checkout.stages.map((s) => {
+              const count = data.checkout!.porEtapa[s.id] ?? 0;
+              const valor = data.checkout!.valorPorEtapa[s.id] ?? 0;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  disabled={count === 0}
+                  onClick={() => setModal({ mode: "checkout", stageId: s.id })}
+                  className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-orange/40 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+                    {s.label}
+                  </div>
+                  <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">{num(count)}</div>
+                  <div className="mt-1 text-[11px] text-psa-ink-soft">
+                    {brl(valor)} · valor bruto{count > 0 ? " · ver lista ↗" : ""}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Atenção — fora do time + Data Prevista do Evento */}
       <section className="rounded-2xl border-2 border-psa-ink/10 bg-psa-surface shadow-card overflow-hidden">
         <div className="flex items-center gap-2 px-5 pt-4">
           <span className="text-lg leading-none">⚠️</span>
@@ -292,15 +366,15 @@ export default function Page() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
           <button
             type="button"
-            disabled={!data || data.totals.foraDoTimeB2B === 0}
+            disabled={!data || data.totals.foraDoTime === 0}
             onClick={() => setModal({ mode: "outside-team" })}
             className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
           >
             <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
-              Fora do time B2B
+              Fora do time {cfg.label}
             </div>
             <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
-              {data ? num(data.totals.foraDoTimeB2B) : 0}
+              {data ? num(data.totals.foraDoTime) : 0}
             </div>
             <div className="mt-1 text-[11px] text-psa-ink-soft">Dono não é um dos Closers do time</div>
           </button>
@@ -367,11 +441,11 @@ export default function Page() {
               <b className="text-psa-ink">
                 {(conviccao.cobertura * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
               </b>{" "}
-              · 4 etapas (sem Resting)
+              · {data.tempStages.length} etapas
             </span>
           </div>
           <TemperatureStacked
-            stages={TEMP_STAGES}
+            stages={data.tempStages}
             matrix={data.totals.tempPorEtapa}
             onOpen={(stageId, tempId) => setModal({ mode: "temp-agg", stageId, tempId })}
           />
@@ -399,6 +473,7 @@ export default function Page() {
         open={showCloserSummary}
         onClose={() => setShowCloserSummary(false)}
         rows={teamClosers}
+        teamLabel={cfg.label}
       />
     </main>
   );

@@ -1,44 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { fetchAllOwners, fetchActiveDeals, fetchWonAggregate } from "@/lib/hubspot";
+import { fetchAllOwners, fetchActiveDeals, fetchWonAggregate, fetchCheckoutDeals } from "@/lib/hubspot";
 import { aggregate, type DashboardData } from "@/lib/aggregate";
-import { SEED_DATA } from "@/lib/seed";
+import { getSegment, type SegmentConfig } from "@/lib/segments";
+import { seedFor } from "@/lib/seed";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Ticket médio de ganho é sobre TODOS os ganhos (não sofre o filtro de
-// período). Como são ~4k negócios, cacheia por 15 min — histórico muda devagar
-// e evita pagar ~6s de busca a cada visita.
-const getWonAggregateCached = unstable_cache(
-  async () => fetchWonAggregate(),
-  ["won-aggregate-all"],
-  { revalidate: 900 }
-);
+// período). Como pode ser alto volume, cacheia por 15 min — por segmento
+// (chave inclui config.id) — pra não pagar a busca inteira a cada visita.
+const getWonAggregateCached = (config: SegmentConfig) =>
+  unstable_cache(() => fetchWonAggregate(config), ["won-aggregate", config.id], { revalidate: 900 })();
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || undefined;
   const to = url.searchParams.get("to") || undefined;
+  const config = getSegment(url.searchParams.get("segment"));
 
   if (!process.env.HUBSPOT_TOKEN) {
-    // Modo de exemplo: snapshot fixo, sem filtro de período.
-    return NextResponse.json(SEED_DATA);
+    // Modo de exemplo: snapshot fixo do segmento, sem filtro de período.
+    return NextResponse.json(seedFor(config));
   }
 
   try {
-    const [owners, deals, won] = await Promise.all([
+    const [owners, deals, checkoutDeals, won] = await Promise.all([
       fetchAllOwners(),
-      fetchActiveDeals({ from, to }),
-      getWonAggregateCached(),
+      fetchActiveDeals(config, { from, to }),
+      fetchCheckoutDeals(config, { from, to }),
+      getWonAggregateCached(config),
     ]);
-    const { stages, totals, closers } = aggregate(deals, owners, won);
+    const { stages, tempStages, totals, closers, checkout } = aggregate(
+      deals,
+      owners,
+      won,
+      config,
+      checkoutDeals
+    );
 
     const data: DashboardData = {
-      meta: { updatedAt: new Date().toISOString(), usingLiveData: true },
+      meta: {
+        updatedAt: new Date().toISOString(),
+        usingLiveData: true,
+        segment: config.id,
+        label: config.label,
+        eyebrow: config.eyebrow,
+        pipelineName: config.pipelineName,
+      },
       stages,
+      tempStages,
       totals,
       closers,
+      checkout,
     };
 
     return NextResponse.json(data);

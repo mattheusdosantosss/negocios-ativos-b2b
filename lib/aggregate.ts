@@ -1,13 +1,6 @@
-import {
-  STAGES,
-  STAGE_IDS,
-  TEMP_STAGE_IDS,
-  ownerDisplayName,
-  dealUrl,
-  type Deal,
-  type Owner,
-} from "./hubspot";
-import { B2B_TEAM_IDS } from "./team";
+import { ownerDisplayName, dealUrl, type Deal, type Owner } from "./hubspot";
+import type { SegmentConfig, SegmentId, StageDef } from "./segments";
+import { tempStagesOf } from "./segments";
 
 // Temperatura Atual (leitura do curador). "Sem leitura" = campo vazio no
 // HubSpot. A ordem aqui é a ordem de exibição (quente → frio).
@@ -118,6 +111,8 @@ function bucketForFutureEventDays(days: number): string {
 export type CloserRow = {
   ownerId: string;
   nome: string;
+  /** O dono é do roster oficial do segmento? (métrica "fora do time"). */
+  inTeam: boolean;
   porEtapa: Record<string, number>;
   valorPorEtapa: Record<string, number>;
   dealsPorEtapa: Record<string, DealLite[]>;
@@ -134,40 +129,63 @@ export type CloserRow = {
   /** Matriz janela de evento (≤30 dias: 0-7/8-15/16-30) × Temperatura. */
   eventoProx30PorTemp: Record<string, Record<string, number>>;
   dealsEventoProx30PorTemp: Record<string, Record<string, DealLite[]>>;
-  /** Matriz Temperatura Atual × etapa (4 etapas ativas, sem Resting). */
+  /** Matriz Temperatura Atual × etapa (etapas de temperatura do segmento). */
   tempPorEtapa: Record<string, Record<string, number>>;
   dealsTempPorEtapa: Record<string, Record<string, DealLite[]>>;
   total: number;
   valor: number;
 };
 
+/** Bloco de checkout/pagamento (segmentos que têm essa fase, ex.: B2C). */
+export type CheckoutData = {
+  stages: StageDef[];
+  porEtapa: Record<string, number>;
+  valorPorEtapa: Record<string, number>;
+  dealsPorEtapa: Record<string, AggregatedDealItem[]>;
+  total: number;
+  valor: number;
+};
+
 export type DashboardData = {
-  meta: { updatedAt: string; usingLiveData: boolean };
-  stages: { id: string; label: string }[];
+  meta: {
+    updatedAt: string;
+    usingLiveData: boolean;
+    segment: SegmentId;
+    /** Rótulo curto do segmento (B2B/B2C) e textos do hero. */
+    label: string;
+    eyebrow: string;
+    pipelineName: string;
+  };
+  stages: StageDef[];
+  /** Etapas que entram na visão de Temperatura (subconjunto de stages). */
+  tempStages: StageDef[];
   totals: {
     total: number;
     valor: number;
     porEtapa: Record<string, number>;
-    foraDoTimeB2B: number;
+    /** Negócios cujo dono não é do roster oficial do segmento. */
+    foraDoTime: number;
     eventoAtrasado: number;
     eventoProximo30: number;
     /** Matriz janela de evento (≤30 dias) × Temperatura, agregada. */
     eventoProx30PorTemp: Record<string, Record<string, number>>;
     /** Matriz Temperatura × etapa agregada (todos os closers). */
     tempPorEtapa: Record<string, Record<string, number>>;
-    /** Negócios ganhos (fechado + contrato assinado) no período — pro ticket médio de ganho. */
+    /** Negócios ganhos no período — pro ticket médio de ganho. */
     ganhoCount: number;
     ganhoValor: number;
   };
   closers: CloserRow[];
+  /** Presente só nos segmentos com etapas de checkout. */
+  checkout?: CheckoutData;
 };
 
-function emptyStageMap(): Record<string, number> {
-  return Object.fromEntries(STAGE_IDS.map((id) => [id, 0]));
+function emptyMap(ids: string[]): Record<string, number> {
+  return Object.fromEntries(ids.map((id) => [id, 0]));
 }
 
-function emptyStageDealsMap(): Record<string, DealLite[]> {
-  return Object.fromEntries(STAGE_IDS.map((id) => [id, []]));
+function emptyDealsMap(ids: string[]): Record<string, DealLite[]> {
+  return Object.fromEntries(ids.map((id) => [id, []]));
 }
 
 function emptyBucketMap(ids: string[]): Record<string, number> {
@@ -178,15 +196,15 @@ function emptyBucketDealsMap(ids: string[]): Record<string, DealLite[]> {
   return Object.fromEntries([...ids, SEM_DATA_BUCKET].map((id) => [id, []]));
 }
 
-function emptyTempMatrix(): Record<string, Record<string, number>> {
+function emptyTempMatrix(tempStageIds: string[]): Record<string, Record<string, number>> {
   return Object.fromEntries(
-    TEMP_STAGE_IDS.map((sid) => [sid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
+    tempStageIds.map((sid) => [sid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
   );
 }
 
-function emptyTempDealsMatrix(): Record<string, Record<string, DealLite[]>> {
+function emptyTempDealsMatrix(tempStageIds: string[]): Record<string, Record<string, DealLite[]>> {
   return Object.fromEntries(
-    TEMP_STAGE_IDS.map((sid) => [sid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
+    tempStageIds.map((sid) => [sid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
   );
 }
 
@@ -213,35 +231,90 @@ function daysSince(now: number, raw?: string): number {
   return Number.isFinite(t) ? Math.floor((now - t) / 86_400_000) : NaN;
 }
 
+function toDealLite(deal: Deal): DealLite {
+  const amount = Number(deal.properties.amount || 0) || 0;
+  const liquidoRaw = Number(deal.properties.valor_liquido_b2c_10 || "");
+  return {
+    id: deal.id,
+    dealname: deal.properties.dealname || `Negócio ${deal.id}`,
+    amount,
+    valorLiquido: Number.isFinite(liquidoRaw) && liquidoRaw > 0 ? liquidoRaw : amount,
+    createdate: deal.properties.createdate,
+    qualdate: deal.properties.pipedrive___data_de_qualificacao,
+    activitydate: deal.properties.notes_last_updated,
+    eventdate: deal.properties.data_prevista_do_evento,
+    temp: temperaturaId(deal.properties.temperatura_atual),
+    url: dealUrl(deal.id),
+  };
+}
+
+/** Resolve o dono do negócio (ou "Sem dono" se não der pra resolver). */
+function resolveOwner(deal: Deal, owners: Map<string, Owner>): { ownerId: string; nome: string } {
+  const rawOwnerId = deal.properties.hubspot_owner_id || "";
+  const resolvedOwner = rawOwnerId ? owners.get(rawOwnerId) : undefined;
+  const ownerId = resolvedOwner ? rawOwnerId : SEM_DONO_ID;
+  const nome = ownerId === SEM_DONO_ID ? SEM_DONO_LABEL : ownerDisplayName(resolvedOwner);
+  return { ownerId, nome };
+}
+
+function aggregateCheckout(
+  checkoutDeals: Deal[],
+  owners: Map<string, Owner>,
+  config: SegmentConfig
+): CheckoutData | undefined {
+  if (config.checkoutStages.length === 0) return undefined;
+  const stageIds = config.checkoutStages.map((s) => s.id);
+  const porEtapa = emptyMap(stageIds);
+  const valorPorEtapa = emptyMap(stageIds);
+  const dealsPorEtapa: Record<string, AggregatedDealItem[]> = Object.fromEntries(stageIds.map((id) => [id, []]));
+  let total = 0;
+  let valor = 0;
+
+  for (const deal of checkoutDeals) {
+    const stage = deal.properties.dealstage;
+    if (!stage || !stageIds.includes(stage)) continue;
+    const { nome } = resolveOwner(deal, owners);
+    const lite = toDealLite(deal);
+    porEtapa[stage] += 1;
+    valorPorEtapa[stage] += lite.amount;
+    dealsPorEtapa[stage].push({ ...lite, ownerName: nome });
+    total += 1;
+    valor += lite.amount;
+  }
+
+  return { stages: config.checkoutStages, porEtapa, valorPorEtapa, dealsPorEtapa, total, valor };
+}
+
 export function aggregate(
   deals: Deal[],
   owners: Map<string, Owner>,
-  won: { count: number; valor: number } = { count: 0, valor: 0 }
+  won: { count: number; valor: number } = { count: 0, valor: 0 },
+  config: SegmentConfig,
+  checkoutDeals: Deal[] = []
 ): Omit<DashboardData, "meta"> {
+  const stageIds = config.stages.map((s) => s.id);
+  const tempStageIds = config.tempStageIds;
+  const teamIds = new Set(config.team.map((m) => m.ownerId));
+
   const byOwner = new Map<string, CloserRow>();
   const now = Date.now();
 
   for (const deal of deals) {
     const stage = deal.properties.dealstage;
-    if (!stage || !STAGE_IDS.includes(stage)) continue;
+    if (!stage || !stageIds.includes(stage)) continue;
 
-    const rawOwnerId = deal.properties.hubspot_owner_id || "";
-    const resolvedOwner = rawOwnerId ? owners.get(rawOwnerId) : undefined;
-    // Cada owner resolvido (mesmo fora do time B2B — farmer, SDR etc.) mantém
-    // sua própria linha. Só quando o owner NÃO resolve (sem hubspot_owner_id,
-    // ou ID que não bate com nenhum owner ativo) é que compila numa única
-    // linha "Sem dono", em vez de uma linha por ID não resolvido.
-    const ownerId = resolvedOwner ? rawOwnerId : SEM_DONO_ID;
+    const { ownerId, nome } = resolveOwner(deal, owners);
     const amount = Number(deal.properties.amount || 0) || 0;
 
     let row = byOwner.get(ownerId);
     if (!row) {
       row = {
         ownerId,
-        nome: ownerId === SEM_DONO_ID ? SEM_DONO_LABEL : ownerDisplayName(resolvedOwner),
-        porEtapa: emptyStageMap(),
-        valorPorEtapa: emptyStageMap(),
-        dealsPorEtapa: emptyStageDealsMap(),
+        nome,
+        inTeam: teamIds.has(ownerId),
+        porEtapa: emptyMap(stageIds),
+        valorPorEtapa: emptyMap(stageIds),
+        dealsPorEtapa: emptyDealsMap(stageIds),
         porFaixa: emptyBucketMap(AGING_BUCKET_IDS),
         dealsPorFaixa: emptyBucketDealsMap(AGING_BUCKET_IDS),
         porAtividade: emptyBucketMap(ACTIVITY_BUCKET_IDS),
@@ -252,27 +325,15 @@ export function aggregate(
         dealsEventoProximo30: [],
         eventoProx30PorTemp: emptyEvent30Matrix(),
         dealsEventoProx30PorTemp: emptyEvent30DealsMatrix(),
-        tempPorEtapa: emptyTempMatrix(),
-        dealsTempPorEtapa: emptyTempDealsMatrix(),
+        tempPorEtapa: emptyTempMatrix(tempStageIds),
+        dealsTempPorEtapa: emptyTempDealsMatrix(tempStageIds),
         total: 0,
         valor: 0,
       };
       byOwner.set(ownerId, row);
     }
 
-    const liquidoRaw = Number(deal.properties.valor_liquido_b2c_10 || "");
-    const dealLite: DealLite = {
-      id: deal.id,
-      dealname: deal.properties.dealname || `Negócio ${deal.id}`,
-      amount,
-      valorLiquido: Number.isFinite(liquidoRaw) && liquidoRaw > 0 ? liquidoRaw : amount,
-      createdate: deal.properties.createdate,
-      qualdate: deal.properties.pipedrive___data_de_qualificacao,
-      activitydate: deal.properties.notes_last_updated,
-      eventdate: deal.properties.data_prevista_do_evento,
-      temp: temperaturaId(deal.properties.temperatura_atual),
-      url: dealUrl(deal.id),
-    };
+    const dealLite = toDealLite(deal);
 
     row.porEtapa[stage] += 1;
     row.valorPorEtapa[stage] += amount;
@@ -303,15 +364,15 @@ export function aggregate(
         row.dealsEventoProximo30.push(dealLite);
         // Janela (0-7/8-15/16-30) × temperatura, pro gráfico "Evento em 30 dias".
         const janela = bucketForFutureEventDays(diffDays);
-        const tid = temperaturaId(deal.properties.temperatura_atual);
+        const tid = dealLite.temp ?? "sem_leitura";
         row.eventoProx30PorTemp[janela][tid] += 1;
         row.dealsEventoProx30PorTemp[janela][tid].push(dealLite);
       }
     }
 
-    // Temperatura — só nas 4 etapas ativas (sem Resting).
-    if (TEMP_STAGE_IDS.includes(stage)) {
-      const tid = temperaturaId(deal.properties.temperatura_atual);
+    // Temperatura — só nas etapas de temperatura do segmento.
+    if (tempStageIds.includes(stage)) {
+      const tid = dealLite.temp ?? "sem_leitura";
       row.tempPorEtapa[stage][tid] += 1;
       row.dealsTempPorEtapa[stage][tid].push(dealLite);
     }
@@ -325,9 +386,9 @@ export function aggregate(
     total: closers.reduce((s, c) => s + c.total, 0),
     valor: closers.reduce((s, c) => s + c.valor, 0),
     porEtapa: Object.fromEntries(
-      STAGE_IDS.map((id) => [id, closers.reduce((s, c) => s + c.porEtapa[id], 0)])
+      stageIds.map((id) => [id, closers.reduce((s, c) => s + c.porEtapa[id], 0)])
     ),
-    foraDoTimeB2B: closers.filter((c) => !B2B_TEAM_IDS.has(c.ownerId)).reduce((s, c) => s + c.total, 0),
+    foraDoTime: closers.filter((c) => !c.inTeam).reduce((s, c) => s + c.total, 0),
     eventoAtrasado: closers.reduce((s, c) => s + c.eventoAtrasado, 0),
     eventoProximo30: closers.reduce((s, c) => s + c.eventoProximo30, 0),
     eventoProx30PorTemp: Object.fromEntries(
@@ -339,7 +400,7 @@ export function aggregate(
       ])
     ),
     tempPorEtapa: Object.fromEntries(
-      TEMP_STAGE_IDS.map((sid) => [
+      tempStageIds.map((sid) => [
         sid,
         Object.fromEntries(
           TEMPERATURE_IDS.map((tid) => [tid, closers.reduce((s, c) => s + c.tempPorEtapa[sid][tid], 0)])
@@ -350,7 +411,13 @@ export function aggregate(
     ganhoValor: won.valor,
   };
 
-  return { stages: STAGES, totals, closers };
+  return {
+    stages: config.stages,
+    tempStages: tempStagesOf(config),
+    totals,
+    closers,
+    checkout: aggregateCheckout(checkoutDeals, owners, config),
+  };
 }
 
 /** Negócios de uma etapa+temperatura, de TODOS os closers (bloco geral). */
@@ -377,7 +444,7 @@ export function conviccaoEtapa(matrix: Record<string, Record<string, number>>, s
   return lidos > 0 ? (matrix[stageId]?.vou_vender ?? 0) / lidos : 0;
 }
 
-/** Convicção e cobertura gerais sobre a matriz inteira (4 etapas). */
+/** Convicção e cobertura gerais sobre a matriz inteira (etapas de temperatura). */
 export function conviccaoGeral(matrix: Record<string, Record<string, number>>): {
   total: number;
   lidos: number;
@@ -389,7 +456,7 @@ export function conviccaoGeral(matrix: Record<string, Record<string, number>>): 
   let total = 0;
   let semLeitura = 0;
   let vouVender = 0;
-  for (const sid of TEMP_STAGE_IDS) {
+  for (const sid of Object.keys(matrix)) {
     total += tempStageTotal(matrix, sid);
     semLeitura += matrix[sid]?.sem_leitura ?? 0;
     vouVender += matrix[sid]?.vou_vender ?? 0;
@@ -405,9 +472,9 @@ export function conviccaoGeral(matrix: Record<string, Record<string, number>>): 
   };
 }
 
-/** Todos os negócios ativos de um closer, juntando as 5 etapas (usado pela coluna Total/Valor). */
+/** Todos os negócios ativos de um closer, juntando as etapas (coluna Total/Valor). */
 export function allDealsOf(row: CloserRow): DealLite[] {
-  return STAGE_IDS.flatMap((id) => row.dealsPorEtapa[id]);
+  return Object.values(row.dealsPorEtapa).flat();
 }
 
 /** Todos os negócios de uma etapa, de TODOS os closers (usado pelo funil por etapa). */
@@ -417,10 +484,10 @@ export function dealsForStage(closers: CloserRow[], stageId: string): Aggregated
   );
 }
 
-/** Todos os negócios ativos de closers fora do time B2B (qualquer dono não listado em B2B_TEAM). */
+/** Todos os negócios ativos de closers fora do roster oficial do segmento. */
 export function dealsOutsideTeam(closers: CloserRow[]): AggregatedDealItem[] {
   return closers
-    .filter((c) => !B2B_TEAM_IDS.has(c.ownerId))
+    .filter((c) => !c.inTeam)
     .flatMap((c) => allDealsOf(c).map((d) => ({ ...d, ownerName: c.nome })));
 }
 
@@ -453,4 +520,3 @@ export function dealsForEvento30Temp(
     (c.dealsEventoProx30PorTemp[bucketId]?.[tempId] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
   );
 }
-

@@ -1,36 +1,28 @@
 // ============================================================
-// HubSpot CRM v3 — cliente para o painel de Negócios Ativos B2B
+// HubSpot CRM v3 — cliente para o painel de Negócios Ativos
 // ============================================================
 //
-// Escopo único e propositalmente enxuto: negócios ATIVOS (snapshot ao vivo,
-// sem filtro de período) na pipeline "Funil de Vendas B2B", agrupados por
-// Closer (Proprietário do negócio). Sem squads, sem admin, sem login.
+// Escopo enxuto: negócios ATIVOS (snapshot ao vivo) de uma pipeline do
+// HubSpot, agrupados por Closer (Proprietário do negócio). A pipeline, etapas
+// e roster vêm de um SegmentConfig (lib/segments.ts) — este cliente é agnóstico
+// a B2B/B2C. Sem admin, sem login.
+
+import type { SegmentConfig } from "./segments";
 
 const HUBSPOT_API = "https://api.hubapi.com";
 
 const TOKEN = process.env.HUBSPOT_TOKEN;
-export const PIPELINE_B2B = process.env.HUBSPOT_PIPELINE_B2B || "default";
 
-// Etapas consideradas "negócio ativo" nessa pipeline, na ordem do funil.
-// ATENÇÃO: nessa pipeline os IDs internos "closedwon"/"closedlost" foram
-// renomeados pelo negócio para "Proposta enviada | 1° Follow"/"Em negociação"
-// — NÃO são os estágios terminais de ganho/perda (confirmado via HubSpot).
-// jul/2026: as etapas "Conexão" (presentationscheduled) e "Aguardando Envio
-// de Proposta" (contractsent) foram removidas da pipeline B2B.
-export const STAGES: { id: string; label: string }[] = [
-  { id: "decisionmakerboughtin", label: "Reunião agendada / Qualificado" },
-  { id: "closedwon", label: "Proposta enviada | 1° Follow" },
-  { id: "closedlost", label: "Em negociação" },
-  { id: "1167445770", label: "Negociação avançada" },
-  { id: "1367665802", label: "Resting" },
-];
+// ID interno da pipeline por segmento. Sobrescrevível por env; defaults abaixo
+// (confirmados no portal 49656171).
+const PIPELINE_IDS: Record<string, string> = {
+  b2b: process.env.HUBSPOT_PIPELINE_B2B || "default",
+  b2c: process.env.HUBSPOT_PIPELINE_B2C || "725182862",
+};
 
-export const STAGE_IDS = STAGES.map((s) => s.id);
-
-// Etapas consideradas na visão de Temperatura — 4 etapas ativas SEM Resting
-// (decisão do usuário em jul/2026: Resting fica fora da leitura de temperatura).
-export const TEMP_STAGE_IDS = STAGE_IDS.filter((id) => id !== "1367665802");
-export const TEMP_STAGES = STAGES.filter((s) => TEMP_STAGE_IDS.includes(s.id));
+export function pipelineIdFor(config: SegmentConfig): string {
+  return PIPELINE_IDS[config.id] || "default";
+}
 
 // Portal (Hub) ID — usado pra montar o link de cada negócio no HubSpot.
 const PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || "49656171";
@@ -151,7 +143,7 @@ export function ownerDisplayName(owner?: Owner): string {
 }
 
 // ============================================================
-// Deals ativos — busca via Search API
+// Deals — busca via Search API
 // ============================================================
 
 type SearchResponse<T> = {
@@ -181,15 +173,18 @@ const brStartOfDayMs = (yyyymmdd: string): number => new Date(yyyymmdd).getTime(
 const brEndOfDayMs = (yyyymmdd: string): number =>
   new Date(yyyymmdd).getTime() + BR_OFFSET_MS + 86_400_000 - 1;
 
-/**
- * Snapshot ao vivo: negócios que ESTÃO hoje na pipeline B2B, em uma das
- * etapas ativas (STAGE_IDS). Sem `from`/`to`, mostra o funil inteiro; com
- * eles, filtra pela Data de criação (createdate) dentro do período.
- */
-export async function fetchActiveDeals(opts?: { from?: string; to?: string }): Promise<Deal[]> {
+/** Busca todos os negócios da pipeline do segmento nas etapas informadas,
+ *  paginando. Aplica o filtro por Data de criação (createdate) se `from`/`to`. */
+async function fetchDealsInStages(
+  config: SegmentConfig,
+  stageIds: string[],
+  opts?: { from?: string; to?: string }
+): Promise<Deal[]> {
+  if (stageIds.length === 0) return [];
+
   const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
-    { propertyName: "pipeline", operator: "EQ", value: PIPELINE_B2B },
-    { propertyName: "dealstage", operator: "IN", values: STAGE_IDS },
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: "dealstage", operator: "IN", values: stageIds },
   ];
 
   if (opts?.from) {
@@ -223,22 +218,39 @@ export async function fetchActiveDeals(opts?: { from?: string; to?: string }): P
   return all;
 }
 
-// Etapas terminais de GANHO (fechamento) nessa pipeline:
-// "Negócio fechado" + "Ganho / Contrato assinado".
-export const WON_STAGE_IDS = ["1076664462", "1076664460"];
+/**
+ * Snapshot ao vivo: negócios que ESTÃO hoje na pipeline do segmento, numa das
+ * etapas ATIVAS (config.stages). Sem `from`/`to`, mostra o funil inteiro; com
+ * eles, filtra pela Data de criação (createdate) dentro do período.
+ */
+export function fetchActiveDeals(config: SegmentConfig, opts?: { from?: string; to?: string }): Promise<Deal[]> {
+  return fetchDealsInStages(config, config.stages.map((s) => s.id), opts);
+}
 
 /**
- * Agregado dos negócios GANHOS (fechado + contrato assinado) — só contagem e
- * soma do amount, pro "ticket médio de ganho". Filtra por data de fechamento
+ * Negócios nas etapas de CHECKOUT do segmento (ex.: "Aguardando pagamento",
+ * "Pagamento realizado"). Bloco à parte — não entra no total de ativos.
+ * Segue o mesmo filtro de período por Data de criação. Vazio se o segmento
+ * não tem etapas de checkout.
+ */
+export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string; to?: string }): Promise<Deal[]> {
+  return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
+}
+
+/**
+ * Agregado dos negócios GANHOS do segmento (config.wonStageIds) — só contagem
+ * e soma do amount, pro "ticket médio de ganho". Filtra por data de fechamento
  * (closedate) quando `from`/`to` são passados. Busca só a prop amount.
  */
-export async function fetchWonAggregate(opts?: {
-  from?: string;
-  to?: string;
-}): Promise<{ count: number; valor: number }> {
+export async function fetchWonAggregate(
+  config: SegmentConfig,
+  opts?: { from?: string; to?: string }
+): Promise<{ count: number; valor: number }> {
+  if (config.wonStageIds.length === 0) return { count: 0, valor: 0 };
+
   const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
-    { propertyName: "pipeline", operator: "EQ", value: PIPELINE_B2B },
-    { propertyName: "dealstage", operator: "IN", values: WON_STAGE_IDS },
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: "dealstage", operator: "IN", values: config.wonStageIds },
   ];
   if (opts?.from) {
     filters.push({ propertyName: "closedate", operator: "GTE", value: brStartOfDayMs(opts.from).toString() });
@@ -252,8 +264,8 @@ export async function fetchWonAggregate(opts?: {
   let after: string | undefined;
   do {
     // limit 200 (máx da Search API) e sem sleep entre páginas: menos
-    // requisições, evita timeout no "Todo o período" (~3.9k ganhos). O retry
-    // automático em 429 já protege contra rate limit.
+    // requisições, evita timeout no "Todo o período". O retry automático em
+    // 429 já protege contra rate limit.
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
       properties: ["amount"],

@@ -18,8 +18,8 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "Negócios Ativos B2B",
-  description: "Negócios ativos da pipeline Funil de Vendas B2B, por Closer — PSA",
+  title: "Negócios Ativos — PSA",
+  description: "Negócios ativos das pipelines Funil de Vendas B2B e B2C, por Closer — PSA",
 };
 
 export default function RootLayout({

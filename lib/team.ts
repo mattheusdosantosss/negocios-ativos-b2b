@@ -1,6 +1,6 @@
-// Roster oficial dos Closers B2B. Usado só pra métrica "Fora do time B2B" no
-// cabeçalho (negócios cujo dono não é um desses closers) — a tabela continua
-// mostrando uma linha por dono real, mesmo os que não são do time B2B.
+// Rosters oficiais dos Closers por segmento. Usados só pra métrica "Fora do
+// time" no cabeçalho (negócios cujo dono não é um desses closers) — a tabela
+// continua mostrando uma linha por dono real, mesmo os que não são do time.
 
 export type TeamMember = { ownerId: string; nome: string };
 
@@ -25,3 +25,18 @@ export const B2B_TEAM: TeamMember[] = [
 ];
 
 export const B2B_TEAM_IDS = new Set(B2B_TEAM.map((m) => m.ownerId));
+
+// Roster oficial dos Closers B2C (pipeline "Funil de Vendas B2C"). Confirmado
+// em jul/2026 pela volumetria de negócios ativos + validação do usuário.
+export const B2C_TEAM: TeamMember[] = [
+  { ownerId: "79760746", nome: "Mayda Quadros" },
+  { ownerId: "88628309", nome: "João Paulo da Silveira Araújo" },
+  { ownerId: "88628313", nome: "Gabrielly Milani da Silva" },
+  { ownerId: "89632494", nome: "Willker Santos Belous" },
+  { ownerId: "79760676", nome: "Amanda de Oliveira" },
+  { ownerId: "93470034", nome: "Franciele Oliveira" },
+  { ownerId: "81035544", nome: "Camila Fay" },
+  { ownerId: "84249251", nome: "Tércio Ferreira da Silva" },
+];
+
+export const B2C_TEAM_IDS = new Set(B2C_TEAM.map((m) => m.ownerId));

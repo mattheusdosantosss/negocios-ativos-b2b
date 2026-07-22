@@ -10,9 +10,11 @@ type Props = {
   open: boolean;
   onClose: () => void;
   rows: CloserRow[];
+  /** Rótulo do segmento pro subtítulo ("do time B2B" / "do time B2C"). */
+  teamLabel?: string;
 };
 
-export default function CloserSummaryModal({ open, onClose, rows }: Props) {
+export default function CloserSummaryModal({ open, onClose, rows, teamLabel }: Props) {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -55,7 +57,7 @@ export default function CloserSummaryModal({ open, onClose, rows }: Props) {
                 Closers com negócios ativos
               </h3>
               <div className="mt-1 text-xs text-psa-orange font-semibold uppercase tracking-wider">
-                {ordenados.length} {ordenados.length === 1 ? "closer" : "closers"} do time B2B
+                {ordenados.length} {ordenados.length === 1 ? "closer" : "closers"} do time{teamLabel ? ` ${teamLabel}` : ""}
               </div>
             </div>
             <button
