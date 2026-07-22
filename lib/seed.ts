@@ -302,7 +302,6 @@ const B2C_SPEC: SegmentSeedSpec = {
   ganho: { count: 1053, valor: 8558845 },
   checkout: [
     { count: 344, valor: 2333430 }, // Aguardando pagamento
-    { count: 105, valor: 696048 }, // Pagamento realizado
   ],
   closers: [
     b2c("79760746", "Mayda Quadros", [70, 2, 12, 4]),

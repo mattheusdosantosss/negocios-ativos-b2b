@@ -79,10 +79,9 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     tempStageIds: ["1057266721", "1057266722", "1275670104", "1275670105"],
     // Ganho terminal do funil B2C.
     wonStageIds: ["1105295876"],
-    checkoutStages: [
-      { id: "1149710517", label: "Aguardando pagamento" },
-      { id: "1057266725", label: "Pagamento realizado" },
-    ],
+    // "Pagamento realizado" (1057266725) foi descontinuada — só resta
+    // "Aguardando pagamento" no bloco de checkout.
+    checkoutStages: [{ id: "1149710517", label: "Aguardando pagamento" }],
     // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
     hasEvento: false,
     team: B2C_TEAM,

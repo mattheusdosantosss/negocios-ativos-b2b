@@ -334,7 +334,7 @@ export default function Page() {
             <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Checkout</h2>
             <span className="text-[11px] text-psa-ink-soft">Fase de pagamento · fora do total de ativos</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+          <div className={`grid grid-cols-1 gap-4 p-5 ${data.checkout.stages.length > 1 ? "md:grid-cols-2" : ""}`}>
             {data.checkout.stages.map((s) => {
               const count = data.checkout!.porEtapa[s.id] ?? 0;
               const valor = data.checkout!.valorPorEtapa[s.id] ?? 0;
