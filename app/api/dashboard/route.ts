@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       totals,
       closers,
       checkout,
-      proposalTime: config.hasProposalTime ? proposalTimeMatrix(proposalDeals) : undefined,
+      proposalTime: config.hasProposalTime ? proposalTimeMatrix(proposalDeals, owners) : undefined,
     };
 
     return NextResponse.json(data);

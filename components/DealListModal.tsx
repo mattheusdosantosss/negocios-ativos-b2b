@@ -9,6 +9,7 @@ const DATE_FIELD_INFO: Record<DateField, { short: string; long: string }> = {
   qualdate: { short: "Qualificação", long: "Data de qualificação" },
   activitydate: { short: "Últ. atividade", long: "Data da última atividade registrada" },
   eventdate: { short: "Evento", long: "Data prevista do evento" },
+  proposaldate: { short: "Proposta", long: "Data de envio da última proposta" },
 };
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

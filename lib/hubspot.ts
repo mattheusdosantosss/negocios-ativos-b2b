@@ -239,12 +239,17 @@ export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string
   return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
 }
 
-// Props mínimas pro gráfico "Tempo até a proposta enviada".
+// Props pro gráfico "Tempo até a proposta enviada" (+ dados pro popup: nome,
+// valor, dono).
 const PROPOSAL_PROPS = [
   "data_de_envio_da_ultima_proposta",
   "pipedrive___data_de_qualificacao",
   "createdate",
   "temperatura_atual",
+  "dealname",
+  "amount",
+  "valor_liquido_b2c_10",
+  "hubspot_owner_id",
 ];
 
 /**

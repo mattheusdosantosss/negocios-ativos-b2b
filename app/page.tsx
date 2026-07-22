@@ -47,6 +47,7 @@ export default function Page() {
     | { mode: "outside-team" }
     | { mode: "forecast" }
     | { mode: "checkout"; stageId: string }
+    | { mode: "proposal-time"; bucketId: string; tempId: string }
     | { mode: "temp-agg"; stageId: string; tempId: string }
     | { mode: "temp-closer"; row: CloserRow; stageId: string; tempId: string }
     | null;
@@ -124,6 +125,7 @@ export default function Page() {
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
     if (modal.mode === "forecast") return dealsForecast(data.closers);
     if (modal.mode === "checkout") return data.checkout?.dealsPorEtapa[modal.stageId] ?? [];
+    if (modal.mode === "proposal-time") return data.proposalTime?.deals[modal.bucketId]?.[modal.tempId] ?? [];
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
     if (modal.mode === "temp-closer") return modal.row.dealsTempPorEtapa[modal.stageId]?.[modal.tempId] ?? [];
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
@@ -146,6 +148,11 @@ export default function Page() {
     if (modal.mode === "checkout") {
       return data.checkout?.stages.find((s) => s.id === modal.stageId)?.label ?? "Checkout";
     }
+    if (modal.mode === "proposal-time") {
+      const faixa = data.proposalTime?.buckets.find((b) => b.id === modal.bucketId)?.label ?? "";
+      const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
+      return `${temp} · proposta em ${faixa}`;
+    }
     if (modal.mode === "temp-agg" || modal.mode === "temp-closer") {
       const etapa = data.tempStages.find((s) => s.id === modal.stageId)?.label ?? "";
       const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
@@ -156,10 +163,11 @@ export default function Page() {
   }, [modal, data, cfg.label]);
 
   // Cada tipo de popup mostra ao lado do valor a data mais relevante ao seu contexto.
-  const modalDateField = useMemo((): "createdate" | "qualdate" | "activitydate" | "eventdate" => {
+  const modalDateField = useMemo((): "createdate" | "qualdate" | "activitydate" | "eventdate" | "proposaldate" => {
     if (!modal) return "createdate";
     if (modal.mode === "aging") return "qualdate";
     if (modal.mode === "activity") return "activitydate";
+    if (modal.mode === "proposal-time") return "proposaldate";
     if (
       modal.mode === "evento-atrasado-agg" ||
       modal.mode === "evento-proximo30-agg" ||
@@ -473,6 +481,7 @@ export default function Page() {
             matrix={data.proposalTime.matrix}
             unitLabel="negócios"
             showConviccao={false}
+            onOpen={(bucketId, tempId) => setModal({ mode: "proposal-time", bucketId, tempId })}
           />
         </div>
       )}

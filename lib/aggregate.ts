@@ -39,6 +39,8 @@ export type DealLite = {
   activitydate?: string;
   /** Data prevista do evento (data_prevista_do_evento). */
   eventdate?: string;
+  /** Data de envio da última proposta (data_de_envio_da_ultima_proposta). */
+  proposaldate?: string;
   /** Id da Temperatura Atual (vou_vender / forecast / cafe / larguei / sem_leitura). */
   temp?: string;
   /** Vazio no modo de exemplo (sem HUBSPOT_TOKEN) — sem registro real no HubSpot. */
@@ -46,7 +48,7 @@ export type DealLite = {
 };
 
 /** Qual campo de data cada popup exibe ao lado do valor. */
-export type DateField = "createdate" | "qualdate" | "activitydate" | "eventdate";
+export type DateField = "createdate" | "qualdate" | "activitydate" | "eventdate" | "proposaldate";
 
 /** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa/faixa). */
 export type AggregatedDealItem = DealLite & { ownerName: string };
@@ -205,6 +207,8 @@ export type ProposalTimeData = {
   buckets: StageDef[];
   /** matrix[faixa][temperatura] = nº de negócios. */
   matrix: Record<string, Record<string, number>>;
+  /** deals[faixa][temperatura] = negócios (pro popup clicável). */
+  deals: Record<string, Record<string, AggregatedDealItem[]>>;
   total: number;
 };
 
@@ -271,6 +275,7 @@ function toDealLite(deal: Deal): DealLite {
     qualdate: deal.properties.pipedrive___data_de_qualificacao,
     activitydate: deal.properties.notes_last_updated,
     eventdate: deal.properties.data_prevista_do_evento,
+    proposaldate: deal.properties.data_de_envio_da_ultima_proposta,
     temp: temperaturaId(deal.properties.temperatura_atual),
     url: dealUrl(deal.id),
   };
@@ -454,9 +459,12 @@ export function aggregate(
  * envio, em faixas × Temperatura Atual. Dias negativos (quirk de cadastro) são
  * clampados em 0.
  */
-export function proposalTimeMatrix(deals: Deal[]): ProposalTimeData {
+export function proposalTimeMatrix(deals: Deal[], owners: Map<string, Owner>): ProposalTimeData {
   const matrix: Record<string, Record<string, number>> = Object.fromEntries(
     PROPOSAL_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
+  );
+  const dealsMap: Record<string, Record<string, AggregatedDealItem[]>> = Object.fromEntries(
+    PROPOSAL_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
   );
   let total = 0;
 
@@ -470,11 +478,13 @@ export function proposalTimeMatrix(deals: Deal[]): ProposalTimeData {
     const days = Math.max(0, Math.floor((propMs - baseMs) / 86_400_000));
     const bucket = bucketForProposalDays(days);
     const tid = temperaturaId(deal.properties.temperatura_atual);
+    const { nome } = resolveOwner(deal, owners);
     matrix[bucket][tid] += 1;
+    dealsMap[bucket][tid].push({ ...toDealLite(deal), ownerName: nome });
     total += 1;
   }
 
-  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, total };
+  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, deals: dealsMap, total };
 }
 
 /** Negócios de uma etapa+temperatura, de TODOS os closers (bloco geral). */

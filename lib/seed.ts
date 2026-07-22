@@ -69,6 +69,7 @@ function fakeDeals(prefix: string, count: number, valorTotal: number, temp?: str
     qualdate: "2026-06-22",
     activitydate: "2026-07-07",
     eventdate: "2026-08-15",
+    proposaldate: "2026-07-10",
     temp,
     url: "",
   }));
@@ -198,12 +199,23 @@ function makeProposalTime(config: SegmentConfig, spec: SegmentSeedSpec): Proposa
   if (!config.hasProposalTime || !spec.proposalTime) return undefined;
   const { total, bucketRatios, tempRatios } = spec.proposalTime;
   const bucketTotals = splitInts(total, bucketRatios);
+  const nomes = config.team.map((m) => m.nome);
   const matrix: Record<string, Record<string, number>> = {};
+  const dealsMap: Record<string, Record<string, AggregatedDealItem[]>> = {};
   PROPOSAL_TIME_BUCKET_IDS.forEach((bid, i) => {
     const split = splitInts(bucketTotals[i], tempRatios);
     matrix[bid] = Object.fromEntries(TEMPERATURE_IDS.map((tid, k) => [tid, split[k]]));
+    dealsMap[bid] = Object.fromEntries(
+      TEMPERATURE_IDS.map((tid, k) => [
+        tid,
+        fakeDeals(`prop-${bid}-${tid}`, split[k], split[k] * 1500, tid).map((d, j) => ({
+          ...d,
+          ownerName: nomes.length ? nomes[j % nomes.length] : "Sem dono",
+        })),
+      ])
+    );
   });
-  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, total };
+  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, deals: dealsMap, total };
 }
 
 function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
