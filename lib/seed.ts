@@ -9,8 +9,8 @@ import {
   ACTIVITY_BUCKETS,
   EVENT_30D_BUCKETS,
   TEMPERATURE_IDS,
-  PROPOSAL_TIME_BUCKETS,
-  PROPOSAL_TIME_BUCKET_IDS,
+  MEETING_TIME_BUCKETS,
+  MEETING_TIME_BUCKET_IDS,
 } from "./aggregate";
 import type {
   AggregatedDealItem,
@@ -18,7 +18,7 @@ import type {
   CloserRow,
   DashboardData,
   DealLite,
-  ProposalTimeData,
+  MeetingTimeData,
 } from "./aggregate";
 import { tempStagesOf, type SegmentConfig } from "./segments";
 
@@ -44,8 +44,8 @@ type SegmentSeedSpec = {
   ganho: { count: number; valor: number };
   /** counts/valores alinhados à ordem de config.checkoutStages. */
   checkout?: CheckoutStageSpec[];
-  /** Distribuição ilustrativa "tempo até a proposta" (faixas × temperatura). */
-  proposalTime?: { total: number; bucketRatios: number[]; tempRatios: number[] };
+  /** Distribuição ilustrativa "tempo até a reunião" (faixas × temperatura). */
+  meetingTime?: { total: number; bucketRatios: number[]; tempRatios: number[] };
 };
 
 function splitInts(total: number, ratios: number[]): number[] {
@@ -69,7 +69,7 @@ function fakeDeals(prefix: string, count: number, valorTotal: number, temp?: str
     qualdate: "2026-06-22",
     activitydate: "2026-07-07",
     eventdate: "2026-08-15",
-    proposaldate: "2026-07-10",
+    meetingdate: "2026-07-10",
     temp,
     url: "",
   }));
@@ -195,27 +195,27 @@ function makeCheckout(config: SegmentConfig, specs?: CheckoutStageSpec[]): Check
   return { stages: config.checkoutStages, porEtapa, valorPorEtapa, dealsPorEtapa, total, valor };
 }
 
-function makeProposalTime(config: SegmentConfig, spec: SegmentSeedSpec): ProposalTimeData | undefined {
-  if (!config.hasProposalTime || !spec.proposalTime) return undefined;
-  const { total, bucketRatios, tempRatios } = spec.proposalTime;
+function makeMeetingTime(config: SegmentConfig, spec: SegmentSeedSpec): MeetingTimeData | undefined {
+  if (!config.hasMeetingTime || !spec.meetingTime) return undefined;
+  const { total, bucketRatios, tempRatios } = spec.meetingTime;
   const bucketTotals = splitInts(total, bucketRatios);
   const nomes = config.team.map((m) => m.nome);
   const matrix: Record<string, Record<string, number>> = {};
   const dealsMap: Record<string, Record<string, AggregatedDealItem[]>> = {};
-  PROPOSAL_TIME_BUCKET_IDS.forEach((bid, i) => {
+  MEETING_TIME_BUCKET_IDS.forEach((bid, i) => {
     const split = splitInts(bucketTotals[i], tempRatios);
     matrix[bid] = Object.fromEntries(TEMPERATURE_IDS.map((tid, k) => [tid, split[k]]));
     dealsMap[bid] = Object.fromEntries(
       TEMPERATURE_IDS.map((tid, k) => [
         tid,
-        fakeDeals(`prop-${bid}-${tid}`, split[k], split[k] * 1500, tid).map((d, j) => ({
+        fakeDeals(`meet-${bid}-${tid}`, split[k], split[k] * 1500, tid).map((d, j) => ({
           ...d,
           ownerName: nomes.length ? nomes[j % nomes.length] : "Sem dono",
         })),
       ])
     );
   });
-  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, deals: dealsMap, total };
+  return { buckets: MEETING_TIME_BUCKETS, matrix, deals: dealsMap, total };
 }
 
 function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
@@ -267,7 +267,7 @@ function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
     totals,
     closers,
     checkout: makeCheckout(config, spec.checkout),
-    proposalTime: makeProposalTime(config, spec),
+    meetingTime: makeMeetingTime(config, spec),
   };
 }
 
@@ -338,10 +338,11 @@ const B2C_SPEC: SegmentSeedSpec = {
   checkout: [
     { count: 344, valor: 2333430 }, // Aguardando pagamento
   ],
-  proposalTime: {
-    total: 1050,
-    bucketRatios: [0.72, 0.14, 0.09, 0.05], // 0-7 / 8-15 / 16-30 / 30+
-    tempRatios: [0.2, 0.05, 0.15, 0.05, 0.55], // vv / forecast / cafe / larguei / sem_leitura
+  // Só negócios em aberto com reunião (sem Ganho/Perdido) — ~322 no real.
+  meetingTime: {
+    total: 322,
+    bucketRatios: [0.4, 0.28, 0.2, 0.12], // 0-7 / 8-15 / 16-30 / 30+
+    tempRatios: [0.3, 0.1, 0.35, 0.1, 0.15], // vv / forecast / cafe / larguei / sem_leitura
   },
   closers: [
     b2c("79760746", "Mayda Quadros", [70, 2, 12, 4]),

@@ -37,9 +37,9 @@ export type SegmentConfig = {
   /** O segmento usa a "Data Prevista do Evento"? Se false, o bloco de Evento
    *  (atrasado / próximos 30 dias) some da seção Atenção. */
   hasEvento: boolean;
-  /** O segmento exibe o gráfico "Tempo até a proposta enviada" (distribuição
-   *  do tempo da qualificação até o envio da proposta, por temperatura)? */
-  hasProposalTime: boolean;
+  /** O segmento exibe o gráfico "Tempo até a reunião" (distribuição do tempo
+   *  da criação do negócio até a reunião, por temperatura)? */
+  hasMeetingTime: boolean;
   /** Roster oficial de closers do segmento (métrica "fora do time"). */
   team: TeamMember[];
 };
@@ -64,7 +64,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     wonStageIds: ["1076664462", "1076664460"],
     checkoutStages: [],
     hasEvento: true,
-    hasProposalTime: false,
+    hasMeetingTime: false,
     team: B2B_TEAM,
   },
   b2c: {
@@ -88,7 +88,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     checkoutStages: [{ id: "1149710517", label: "Aguardando pagamento" }],
     // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
     hasEvento: false,
-    hasProposalTime: true,
+    hasMeetingTime: true,
     team: B2C_TEAM,
   },
 };

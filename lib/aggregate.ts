@@ -39,8 +39,8 @@ export type DealLite = {
   activitydate?: string;
   /** Data prevista do evento (data_prevista_do_evento). */
   eventdate?: string;
-  /** Data de envio da última proposta (data_de_envio_da_ultima_proposta). */
-  proposaldate?: string;
+  /** Data da reunião (engagements_last_meeting_booked — reunião mais recente). */
+  meetingdate?: string;
   /** Id da Temperatura Atual (vou_vender / forecast / cafe / larguei / sem_leitura). */
   temp?: string;
   /** Vazio no modo de exemplo (sem HUBSPOT_TOKEN) — sem registro real no HubSpot. */
@@ -48,7 +48,7 @@ export type DealLite = {
 };
 
 /** Qual campo de data cada popup exibe ao lado do valor. */
-export type DateField = "createdate" | "qualdate" | "activitydate" | "eventdate" | "proposaldate";
+export type DateField = "createdate" | "qualdate" | "activitydate" | "eventdate" | "meetingdate";
 
 /** DealLite + nome do closer — usado nas listagens agregadas (todos os closers de uma etapa/faixa). */
 export type AggregatedDealItem = DealLite & { ownerName: string };
@@ -110,17 +110,17 @@ function bucketForFutureEventDays(days: number): string {
   return "30+";
 }
 
-// Faixas de tempo (em dias) da Data de qualificação até a Data de envio da
-// proposta — usadas no gráfico "Tempo até a proposta enviada".
-export const PROPOSAL_TIME_BUCKETS: { id: string; label: string }[] = [
+// Faixas de tempo (em dias) da criação do negócio até a reunião — usadas no
+// gráfico "Tempo até a reunião".
+export const MEETING_TIME_BUCKETS: { id: string; label: string }[] = [
   { id: "0-7", label: "0–7 dias" },
   { id: "8-15", label: "8–15 dias" },
   { id: "16-30", label: "16–30 dias" },
   { id: "30+", label: "30+ dias" },
 ];
-export const PROPOSAL_TIME_BUCKET_IDS = PROPOSAL_TIME_BUCKETS.map((b) => b.id);
+export const MEETING_TIME_BUCKET_IDS = MEETING_TIME_BUCKETS.map((b) => b.id);
 
-function bucketForProposalDays(days: number): string {
+function bucketForMeetingDays(days: number): string {
   if (days <= 7) return "0-7";
   if (days <= 15) return "8-15";
   if (days <= 30) return "16-30";
@@ -197,13 +197,13 @@ export type DashboardData = {
   closers: CloserRow[];
   /** Presente só nos segmentos com etapas de checkout. */
   checkout?: CheckoutData;
-  /** Presente só nos segmentos com hasProposalTime — distribuição do tempo da
-   *  qualificação até o envio da proposta, por temperatura. */
-  proposalTime?: ProposalTimeData;
+  /** Presente só nos segmentos com hasMeetingTime — distribuição do tempo da
+   *  criação do negócio até a reunião, por temperatura. */
+  meetingTime?: MeetingTimeData;
 };
 
-/** Distribuição "tempo até a proposta enviada" (faixas de dias × temperatura). */
-export type ProposalTimeData = {
+/** Distribuição "tempo até a reunião" (faixas de dias × temperatura). */
+export type MeetingTimeData = {
   buckets: StageDef[];
   /** matrix[faixa][temperatura] = nº de negócios. */
   matrix: Record<string, Record<string, number>>;
@@ -275,7 +275,7 @@ function toDealLite(deal: Deal): DealLite {
     qualdate: deal.properties.pipedrive___data_de_qualificacao,
     activitydate: deal.properties.notes_last_updated,
     eventdate: deal.properties.data_prevista_do_evento,
-    proposaldate: deal.properties.data_de_envio_da_ultima_proposta,
+    meetingdate: deal.properties.engagements_last_meeting_booked,
     temp: temperaturaId(deal.properties.temperatura_atual),
     url: dealUrl(deal.id),
   };
@@ -454,29 +454,27 @@ export function aggregate(
 }
 
 /**
- * Distribuição "tempo até a proposta enviada": para cada negócio com Data de
- * envio da proposta, dias entre a Data de qualificação (fallback: criação) e o
- * envio, em faixas × Temperatura Atual. Dias negativos (quirk de cadastro) são
- * clampados em 0.
+ * Distribuição "tempo até a reunião": para cada negócio com data de reunião,
+ * dias entre a criação do negócio e a reunião, em faixas × Temperatura Atual.
+ * Dias negativos (quirk) são clampados em 0.
  */
-export function proposalTimeMatrix(deals: Deal[], owners: Map<string, Owner>): ProposalTimeData {
+export function meetingTimeMatrix(deals: Deal[], owners: Map<string, Owner>): MeetingTimeData {
   const matrix: Record<string, Record<string, number>> = Object.fromEntries(
-    PROPOSAL_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
+    MEETING_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
   );
   const dealsMap: Record<string, Record<string, AggregatedDealItem[]>> = Object.fromEntries(
-    PROPOSAL_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
+    MEETING_TIME_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, []]))])
   );
   let total = 0;
 
   for (const deal of deals) {
-    const propMs = parseDateMs(deal.properties.data_de_envio_da_ultima_proposta);
-    if (!Number.isFinite(propMs)) continue;
-    const startMs = parseDateMs(deal.properties.pipedrive___data_de_qualificacao);
-    const baseMs = Number.isFinite(startMs) ? startMs : parseDateMs(deal.properties.createdate);
-    if (!Number.isFinite(baseMs)) continue;
+    const meetMs = parseDateMs(deal.properties.engagements_last_meeting_booked);
+    if (!Number.isFinite(meetMs)) continue;
+    const createMs = parseDateMs(deal.properties.createdate);
+    if (!Number.isFinite(createMs)) continue;
 
-    const days = Math.max(0, Math.floor((propMs - baseMs) / 86_400_000));
-    const bucket = bucketForProposalDays(days);
+    const days = Math.max(0, Math.floor((meetMs - createMs) / 86_400_000));
+    const bucket = bucketForMeetingDays(days);
     const tid = temperaturaId(deal.properties.temperatura_atual);
     const { nome } = resolveOwner(deal, owners);
     matrix[bucket][tid] += 1;
@@ -484,7 +482,7 @@ export function proposalTimeMatrix(deals: Deal[], owners: Map<string, Owner>): P
     total += 1;
   }
 
-  return { buckets: PROPOSAL_TIME_BUCKETS, matrix, deals: dealsMap, total };
+  return { buckets: MEETING_TIME_BUCKETS, matrix, deals: dealsMap, total };
 }
 
 /** Negócios de uma etapa+temperatura, de TODOS os closers (bloco geral). */

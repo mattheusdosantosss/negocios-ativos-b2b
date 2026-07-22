@@ -54,8 +54,8 @@ export type Deal = {
     temperatura_atual?: string;
     /** "Valor líquido -10%" — valor do negócio com 10% de desconto aplicado. */
     valor_liquido_b2c_10?: string;
-    /** "Data de envio da última proposta" — marco do "proposta enviada". */
-    data_de_envio_da_ultima_proposta?: string;
+    /** "Date of last meeting booked" — data da reunião mais recente do negócio. */
+    engagements_last_meeting_booked?: string;
     [key: string]: string | undefined;
   };
 };
@@ -239,11 +239,9 @@ export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string
   return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
 }
 
-// Props pro gráfico "Tempo até a proposta enviada" (+ dados pro popup: nome,
-// valor, dono).
-const PROPOSAL_PROPS = [
-  "data_de_envio_da_ultima_proposta",
-  "pipedrive___data_de_qualificacao",
+// Props pro gráfico "Tempo até a reunião" (+ dados pro popup: nome, valor, dono).
+const MEETING_PROPS = [
+  "engagements_last_meeting_booked",
   "createdate",
   "temperatura_atual",
   "dealname",
@@ -253,14 +251,17 @@ const PROPOSAL_PROPS = [
 ];
 
 /**
- * Todos os negócios do segmento que têm "Data de envio da última proposta"
- * preenchida (qualquer etapa — a maioria já é ganho). Base do gráfico "Tempo
- * até a proposta enviada". Todo o histórico, sem filtro de período.
+ * Negócios AINDA EM ABERTO (etapas ativas + checkout, ou seja, sem Ganho nem
+ * Perdido) que têm data de reunião. Base do gráfico "Tempo até a reunião" —
+ * mede o tempo da criação até a reunião de quem está no funil. Sem filtro de
+ * período.
  */
-export async function fetchProposalDeals(config: SegmentConfig): Promise<Deal[]> {
-  const filters = [
+export async function fetchMeetingDeals(config: SegmentConfig): Promise<Deal[]> {
+  const openStageIds = [...config.stages, ...config.checkoutStages].map((s) => s.id);
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
     { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
-    { propertyName: "data_de_envio_da_ultima_proposta", operator: "HAS_PROPERTY" },
+    { propertyName: "dealstage", operator: "IN", values: openStageIds },
+    { propertyName: "engagements_last_meeting_booked", operator: "HAS_PROPERTY" },
   ];
 
   const all: Deal[] = [];
@@ -268,7 +269,7 @@ export async function fetchProposalDeals(config: SegmentConfig): Promise<Deal[]>
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: PROPOSAL_PROPS,
+      properties: MEETING_PROPS,
       limit: 200,
     };
     if (after) body.after = after;

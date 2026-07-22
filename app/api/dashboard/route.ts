@@ -5,9 +5,9 @@ import {
   fetchActiveDeals,
   fetchWonAggregate,
   fetchCheckoutDeals,
-  fetchProposalDeals,
+  fetchMeetingDeals,
 } from "@/lib/hubspot";
-import { aggregate, proposalTimeMatrix, type DashboardData } from "@/lib/aggregate";
+import { aggregate, meetingTimeMatrix, type DashboardData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
 import { seedFor } from "@/lib/seed";
 
@@ -20,10 +20,10 @@ export const dynamic = "force-dynamic";
 const getWonAggregateCached = (config: SegmentConfig) =>
   unstable_cache(() => fetchWonAggregate(config), ["won-aggregate", config.id], { revalidate: 900 })();
 
-// "Tempo até a proposta" é sobre TODO o histórico de propostas enviadas — mesma
-// lógica de cache do ticket de ganho (por segmento, 15 min).
-const getProposalDealsCached = (config: SegmentConfig) =>
-  unstable_cache(() => fetchProposalDeals(config), ["proposal-deals", config.id], { revalidate: 900 })();
+// "Tempo até a reunião" varre os negócios em aberto com reunião — cacheia por
+// segmento (15 min) pra não repetir a varredura a cada visita.
+const getMeetingDealsCached = (config: SegmentConfig) =>
+  unstable_cache(() => fetchMeetingDeals(config), ["meeting-deals", config.id], { revalidate: 900 })();
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -37,12 +37,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, proposalDeals] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, meetingDeals] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config),
-      config.hasProposalTime ? getProposalDealsCached(config) : Promise.resolve([]),
+      config.hasMeetingTime ? getMeetingDealsCached(config) : Promise.resolve([]),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       totals,
       closers,
       checkout,
-      proposalTime: config.hasProposalTime ? proposalTimeMatrix(proposalDeals, owners) : undefined,
+      meetingTime: config.hasMeetingTime ? meetingTimeMatrix(meetingDeals, owners) : undefined,
     };
 
     return NextResponse.json(data);
