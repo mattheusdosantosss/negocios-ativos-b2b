@@ -238,13 +238,12 @@ export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string
 }
 
 /**
- * Negócios AINDA EM ABERTO (etapas ativas + checkout, sem Ganho/Perdido) do
- * segmento — base do gráfico "Tempo até a proposta". Todo o histórico (sem
- * filtro de período), pra medir o ciclo de quem está no funil.
+ * Negócios nas ETAPAS ATIVAS do segmento (sem checkout, sem Ganho/Perdido) —
+ * base do gráfico "Tempo até a proposta". Checkout ("Aguardando pagamento") NÃO
+ * entra: esses já passaram da proposta. Todo o histórico (sem filtro de período).
  */
-export function fetchOpenDeals(config: SegmentConfig): Promise<Deal[]> {
-  const openStageIds = [...config.stages, ...config.checkoutStages].map((s) => s.id);
-  return fetchDealsInStages(config, openStageIds);
+export function fetchMeetingScopeDeals(config: SegmentConfig): Promise<Deal[]> {
+  return fetchDealsInStages(config, config.stages.map((s) => s.id));
 }
 
 // ------------------------------------------------------------------

@@ -5,7 +5,7 @@ import {
   fetchActiveDeals,
   fetchWonAggregate,
   fetchCheckoutDeals,
-  fetchOpenDeals,
+  fetchMeetingScopeDeals,
   fetchFirstCloserMeeting,
 } from "@/lib/hubspot";
 import { aggregate, meetingTimeMatrix, type DashboardData } from "@/lib/aggregate";
@@ -30,7 +30,7 @@ const getWonAggregateCached = (config: SegmentConfig) =>
 const getMeetingRawCached = (config: SegmentConfig) =>
   unstable_cache(
     async () => {
-      const openDeals = await fetchOpenDeals(config);
+      const openDeals = await fetchMeetingScopeDeals(config);
       try {
         const starts = await fetchFirstCloserMeeting(config, openDeals.map((d) => d.id));
         return { openDeals, starts: [...starts.entries()], warning: undefined as string | undefined };
@@ -39,9 +39,9 @@ const getMeetingRawCached = (config: SegmentConfig) =>
         return { openDeals, starts: [] as [string, string][], warning };
       }
     },
-    // v4: chave nova a cada mudança de lógica pra não servir resultado antigo
-    // (v4 = filtra reuniões por outcome=COMPLETED).
-    ["meeting-raw-v4", config.id],
+    // v5: chave nova a cada mudança de lógica pra não servir resultado antigo
+    // (v5 = exclui checkout "Aguardando pagamento" da métrica).
+    ["meeting-raw-v5", config.id],
     { revalidate: 900 }
   )();
 
