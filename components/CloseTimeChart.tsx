@@ -3,6 +3,7 @@
 import type { CloseTimeData } from "@/lib/aggregate";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
+const pct = (n: number) => `${(n * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
 // Ganho = verde (positivo), Perdido = vermelho/terracota. Semântica win/loss.
 const OUTCOME_STYLE: Record<string, { fill: string; text: string }> = {
@@ -41,10 +42,14 @@ export default function CloseTimeChart({ data, onOpen }: Props) {
             <div key={b.id}>
               <div className="flex justify-between items-baseline mb-1.5 gap-2">
                 <span className="font-medium text-[13px]">
-                  {b.label} <span className="text-psa-ink-soft font-normal">{num(total)} negócios</span>
+                  {b.label}{" "}
+                  <span className="text-psa-ink-soft font-normal">
+                    {num(total)} negócios · {data.total > 0 ? pct(total / data.total) : "0%"} do total
+                  </span>
                 </span>
                 <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
-                  <b className="text-psa-ink">{num(won)}</b> ganho · <b className="text-psa-ink">{num(lost)}</b> perdido
+                  <b className="text-psa-ink">{num(won)}</b> ganho ({total > 0 ? pct(won / total) : "0%"}) ·{" "}
+                  <b className="text-psa-ink">{num(lost)}</b> perdido ({total > 0 ? pct(lost / total) : "0%"})
                 </span>
               </div>
               <div className="flex rounded-md overflow-hidden" style={{ height: 26 }}>

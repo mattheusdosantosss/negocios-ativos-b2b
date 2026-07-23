@@ -8,7 +8,7 @@ import {
   fetchClosedCloserDeals,
   fetchFirstCloserMeeting,
 } from "@/lib/hubspot";
-import { aggregate, closeTimeMatrix, type DashboardData } from "@/lib/aggregate";
+import { aggregate, closeTimeMatrix, type DashboardData, type CloseTimeData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
 import { seedFor } from "@/lib/seed";
 
@@ -27,21 +27,24 @@ const getWonAggregateCached = (config: SegmentConfig) =>
 // concluída de cada um. Negócio fechado é terminal (não muda mais de etapa),
 // então dá pra cachear a lista com segurança (30 min). Se a leitura de reuniões
 // falhar, guarda o aviso e segue.
-const getCloseTimeRawCached = (config: SegmentConfig) =>
+// Cacheia o RESULTADO COMPUTADO (CloseTimeData ~1MB, só os negócios que entram)
+// — NÃO o cru dos 7,4k fechados (~2,7MB, que estoura o limite de 2MB do Data
+// Cache da Vercel e não era cacheado, recomputando a cada visita). Owners é
+// buscado aqui dentro pra resolver os nomes no popup.
+const getCloseTimeCached = (config: SegmentConfig) =>
   unstable_cache(
-    async () => {
+    async (): Promise<{ data: CloseTimeData | undefined; warning?: string }> => {
       try {
-        const closed = await fetchClosedCloserDeals(config);
+        const [owners, closed] = await Promise.all([fetchAllOwners(), fetchClosedCloserDeals(config)]);
         const starts = await fetchFirstCloserMeeting(config, closed.map((d) => d.id));
-        return { closed, starts: [...starts.entries()], warning: undefined as string | undefined };
+        return { data: closeTimeMatrix(closed, starts, owners, config.wonStageIds), warning: undefined };
       } catch (e) {
-        const warning = e instanceof Error ? e.message : "erro ao carregar fechados/reuniões";
-        return { closed: [] as Awaited<ReturnType<typeof fetchClosedCloserDeals>>, starts: [] as [string, string][], warning };
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar fechados/reuniões" };
       }
     },
     // Dado histórico (fechados) — muda devagar; cacheia 1h. A maioria das
     // visitas pega do cache; só a 1ª após expirar paga o custo da varredura.
-    ["close-time-v2", config.id],
+    ["close-time-v3", config.id],
     { revalidate: 3600 }
   )();
 
@@ -62,7 +65,7 @@ export async function GET(req: NextRequest) {
       fetchActiveDeals(config, { from, to }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config),
-      config.hasCloseTime ? getCloseTimeRawCached(config) : Promise.resolve(null),
+      config.hasCloseTime ? getCloseTimeCached(config) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -72,9 +75,7 @@ export async function GET(req: NextRequest) {
       checkoutDeals
     );
 
-    const closeTime = closeRaw
-      ? closeTimeMatrix(closeRaw.closed, new Map(closeRaw.starts), owners, config.wonStageIds)
-      : undefined;
+    const closeTime = closeRaw?.data;
 
     const data: DashboardData = {
       meta: {
