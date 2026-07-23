@@ -42,14 +42,11 @@ export default function CloseTimeChart({ data, onOpen }: Props) {
             <div key={b.id}>
               <div className="flex justify-between items-baseline mb-1.5 gap-2">
                 <span className="font-medium text-[13px]">
-                  {b.label}{" "}
-                  <span className="text-psa-ink-soft font-normal">
-                    {num(total)} negócios · {data.total > 0 ? pct(total / data.total) : "0%"} do total
-                  </span>
+                  {b.label} <span className="text-psa-ink-soft font-normal">{num(total)} negócios</span>
                 </span>
                 <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
-                  <b className="text-psa-ink">{num(won)}</b> ganho ({total > 0 ? pct(won / total) : "0%"}) ·{" "}
-                  <b className="text-psa-ink">{num(lost)}</b> perdido ({total > 0 ? pct(lost / total) : "0%"})
+                  Ganho <b className="text-psa-ink">{total > 0 ? pct(won / total) : "0%"}</b> ({num(won)}) · Perdido{" "}
+                  <b className="text-psa-ink">{total > 0 ? pct(lost / total) : "0%"}</b> ({num(lost)})
                 </span>
               </div>
               <div className="flex rounded-md overflow-hidden" style={{ height: 26 }}>
