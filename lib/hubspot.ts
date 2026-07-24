@@ -191,7 +191,7 @@ const brEndOfDayMs = (yyyymmdd: string): number =>
 async function fetchDealsInStages(
   config: SegmentConfig,
   stageIds: string[],
-  opts?: { from?: string; to?: string }
+  opts?: { from?: string; to?: string; origem?: string[] }
 ): Promise<Deal[]> {
   if (stageIds.length === 0) return [];
 
@@ -205,6 +205,9 @@ async function fetchDealsInStages(
   }
   if (opts?.to) {
     filters.push({ propertyName: "createdate", operator: "LTE", value: brEndOfDayMs(opts.to).toString() });
+  }
+  if (opts?.origem && opts.origem.length > 0) {
+    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
   }
 
   const all: Deal[] = [];
@@ -236,7 +239,10 @@ async function fetchDealsInStages(
  * etapas ATIVAS (config.stages). Sem `from`/`to`, mostra o funil inteiro; com
  * eles, filtra pela Data de criação (createdate) dentro do período.
  */
-export function fetchActiveDeals(config: SegmentConfig, opts?: { from?: string; to?: string }): Promise<Deal[]> {
+export function fetchActiveDeals(
+  config: SegmentConfig,
+  opts?: { from?: string; to?: string; origem?: string[] }
+): Promise<Deal[]> {
   return fetchDealsInStages(config, config.stages.map((s) => s.id), opts);
 }
 
@@ -267,24 +273,25 @@ const CLOSED_PROPS = [
  * paginada (owner IN roster), SEQUENCIAL — buscas paralelas estouravam o limite
  * por segundo do HubSpot (429). Negócio fechado é terminal → pode cachear.
  */
-export async function fetchClosedCloserDeals(config: SegmentConfig): Promise<Deal[]> {
+export async function fetchClosedCloserDeals(config: SegmentConfig, origem?: string[]): Promise<Deal[]> {
   const stages = [...config.wonStageIds, ...config.lostStageIds];
   const ownerIds = config.team.map((m) => m.ownerId);
   if (stages.length === 0 || ownerIds.length === 0) return [];
+
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: "dealstage", operator: "IN", values: stages },
+    { propertyName: "hubspot_owner_id", operator: "IN", values: ownerIds },
+  ];
+  if (origem && origem.length > 0) {
+    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: origem });
+  }
 
   const all: Deal[] = [];
   let after: string | undefined;
   do {
     const body: Record<string, unknown> = {
-      filterGroups: [
-        {
-          filters: [
-            { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
-            { propertyName: "dealstage", operator: "IN", values: stages },
-            { propertyName: "hubspot_owner_id", operator: "IN", values: ownerIds },
-          ],
-        },
-      ],
+      filterGroups: [{ filters }],
       properties: CLOSED_PROPS,
       limit: 200,
     };
@@ -413,7 +420,7 @@ export async function fetchFirstCloserMeeting(
  */
 export async function fetchWonAggregate(
   config: SegmentConfig,
-  opts?: { from?: string; to?: string }
+  opts?: { from?: string; to?: string; origem?: string[] }
 ): Promise<{ count: number; valor: number }> {
   if (config.wonStageIds.length === 0) return { count: 0, valor: 0 };
 
@@ -426,6 +433,9 @@ export async function fetchWonAggregate(
   }
   if (opts?.to) {
     filters.push({ propertyName: "closedate", operator: "LTE", value: brEndOfDayMs(opts.to).toString() });
+  }
+  if (opts?.origem && opts.origem.length > 0) {
+    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
   }
 
   let count = 0;

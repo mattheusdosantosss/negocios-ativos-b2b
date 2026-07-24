@@ -8,6 +8,7 @@ import CloseTimeChart from "@/components/CloseTimeChart";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
+import LeadSourceFilter from "@/components/LeadSourceFilter";
 import {
   AGING_BUCKETS,
   ACTIVITY_BUCKETS,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/aggregate";
 import { SEGMENTS, SEGMENT_TABS, type SegmentId } from "@/lib/segments";
 import { computePeriod, type PeriodValue } from "@/lib/periods";
+import { type LeadSourceId } from "@/lib/leadSource";
 
 const EVENTO_ATRASADO_LABEL = "Evento que a data já passou";
 const EVENTO_PROXIMO30_LABEL = "Evento nos próximos 30 dias";
@@ -56,6 +58,7 @@ export default function Page() {
   const [modal, setModal] = useState<ModalState>(null);
   const [showCloserSummary, setShowCloserSummary] = useState(false);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
+  const [leadSource, setLeadSource] = useState<LeadSourceId>("all");
 
   // Labels estáticos do segmento selecionado (o hero atualiza na hora, sem
   // esperar o fetch; os números vêm do payload).
@@ -82,8 +85,9 @@ export default function Page() {
     qs.set("segment", segment);
     if (period.from) qs.set("from", period.from);
     if (period.to) qs.set("to", period.to);
+    if (leadSource !== "all") qs.set("origem", leadSource);
     return qs.toString();
-  }, [segment, period.from, period.to]);
+  }, [segment, period.from, period.to, leadSource]);
 
   async function load() {
     setLoading(true);
@@ -221,8 +225,9 @@ export default function Page() {
 
             <div className="flex items-end gap-2.5 shrink-0">
               {/* Filtro de período */}
-              <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3">
+              <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-3 flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
+                <LeadSourceFilter value={leadSource} onChange={setLeadSource} />
               </div>
 
               {/* Coluna direita: abas B2B|B2C logo acima do Atualizar (mesma largura) */}

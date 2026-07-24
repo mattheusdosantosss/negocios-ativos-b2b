@@ -10,6 +10,7 @@ import {
 } from "@/lib/hubspot";
 import { aggregate, closeTimeMatrix, type DashboardData, type CloseTimeData } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
+import { isLeadSourceId, leadSourceValues } from "@/lib/leadSource";
 import { seedFor } from "@/lib/seed";
 
 export const runtime = "nodejs";
@@ -20,8 +21,10 @@ export const maxDuration = 60;
 
 // Ticket médio de ganho é sobre TODOS os ganhos (não sofre o filtro de
 // período). Cacheia por 15 min por segmento pra não pagar a busca a cada visita.
-const getWonAggregateCached = (config: SegmentConfig) =>
-  unstable_cache(() => fetchWonAggregate(config), ["won-aggregate", config.id], { revalidate: 900 })();
+const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: string[]) =>
+  unstable_cache(() => fetchWonAggregate(config, { origem }), ["won-aggregate", config.id, origemId], {
+    revalidate: 900,
+  })();
 
 // "Tempo da reunião ao fechamento": negócios FECHADOS dos closers + a 1ª reunião
 // concluída de cada um. Negócio fechado é terminal (não muda mais de etapa),
@@ -31,20 +34,20 @@ const getWonAggregateCached = (config: SegmentConfig) =>
 // — NÃO o cru dos 7,4k fechados (~2,7MB, que estoura o limite de 2MB do Data
 // Cache da Vercel e não era cacheado, recomputando a cada visita). Owners é
 // buscado aqui dentro pra resolver os nomes no popup.
-const getCloseTimeCached = (config: SegmentConfig) =>
+const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: string[]) =>
   unstable_cache(
     async (): Promise<{ data: CloseTimeData | undefined; warning?: string }> => {
       try {
-        const [owners, closed] = await Promise.all([fetchAllOwners(), fetchClosedCloserDeals(config)]);
+        const [owners, closed] = await Promise.all([fetchAllOwners(), fetchClosedCloserDeals(config, origem)]);
         const starts = await fetchFirstCloserMeeting(config, closed.map((d) => d.id));
         return { data: closeTimeMatrix(closed, starts, owners, config.wonStageIds), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar fechados/reuniões" };
       }
     },
-    // Dado histórico (fechados) — muda devagar; cacheia 1h. A maioria das
-    // visitas pega do cache; só a 1ª após expirar paga o custo da varredura.
-    ["close-time-v3", config.id],
+    // Dado histórico (fechados) — muda devagar; cacheia 1h. Chave inclui a
+    // origem selecionada. A maioria das visitas pega do cache.
+    ["close-time-v3", config.id, origemId],
     { revalidate: 3600 }
   )();
 
@@ -53,6 +56,9 @@ export async function GET(req: NextRequest) {
   const from = url.searchParams.get("from") || undefined;
   const to = url.searchParams.get("to") || undefined;
   const config = getSegment(url.searchParams.get("segment"));
+  const rawOrigem = url.searchParams.get("origem");
+  const origemId = isLeadSourceId(rawOrigem) ? rawOrigem : "all";
+  const origem = leadSourceValues(origemId); // [] quando "Todas"
 
   if (!process.env.HUBSPOT_TOKEN) {
     // Modo de exemplo: snapshot fixo do segmento, sem filtro de período.
@@ -62,10 +68,10 @@ export async function GET(req: NextRequest) {
   try {
     const [owners, deals, checkoutDeals, won, closeRaw] = await Promise.all([
       fetchAllOwners(),
-      fetchActiveDeals(config, { from, to }),
+      fetchActiveDeals(config, { from, to, origem }),
       fetchCheckoutDeals(config, { from, to }),
-      getWonAggregateCached(config),
-      config.hasCloseTime ? getCloseTimeCached(config) : Promise.resolve(null),
+      getWonAggregateCached(config, origemId, origem),
+      config.hasCloseTime ? getCloseTimeCached(config, origemId, origem) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
