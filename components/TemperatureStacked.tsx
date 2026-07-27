@@ -18,9 +18,9 @@ const TEMP_STYLE: Record<string, { fill: string; text: string }> = {
 // Cores do Perfil (mesma paleta PSA). "Sem perfil" cinza claro, como o vazio da
 // temperatura.
 export const PERFIL_STYLE: Record<string, { fill: string; text: string }> = {
-  escala: { fill: "#FF640F", text: "#fff" },
-  profissionalize: { fill: "#053CAA", text: "#fff" },
-  iniciante: { fill: "#3DA35D", text: "#fff" },
+  escala: { fill: "#7A3FF2", text: "#fff" },
+  profissionalize: { fill: "#0E8C8B", text: "#fff" },
+  iniciante: { fill: "#E8A317", text: "#3A2A00" },
   sem_perfil: { fill: "#E8E5E1", text: "#806D61" },
 };
 
