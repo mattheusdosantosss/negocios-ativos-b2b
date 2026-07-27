@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
-import TemperatureStacked from "@/components/TemperatureStacked";
+import TemperatureStacked, { PERFIL_STYLE } from "@/components/TemperatureStacked";
 import CloserOpenDeals from "@/components/CloserOpenDeals";
 import CloseTimeChart from "@/components/CloseTimeChart";
 import DealListModal from "@/components/DealListModal";
@@ -14,12 +14,14 @@ import {
   ACTIVITY_BUCKETS,
   EVENT_30D_BUCKETS,
   TEMPERATURES,
+  PERFIS,
   allDealsOf,
   dealsForEventoAtrasado,
   dealsForEventoProximo30,
   dealsForecast,
   dealsForEvento30Temp,
   dealsForTemp,
+  dealsForPerfil,
   dealsOutsideTeam,
   conviccaoGeral,
   type CloserRow,
@@ -54,6 +56,7 @@ export default function Page() {
     | { mode: "close-time"; bucketId: string; outcomeId: string }
     | { mode: "temp-agg"; stageId: string; tempId: string }
     | { mode: "temp-closer"; row: CloserRow; stageId: string; tempId: string }
+    | { mode: "perfil-agg"; stageId: string; perfilId: string }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [showCloserSummary, setShowCloserSummary] = useState(false);
@@ -134,6 +137,7 @@ export default function Page() {
     if (modal.mode === "close-time") return data.closeTime?.deals[modal.bucketId]?.[modal.outcomeId] ?? [];
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
     if (modal.mode === "temp-closer") return modal.row.dealsTempPorEtapa[modal.stageId]?.[modal.tempId] ?? [];
+    if (modal.mode === "perfil-agg") return dealsForPerfil(data.closers, modal.stageId, modal.perfilId);
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
   }, [modal, data]);
 
@@ -164,6 +168,11 @@ export default function Page() {
       const temp = TEMPERATURES.find((t) => t.id === modal.tempId)?.label ?? "";
       return `${temp} · ${etapa}`;
     }
+    if (modal.mode === "perfil-agg") {
+      const etapa = data.tempStages.find((s) => s.id === modal.stageId)?.label ?? "";
+      const perfil = PERFIS.find((p) => p.id === modal.perfilId)?.label ?? "";
+      return `${perfil} · ${etapa}`;
+    }
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data, cfg.label]);
@@ -185,6 +194,20 @@ export default function Page() {
   }, [modal]);
 
   const conviccao = useMemo(() => (data ? conviccaoGeral(data.totals.tempPorEtapa) : null), [data]);
+
+  // Cobertura de Perfil: total nas etapas de temperatura e % com perfil preenchido.
+  const perfilCobertura = useMemo(() => {
+    if (!data) return null;
+    const m = data.totals.perfilPorEtapa;
+    let total = 0;
+    let semPerfil = 0;
+    for (const sid of Object.keys(m)) {
+      for (const p of PERFIS) total += m[sid]?.[p.id] ?? 0;
+      semPerfil += m[sid]?.sem_perfil ?? 0;
+    }
+    const comPerfil = total - semPerfil;
+    return { total, comPerfil, cobertura: total > 0 ? comPerfil / total : 0 };
+  }, [data]);
 
   const forecast = useMemo(() => (data ? dealsForecast(data.closers) : []), [data]);
   const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.amount, 0), [forecast]);
@@ -470,6 +493,31 @@ export default function Page() {
             stages={data.tempStages}
             matrix={data.totals.tempPorEtapa}
             onOpen={(stageId, tempId) => setModal({ mode: "temp-agg", stageId, tempId })}
+          />
+        </div>
+      )}
+
+      {/* Negócios ativos por perfil (mesma lógica da temperatura, dimensão Perfil).
+          Só aparece quando há perfil preenchido (B2C) — no B2B a propriedade é vazia. */}
+      {data && perfilCobertura && perfilCobertura.comPerfil > 0 && (
+        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios ativos por perfil</h2>
+            <span className="text-[11px] text-psa-ink-soft">
+              cobertura{" "}
+              <b className="text-psa-ink">
+                {(perfilCobertura.cobertura * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+              </b>{" "}
+              · {num(perfilCobertura.comPerfil)} com perfil · {data.tempStages.length} etapas
+            </span>
+          </div>
+          <TemperatureStacked
+            stages={data.tempStages}
+            matrix={data.totals.perfilPorEtapa}
+            categories={PERFIS}
+            styleMap={PERFIL_STYLE}
+            showConviccao={false}
+            onOpen={(stageId, perfilId) => setModal({ mode: "perfil-agg", stageId, perfilId })}
           />
         </div>
       )}

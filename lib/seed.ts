@@ -9,6 +9,7 @@ import {
   ACTIVITY_BUCKETS,
   EVENT_30D_BUCKETS,
   TEMPERATURE_IDS,
+  PERFIL_IDS,
   CLOSE_TIME_BUCKETS,
   CLOSE_TIME_BUCKET_IDS,
   CLOSE_OUTCOMES,
@@ -146,6 +147,25 @@ function makeRow(config: SegmentConfig, spec: SegmentSeedSpec, cs: CloserSpec): 
     dealsPorEtapaFromTemp[sid] = TEMPERATURE_IDS.flatMap((tid) => dealsTempPorEtapa[sid][tid]);
   });
 
+  // Matriz perfil × etapa — particiona os mesmos deals da etapa por perfil
+  // (ratio ilustrativo). Total por etapa bate com o da temperatura.
+  const perfilPorEtapa: Record<string, Record<string, number>> = {};
+  const dealsPerfilPorEtapa: Record<string, Record<string, DealLite[]>> = {};
+  const PERFIL_RATIOS = [0.35, 0.3, 0.2, 0.15]; // escala / profissionalize / iniciante / sem_perfil
+  tempStageIds.forEach((sid) => {
+    const stageDeals = dealsPorEtapaFromTemp[sid] ?? [];
+    const split = splitInts(stageDeals.length, PERFIL_RATIOS);
+    perfilPorEtapa[sid] = Object.fromEntries(PERFIL_IDS.map((pid, k) => [pid, split[k]]));
+    let cursor = 0;
+    dealsPerfilPorEtapa[sid] = Object.fromEntries(
+      PERFIL_IDS.map((pid, k) => {
+        const slice = stageDeals.slice(cursor, cursor + split[k]);
+        cursor += split[k];
+        return [pid, slice];
+      })
+    );
+  });
+
   return {
     ownerId: cs.ownerId,
     nome: cs.nome,
@@ -172,6 +192,8 @@ function makeRow(config: SegmentConfig, spec: SegmentSeedSpec, cs: CloserSpec): 
     dealsEventoProx30PorTemp,
     tempPorEtapa,
     dealsTempPorEtapa,
+    perfilPorEtapa,
+    dealsPerfilPorEtapa,
     total,
     valor,
   };
@@ -267,6 +289,14 @@ function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
         sid,
         Object.fromEntries(
           TEMPERATURE_IDS.map((tid) => [tid, closers.reduce((s, c) => s + c.tempPorEtapa[sid][tid], 0)])
+        ),
+      ])
+    ),
+    perfilPorEtapa: Object.fromEntries(
+      tempStageIds.map((sid) => [
+        sid,
+        Object.fromEntries(
+          PERFIL_IDS.map((pid) => [pid, closers.reduce((s, c) => s + c.perfilPorEtapa[sid][pid], 0)])
         ),
       ])
     ),

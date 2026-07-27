@@ -1,6 +1,6 @@
 "use client";
 
-import { TEMPERATURES, conviccaoEtapa, tempStageTotal } from "@/lib/aggregate";
+import { TEMPERATURES, conviccaoEtapa } from "@/lib/aggregate";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 const pct = (n: number) => `${(n * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
@@ -15,19 +15,33 @@ const TEMP_STYLE: Record<string, { fill: string; text: string }> = {
   sem_leitura: { fill: "#E8E5E1", text: "#806D61" },
 };
 
+// Cores do Perfil (mesma paleta PSA). "Sem perfil" cinza claro, como o vazio da
+// temperatura.
+export const PERFIL_STYLE: Record<string, { fill: string; text: string }> = {
+  escala: { fill: "#FF640F", text: "#fff" },
+  profissionalize: { fill: "#053CAA", text: "#fff" },
+  iniciante: { fill: "#3DA35D", text: "#fff" },
+  sem_perfil: { fill: "#E8E5E1", text: "#806D61" },
+};
+
 type Stage = { id: string; label: string };
+type Category = { id: string; label: string };
 
 type Props = {
   stages: Stage[];
   matrix: Record<string, Record<string, number>>;
-  /** Clique num segmento (etapa + temperatura). */
-  onOpen?: (stageId: string, tempId: string) => void;
+  /** Clique num segmento (etapa + categoria). */
+  onOpen?: (stageId: string, categoryId: string) => void;
   /** Menor (usado no dropdown do closer). */
   compact?: boolean;
   /** Palavra ao lado do total de cada barra (default "ativos"). */
   unitLabel?: string;
   /** Mostra convicção · sem leitura no fim de cada linha (default true). */
   showConviccao?: boolean;
+  /** Categorias empilhadas (default: temperatura). Ex.: perfil. */
+  categories?: Category[];
+  /** Cores por categoria (default: TEMP_STYLE). */
+  styleMap?: Record<string, { fill: string; text: string }>;
 };
 
 export default function TemperatureStacked({
@@ -37,17 +51,21 @@ export default function TemperatureStacked({
   compact = false,
   unitLabel = "ativos",
   showConviccao = true,
+  categories = TEMPERATURES,
+  styleMap = TEMP_STYLE,
 }: Props) {
   const barH = compact ? 22 : 26;
+  const stageTotal = (sid: string) =>
+    categories.reduce((sum, c) => sum + (matrix[sid]?.[c.id] ?? 0), 0);
 
   return (
     <div>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-4">
-        {TEMPERATURES.map((t) => (
+        {categories.map((t) => (
           <span key={t.id} className="inline-flex items-center gap-1.5 text-[10px] text-psa-ink-soft">
             <span
               className="inline-block w-2.5 h-2.5 rounded-[3px]"
-              style={{ background: TEMP_STYLE[t.id].fill }}
+              style={{ background: styleMap[t.id].fill }}
             />
             {t.label}
           </span>
@@ -56,7 +74,7 @@ export default function TemperatureStacked({
 
       <div className={compact ? "space-y-3" : "space-y-4"}>
         {stages.map((s) => {
-          const total = tempStageTotal(matrix, s.id);
+          const total = stageTotal(s.id);
           const semLeitura = matrix[s.id]?.sem_leitura ?? 0;
           return (
             <div key={s.id}>
@@ -74,11 +92,11 @@ export default function TemperatureStacked({
                 {total === 0 ? (
                   <div className="w-full bg-psa-canvas" />
                 ) : (
-                  TEMPERATURES.map((t) => {
+                  categories.map((t) => {
                     const count = matrix[s.id]?.[t.id] ?? 0;
                     if (count === 0) return null;
                     const w = (count / total) * 100;
-                    const style = TEMP_STYLE[t.id];
+                    const style = styleMap[t.id];
                     const showNum = w >= 7;
                     const clickable = !!onOpen;
                     return (

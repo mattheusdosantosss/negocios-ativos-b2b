@@ -19,6 +19,22 @@ function temperaturaId(raw?: string): string {
   return (v && TEMP_BY_RAW.get(v)) || "sem_leitura";
 }
 
+// Perfil (perfil no HubSpot). "Sem perfil" = campo vazio. Mesma lógica de
+// exibição da temperatura (empilhado por etapa), só que nesta dimensão.
+export const PERFIS: { id: string; label: string; raw: string | null }[] = [
+  { id: "escala", label: "Escala", raw: "Escala" },
+  { id: "profissionalize", label: "Profissionalize-se", raw: "Profissionalize-se" },
+  { id: "iniciante", label: "Iniciante", raw: "Iniciante" },
+  { id: "sem_perfil", label: "Sem perfil", raw: null },
+];
+export const PERFIL_IDS = PERFIS.map((p) => p.id);
+const PERFIL_BY_RAW = new Map(PERFIS.filter((p) => p.raw).map((p) => [p.raw as string, p.id]));
+
+function perfilId(raw?: string): string {
+  const v = (raw || "").trim();
+  return (v && PERFIL_BY_RAW.get(v)) || "sem_perfil";
+}
+
 // Chave de agrupamento pra qualquer negócio cujo dono não dá pra resolver
 // (sem hubspot_owner_id, ou owner não encontrado no mapa de owners). Compila
 // tudo numa única linha "Sem dono" — antes cada owner não-resolvido virava
@@ -45,6 +61,8 @@ export type DealLite = {
   closedate?: string;
   /** Id da Temperatura Atual (vou_vender / forecast / cafe / larguei / sem_leitura). */
   temp?: string;
+  /** Id do Perfil (escala / profissionalize / iniciante / sem_perfil). */
+  perfil?: string;
   /** Vazio no modo de exemplo (sem HUBSPOT_TOKEN) — sem registro real no HubSpot. */
   url: string;
 };
@@ -166,6 +184,9 @@ export type CloserRow = {
   /** Matriz Temperatura Atual × etapa (etapas de temperatura do segmento). */
   tempPorEtapa: Record<string, Record<string, number>>;
   dealsTempPorEtapa: Record<string, Record<string, DealLite[]>>;
+  /** Matriz Perfil × etapa (mesmas etapas da temperatura). */
+  perfilPorEtapa: Record<string, Record<string, number>>;
+  dealsPerfilPorEtapa: Record<string, Record<string, DealLite[]>>;
   total: number;
   valor: number;
 };
@@ -207,6 +228,8 @@ export type DashboardData = {
     eventoProx30PorTemp: Record<string, Record<string, number>>;
     /** Matriz Temperatura × etapa agregada (todos os closers). */
     tempPorEtapa: Record<string, Record<string, number>>;
+    /** Matriz Perfil × etapa agregada (todos os closers). */
+    perfilPorEtapa: Record<string, Record<string, number>>;
     /** Negócios ganhos no período — pro ticket médio de ganho. */
     ganhoCount: number;
     ganhoValor: number;
@@ -260,6 +283,18 @@ function emptyTempDealsMatrix(tempStageIds: string[]): Record<string, Record<str
   );
 }
 
+function emptyPerfilMatrix(tempStageIds: string[]): Record<string, Record<string, number>> {
+  return Object.fromEntries(
+    tempStageIds.map((sid) => [sid, Object.fromEntries(PERFIL_IDS.map((pid) => [pid, 0]))])
+  );
+}
+
+function emptyPerfilDealsMatrix(tempStageIds: string[]): Record<string, Record<string, DealLite[]>> {
+  return Object.fromEntries(
+    tempStageIds.map((sid) => [sid, Object.fromEntries(PERFIL_IDS.map((pid) => [pid, []]))])
+  );
+}
+
 function emptyEvent30Matrix(): Record<string, Record<string, number>> {
   return Object.fromEntries(
     EVENT_30D_BUCKET_IDS.map((bid) => [bid, Object.fromEntries(TEMPERATURE_IDS.map((tid) => [tid, 0]))])
@@ -298,6 +333,7 @@ function toDealLite(deal: Deal): DealLite {
     closedate: deal.properties.closedate,
     // meetingdate é preenchido caso a caso (1ª reunião com closer), não vem do deal.
     temp: temperaturaId(deal.properties.temperatura_atual),
+    perfil: perfilId(deal.properties.perfil),
     url: dealUrl(deal.id),
   };
 }
@@ -381,6 +417,8 @@ export function aggregate(
         dealsEventoProx30PorTemp: emptyEvent30DealsMatrix(),
         tempPorEtapa: emptyTempMatrix(tempStageIds),
         dealsTempPorEtapa: emptyTempDealsMatrix(tempStageIds),
+        perfilPorEtapa: emptyPerfilMatrix(tempStageIds),
+        dealsPerfilPorEtapa: emptyPerfilDealsMatrix(tempStageIds),
         total: 0,
         valor: 0,
       };
@@ -424,11 +462,15 @@ export function aggregate(
       }
     }
 
-    // Temperatura — só nas etapas de temperatura do segmento.
+    // Temperatura e Perfil — só nas etapas de temperatura do segmento.
     if (tempStageIds.includes(stage)) {
       const tid = dealLite.temp ?? "sem_leitura";
       row.tempPorEtapa[stage][tid] += 1;
       row.dealsTempPorEtapa[stage][tid].push(dealLite);
+
+      const pid = dealLite.perfil ?? "sem_perfil";
+      row.perfilPorEtapa[stage][pid] += 1;
+      row.dealsPerfilPorEtapa[stage][pid].push(dealLite);
     }
   }
 
@@ -458,6 +500,14 @@ export function aggregate(
         sid,
         Object.fromEntries(
           TEMPERATURE_IDS.map((tid) => [tid, closers.reduce((s, c) => s + c.tempPorEtapa[sid][tid], 0)])
+        ),
+      ])
+    ),
+    perfilPorEtapa: Object.fromEntries(
+      tempStageIds.map((sid) => [
+        sid,
+        Object.fromEntries(
+          PERFIL_IDS.map((pid) => [pid, closers.reduce((s, c) => s + c.perfilPorEtapa[sid][pid], 0)])
         ),
       ])
     ),
@@ -550,6 +600,17 @@ export function dealsForTemp(
 /** Soma de uma temperatura numa etapa, na matriz agregada. */
 export function tempStageTotal(matrix: Record<string, Record<string, number>>, stageId: string): number {
   return TEMPERATURE_IDS.reduce((s, tid) => s + (matrix[stageId]?.[tid] ?? 0), 0);
+}
+
+/** Negócios de uma etapa+perfil, de TODOS os closers (bloco geral). */
+export function dealsForPerfil(
+  closers: CloserRow[],
+  stageId: string,
+  perfilCat: string
+): AggregatedDealItem[] {
+  return closers.flatMap((c) =>
+    (c.dealsPerfilPorEtapa[stageId]?.[perfilCat] ?? []).map((d) => ({ ...d, ownerName: c.nome }))
+  );
 }
 
 /** Convicção de uma etapa = "Vou vender" ÷ lidos (total - sem leitura). */
