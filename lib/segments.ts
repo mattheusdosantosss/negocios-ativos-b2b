@@ -83,7 +83,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     // pagamento"/"Pagamento realizado" ficam no bloco de checkout.
     stages: [
       { id: "1057266721", label: "Reunião agendada / Qualificado" },
-      { id: "1057266722", label: "Aguardando envio da proposta" },
+      { id: "1057266722", label: "Proposta enviada | 1° Follow" },
       { id: "1275670104", label: "Em negociação" },
       { id: "1275670105", label: "Negociação avançada" },
     ],

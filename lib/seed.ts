@@ -361,7 +361,7 @@ const B2B_SPEC: SegmentSeedSpec = {
 };
 
 // B2C: números ilustrativos próximos da volumetria real (jul/2026). counts na
-// ordem [Reunião agendada/Qualificado, Aguardando envio da proposta, Em
+// ordem [Reunião agendada/Qualificado, Proposta enviada | 1° Follow, Em
 // negociação, Negociação avançada]. No B2C o amount só enche mais pro fim do
 // funil, então valor médio por etapa cresce nas etapas finais.
 const B2C_AVG = [0, 1200, 1800, 3000];
