@@ -9,6 +9,7 @@ import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
 import LeadSourceFilter from "@/components/LeadSourceFilter";
+import CloserFilter from "@/components/CloserFilter";
 import {
   AGING_BUCKETS,
   ACTIVITY_BUCKETS,
@@ -62,6 +63,7 @@ export default function Page() {
   const [showCloserSummary, setShowCloserSummary] = useState(false);
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
   const [leadSource, setLeadSource] = useState<LeadSourceId>("all");
+  const [closer, setCloser] = useState<string>("all"); // ownerId do roster ou "all"
 
   // Labels estáticos do segmento selecionado (o hero atualiza na hora, sem
   // esperar o fetch; os números vêm do payload).
@@ -78,6 +80,7 @@ export default function Page() {
   const handleSegmentChange = (next: SegmentId) => {
     if (next === segment) return;
     setSegment(next);
+    setCloser("all"); // roster muda entre B2B/B2C — não carrega closer do outro
     setData(null); // evita piscar dados do segmento anterior
     setModal(null);
     setShowCloserSummary(false);
@@ -89,8 +92,9 @@ export default function Page() {
     if (period.from) qs.set("from", period.from);
     if (period.to) qs.set("to", period.to);
     if (leadSource !== "all") qs.set("origem", leadSource);
+    if (closer !== "all") qs.set("owner", closer);
     return qs.toString();
-  }, [segment, period.from, period.to, leadSource]);
+  }, [segment, period.from, period.to, leadSource, closer]);
 
   async function load() {
     setLoading(true);
@@ -251,6 +255,7 @@ export default function Page() {
               <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-3 flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
                 <LeadSourceFilter value={leadSource} onChange={setLeadSource} />
+                <CloserFilter value={closer} options={cfg.team} onChange={setCloser} />
               </div>
 
               {/* Coluna direita: abas B2B|B2C logo acima do Atualizar (mesma largura) */}

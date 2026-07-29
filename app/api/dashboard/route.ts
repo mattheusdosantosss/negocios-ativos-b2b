@@ -21,10 +21,12 @@ export const maxDuration = 60;
 
 // Ticket médio de ganho é sobre TODOS os ganhos (não sofre o filtro de
 // período). Cacheia por 15 min por segmento pra não pagar a busca a cada visita.
-const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: string[]) =>
-  unstable_cache(() => fetchWonAggregate(config, { origem }), ["won-aggregate", config.id, origemId], {
-    revalidate: 900,
-  })();
+const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
+  unstable_cache(
+    () => fetchWonAggregate(config, { origem, owner }),
+    ["won-aggregate", config.id, origemId, owner || "all"],
+    { revalidate: 900 }
+  )();
 
 // "Tempo da reunião ao fechamento": negócios FECHADOS dos closers + a 1ª reunião
 // concluída de cada um. Negócio fechado é terminal (não muda mais de etapa),
@@ -34,11 +36,14 @@ const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: 
 // — NÃO o cru dos 7,4k fechados (~2,7MB, que estoura o limite de 2MB do Data
 // Cache da Vercel e não era cacheado, recomputando a cada visita). Owners é
 // buscado aqui dentro pra resolver os nomes no popup.
-const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: string[]) =>
+const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
   unstable_cache(
     async (): Promise<{ data: CloseTimeData | undefined; warning?: string }> => {
       try {
-        const [owners, closed] = await Promise.all([fetchAllOwners(), fetchClosedCloserDeals(config, origem)]);
+        const [owners, closed] = await Promise.all([
+          fetchAllOwners(),
+          fetchClosedCloserDeals(config, origem, owner),
+        ]);
         const starts = await fetchFirstCloserMeeting(config, closed.map((d) => d.id));
         return { data: closeTimeMatrix(closed, starts, owners, config.wonStageIds), warning: undefined };
       } catch (e) {
@@ -46,8 +51,8 @@ const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: str
       }
     },
     // Dado histórico (fechados) — muda devagar; cacheia 1h. Chave inclui a
-    // origem selecionada. A maioria das visitas pega do cache.
-    ["close-time-v3", config.id, origemId],
+    // origem e o closer selecionados. A maioria das visitas pega do cache.
+    ["close-time-v3", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 
@@ -59,6 +64,10 @@ export async function GET(req: NextRequest) {
   const rawOrigem = url.searchParams.get("origem");
   const origemId = isLeadSourceId(rawOrigem) ? rawOrigem : "all";
   const origem = leadSourceValues(origemId); // [] quando "Todas"
+  // Filtro de Closer: só aceita ownerId do roster do segmento (nunca mistura
+  // B2B com B2C). Qualquer valor fora do roster vira "todos".
+  const rawOwner = url.searchParams.get("owner");
+  const owner = config.team.some((m) => m.ownerId === rawOwner) ? (rawOwner as string) : undefined;
 
   if (!process.env.HUBSPOT_TOKEN) {
     // Modo de exemplo: snapshot fixo do segmento, sem filtro de período.
@@ -68,10 +77,10 @@ export async function GET(req: NextRequest) {
   try {
     const [owners, deals, checkoutDeals, won, closeRaw] = await Promise.all([
       fetchAllOwners(),
-      fetchActiveDeals(config, { from, to, origem }),
+      fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to }),
-      getWonAggregateCached(config, origemId, origem),
-      config.hasCloseTime ? getCloseTimeCached(config, origemId, origem) : Promise.resolve(null),
+      getWonAggregateCached(config, origemId, origem, owner),
+      config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,

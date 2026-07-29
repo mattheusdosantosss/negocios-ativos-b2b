@@ -194,7 +194,7 @@ const brEndOfDayMs = (yyyymmdd: string): number =>
 async function fetchDealsInStages(
   config: SegmentConfig,
   stageIds: string[],
-  opts?: { from?: string; to?: string; origem?: string[] }
+  opts?: { from?: string; to?: string; origem?: string[]; owner?: string }
 ): Promise<Deal[]> {
   if (stageIds.length === 0) return [];
 
@@ -211,6 +211,9 @@ async function fetchDealsInStages(
   }
   if (opts?.origem && opts.origem.length > 0) {
     filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
+  }
+  if (opts?.owner) {
+    filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
 
   const all: Deal[] = [];
@@ -244,7 +247,7 @@ async function fetchDealsInStages(
  */
 export function fetchActiveDeals(
   config: SegmentConfig,
-  opts?: { from?: string; to?: string; origem?: string[] }
+  opts?: { from?: string; to?: string; origem?: string[]; owner?: string }
 ): Promise<Deal[]> {
   return fetchDealsInStages(config, config.stages.map((s) => s.id), opts);
 }
@@ -276,9 +279,15 @@ const CLOSED_PROPS = [
  * paginada (owner IN roster), SEQUENCIAL — buscas paralelas estouravam o limite
  * por segundo do HubSpot (429). Negócio fechado é terminal → pode cachear.
  */
-export async function fetchClosedCloserDeals(config: SegmentConfig, origem?: string[]): Promise<Deal[]> {
+export async function fetchClosedCloserDeals(
+  config: SegmentConfig,
+  origem?: string[],
+  owner?: string
+): Promise<Deal[]> {
   const stages = [...config.wonStageIds, ...config.lostStageIds];
-  const ownerIds = config.team.map((m) => m.ownerId);
+  // Com um closer selecionado, escopa a UM dono (ainda do roster); senão, o
+  // roster inteiro do segmento.
+  const ownerIds = owner ? [owner] : config.team.map((m) => m.ownerId);
   if (stages.length === 0 || ownerIds.length === 0) return [];
 
   const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
@@ -423,7 +432,7 @@ export async function fetchFirstCloserMeeting(
  */
 export async function fetchWonAggregate(
   config: SegmentConfig,
-  opts?: { from?: string; to?: string; origem?: string[] }
+  opts?: { from?: string; to?: string; origem?: string[]; owner?: string }
 ): Promise<{ count: number; valor: number }> {
   if (config.wonStageIds.length === 0) return { count: 0, valor: 0 };
 
@@ -439,6 +448,9 @@ export async function fetchWonAggregate(
   }
   if (opts?.origem && opts.origem.length > 0) {
     filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
+  }
+  if (opts?.owner) {
+    filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
 
   let count = 0;
