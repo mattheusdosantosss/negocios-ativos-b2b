@@ -11,10 +11,11 @@ import {
 import {
   aggregate,
   closeTimeMatrix,
-  macroTemaConversion,
+  macroTemaByOwner,
+  macroTemaFromByOwner,
   type DashboardData,
   type CloseTimeData,
-  type MacroTemaData,
+  type MacroTemaByOwner,
 } from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
 import { isLeadSourceId, leadSourceValues } from "@/lib/leadSource";
@@ -68,15 +69,18 @@ const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: str
 // → cacheável 1h). Respeita origem e closer selecionados na chave.
 const getMacroTemaCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
   unstable_cache(
-    async (): Promise<{ data: MacroTemaData | undefined; warning?: string }> => {
+    async (): Promise<{ data: MacroTemaByOwner | undefined; warning?: string }> => {
       try {
         const closed = await fetchClosedCloserDeals(config, origem, owner);
-        return { data: macroTemaConversion(closed, config.wonStageIds), warning: undefined };
+        // Guarda a contagem POR DONO (mapa pequeno, cacheável) — o recorte de
+        // "só closers com pipeline ativo" é aplicado fora do cache, porque
+        // depende dos negócios ativos (que variam com período/filtros).
+        return { data: macroTemaByOwner(closed, config.wonStageIds), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar macro tema" };
       }
     },
-    ["macro-tema-v1", config.id, origemId, owner || "all"],
+    ["macro-tema-v2", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 
@@ -116,7 +120,13 @@ export async function GET(req: NextRequest) {
     );
 
     const closeTime = closeRaw?.data;
-    const macroTema = macroRaw?.data;
+    // "Conversão por macro tema": conta só os closers com pipeline ativo (os que
+    // aparecem no painel). Quando um closer específico está selecionado no filtro,
+    // mostra ele mesmo (a busca já veio escopada), sem restringir por "ativo".
+    const activeOwners = new Set(closers.filter((c) => c.inTeam).map((c) => c.ownerId));
+    const macroTema = macroRaw?.data
+      ? macroTemaFromByOwner(macroRaw.data, owner ? undefined : activeOwners)
+      : undefined;
 
     const data: DashboardData = {
       meta: {

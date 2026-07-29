@@ -260,6 +260,10 @@ export type MacroTemaData = {
   conv: number; // conversão geral
 };
 
+/** Contagem por dono → macro tema cru → { won, n }. Intermediário pra permitir
+ *  filtrar por um subconjunto de closers (ex.: só os com pipeline ativo). */
+export type MacroTemaByOwner = Record<string, Record<string, { won: number; n: number }>>;
+
 /** Distribuição "tempo da reunião ao fechamento" (faixas de dias × Ganho/Perdido). */
 export type CloseTimeData = {
   buckets: StageDef[];
@@ -623,16 +627,36 @@ function macroTemaLabel(raw: string): string {
  * pequena. `deals` deve ser a base de fechados dos closers (já filtrada por
  * closer/origem quando aplicável).
  */
-export function macroTemaConversion(deals: Deal[], wonStageIds: string[]): MacroTemaData {
+export function macroTemaByOwner(deals: Deal[], wonStageIds: string[]): MacroTemaByOwner {
   const wonSet = new Set(wonStageIds);
-  const agg = new Map<string, { won: number; n: number }>();
+  const map: MacroTemaByOwner = {};
   for (const d of deals) {
     const raw = (d.properties.macro_tema || "").trim();
     if (!raw) continue;
-    const cur = agg.get(raw) ?? { won: 0, n: 0 };
+    const owner = d.properties.hubspot_owner_id || SEM_DONO_ID;
+    const byTema = (map[owner] ??= {});
+    const cur = (byTema[raw] ??= { won: 0, n: 0 });
     cur.n += 1;
     if (wonSet.has(d.properties.dealstage || "")) cur.won += 1;
-    agg.set(raw, cur);
+  }
+  return map;
+}
+
+/**
+ * Consolida a contagem por-dono numa distribuição por macro tema. Se
+ * `allowOwners` for passado, conta só os donos desse conjunto (ex.: closers
+ * com pipeline ativo). Ordena por conversão desc.
+ */
+export function macroTemaFromByOwner(map: MacroTemaByOwner, allowOwners?: Set<string>): MacroTemaData {
+  const agg = new Map<string, { won: number; n: number }>();
+  for (const [owner, temas] of Object.entries(map)) {
+    if (allowOwners && !allowOwners.has(owner)) continue;
+    for (const [raw, v] of Object.entries(temas)) {
+      const cur = agg.get(raw) ?? { won: 0, n: 0 };
+      cur.won += v.won;
+      cur.n += v.n;
+      agg.set(raw, cur);
+    }
   }
   const rows: MacroTemaRow[] = [...agg.entries()]
     .map(([id, v]) => ({
