@@ -8,6 +8,7 @@ import {
   fetchClosedCloserDeals,
   fetchFirstCloserMeeting,
   fetchNextOpenTaskByDeal,
+  fetchConversionDeals,
 } from "@/lib/hubspot";
 import {
   aggregate,
@@ -15,9 +16,11 @@ import {
   macroTemaByOwner,
   macroTemaFromByOwner,
   taskMatrix,
+  conversionData,
   type DashboardData,
   type CloseTimeData,
   type MacroTemaByOwner,
+  type ConversionData,
 } from "@/lib/aggregate";
 import { getSegment, tempStagesOf, type SegmentConfig } from "@/lib/segments";
 import { isLeadSourceId, leadSourceValues } from "@/lib/leadSource";
@@ -86,6 +89,23 @@ const getMacroTemaCached = (config: SegmentConfig, origemId: string, origem: str
     { revalidate: 3600 }
   )();
 
+// "Taxa de conversão" (Proposta → Ganho): histórico dos negócios que entraram em
+// Proposta, com quebra por mês de criação. Muda devagar; cacheia 1h. O filtro de
+// mês é aplicado no cliente (sem refetch). Respeita origem e closer.
+const getConversionCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: ConversionData | undefined; warning?: string }> => {
+      try {
+        const deals = await fetchConversionDeals(config, { origem, owner });
+        return { data: conversionData(deals, config), warning: undefined };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" };
+      }
+    },
+    ["conversion-v1", config.id, origemId, owner || "all"],
+    { revalidate: 3600 }
+  )();
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || undefined;
@@ -105,13 +125,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config, origemId, origem, owner),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
       config.hasMacroTema ? getMacroTemaCached(config, origemId, origem, owner) : Promise.resolve(null),
+      getConversionCached(config, origemId, origem, owner),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -149,7 +170,7 @@ export async function GET(req: NextRequest) {
         label: config.label,
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
-        closeTimeWarning: closeRaw?.warning || macroRaw?.warning,
+        closeTimeWarning: closeRaw?.warning || macroRaw?.warning || convRaw?.warning,
         taskWarning,
       },
       stages,
@@ -160,6 +181,7 @@ export async function GET(req: NextRequest) {
       closeTime,
       macroTema,
       tasks,
+      conversion: convRaw?.data,
     };
 
     return NextResponse.json(data);

@@ -426,6 +426,44 @@ export async function fetchFirstCloserMeeting(
   return result;
 }
 
+/**
+ * Negócios que ENTRARAM na etapa "Proposta enviada | 1° Follow" (base da taxa
+ * de conversão Proposta → Ganho). Usa hs_v2_date_entered_<etapa> (HAS_PROPERTY).
+ * Traz createdate + as datas de entrada em Ganho (pra marcar quem converteu).
+ * Respeita origem e closer. Paginado, todo o histórico.
+ */
+export async function fetchConversionDeals(
+  config: SegmentConfig,
+  opts?: { origem?: string[]; owner?: string }
+): Promise<Deal[]> {
+  const propostaProp = `hs_v2_date_entered_${config.propostaStageId}`;
+  const wonProps = config.wonStageIds.map((w) => `hs_v2_date_entered_${w}`);
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: propostaProp, operator: "HAS_PROPERTY" },
+  ];
+  if (opts?.origem && opts.origem.length > 0) {
+    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
+  }
+  if (opts?.owner) {
+    filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
+  }
+  const properties = ["createdate", propostaProp, ...wonProps];
+  const all: Deal[] = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties, limit: 200 };
+    if (after) body.after = after;
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    all.push(...data.results);
+    after = data.paging?.next?.after;
+  } while (after);
+  return all;
+}
+
 // ------------------------------------------------------------------
 // Tarefas (tasks) — próxima tarefa aberta por negócio ativo
 // ------------------------------------------------------------------

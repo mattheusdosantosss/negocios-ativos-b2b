@@ -29,6 +29,8 @@ export type SegmentConfig = {
   stages: StageDef[];
   /** Etapas que entram na visão de Temperatura (B2B exclui "Resting"). */
   tempStageIds: string[];
+  /** Etapa "Proposta enviada | 1° Follow" — denominador da taxa de conversão. */
+  propostaStageId: string;
   /** Etapas terminais de GANHO — base do "ticket médio de ganho". */
   wonStageIds: string[];
   /** Etapas terminais de PERDA — usado no "tempo da reunião ao fechamento". */
@@ -68,6 +70,8 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     ],
     // Resting (1367665802) fica fora da leitura de temperatura (decisão jul/2026).
     tempStageIds: ["decisionmakerboughtin", "closedwon", "closedlost", "1167445770"],
+    // "Proposta enviada | 1° Follow" reaproveita o id interno "closedwon".
+    propostaStageId: "closedwon",
     // Etapas terminais de ganho: "Negócio fechado" + "Ganho / Contrato assinado".
     wonStageIds: ["1076664462", "1076664460"],
     lostStageIds: ["1076664461"],
@@ -92,6 +96,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
       { id: "1275670105", label: "Negociação avançada" },
     ],
     tempStageIds: ["1057266721", "1057266722", "1275670104", "1275670105"],
+    propostaStageId: "1057266722",
     // Ganho terminal do funil B2C.
     wonStageIds: ["1105295876"],
     lostStageIds: ["1059939760"],

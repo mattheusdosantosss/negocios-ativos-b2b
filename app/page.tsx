@@ -6,6 +6,7 @@ import TemperatureStacked, { PERFIL_STYLE, TASK_STYLE } from "@/components/Tempe
 import CloserOpenDeals from "@/components/CloserOpenDeals";
 import CloseTimeChart from "@/components/CloseTimeChart";
 import MacroTemaConversion from "@/components/MacroTemaConversion";
+import ConversionCard from "@/components/ConversionCard";
 import SectionCard from "@/components/SectionCard";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
@@ -618,6 +619,16 @@ export default function Page() {
           }
         >
           <MacroTemaConversion data={data.macroTema} />
+        </SectionCard>
+      )}
+
+      {/* Taxa de conversão Proposta → Ganho (geral + filtro por mês de criação) */}
+      {data && data.conversion && data.conversion.geral.entered > 0 && (
+        <SectionCard
+          title="Taxa de conversão · Proposta → Ganho"
+          subtitle="quem entrou em Proposta enviada e chegou a Ganho · por data de criação"
+        >
+          <ConversionCard data={data.conversion} />
         </SectionCard>
       )}
 

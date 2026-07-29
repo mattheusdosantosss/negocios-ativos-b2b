@@ -246,7 +246,55 @@ export type DashboardData = {
   macroTema?: MacroTemaData;
   /** Situação das tarefas dos negócios ativos por etapa (B2B e B2C). */
   tasks?: TaskData;
+  /** Taxa de conversão Proposta → Ganho (geral + por mês de criação). */
+  conversion?: ConversionData;
 };
+
+// Taxa de conversão Proposta → Ganho, por mês de criação.
+const MES_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function mesLabel(key: string): string {
+  const [y, m] = key.split("-");
+  const ab = MES_ABBR[Number(m) - 1] ?? m;
+  return `${ab.charAt(0).toUpperCase()}${ab.slice(1)}/${y}`;
+}
+
+export type ConversionMonth = { key: string; label: string; entered: number; won: number; conv: number };
+export type ConversionData = {
+  geral: { entered: number; won: number; conv: number };
+  months: ConversionMonth[]; // desc por key (mais recente primeiro)
+};
+
+/**
+ * Taxa de conversão = negócios que entraram em Ganho ÷ negócios que entraram em
+ * "Proposta enviada | 1° Follow". `deals` já vem filtrado (todos entraram em
+ * Proposta). Marca convertido quem tem hs_v2_date_entered_<ganho> preenchido.
+ * Quebra por MÊS de criação (createdate).
+ */
+export function conversionData(deals: Deal[], config: SegmentConfig): ConversionData {
+  const wonProps = config.wonStageIds.map((w) => `hs_v2_date_entered_${w}`);
+  let entered = 0;
+  let won = 0;
+  const byMonth = new Map<string, { entered: number; won: number }>();
+  for (const d of deals) {
+    entered += 1;
+    const isWon = wonProps.some((wp) => d.properties[wp]);
+    if (isWon) won += 1;
+    const cd = d.properties.createdate ? new Date(d.properties.createdate) : null;
+    const key =
+      cd && Number.isFinite(cd.getTime())
+        ? `${cd.getUTCFullYear()}-${String(cd.getUTCMonth() + 1).padStart(2, "0")}`
+        : "sem-data";
+    const cur = byMonth.get(key) ?? { entered: 0, won: 0 };
+    cur.entered += 1;
+    if (isWon) cur.won += 1;
+    byMonth.set(key, cur);
+  }
+  const months: ConversionMonth[] = [...byMonth.entries()]
+    .filter(([k]) => k !== "sem-data")
+    .map(([key, v]) => ({ key, label: mesLabel(key), entered: v.entered, won: v.won, conv: v.entered > 0 ? v.won / v.entered : 0 }))
+    .sort((a, b) => b.key.localeCompare(a.key));
+  return { geral: { entered, won, conv: entered > 0 ? won / entered : 0 }, months };
+}
 
 // Situação da PRÓXIMA tarefa aberta de um negócio ativo. Ordem = ordem de
 // exibição na pilha (problemas primeiro).
