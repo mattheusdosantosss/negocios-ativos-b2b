@@ -125,6 +125,16 @@ export default function Page() {
     [data]
   );
 
+  // Opções do filtro de Closer: só quem tem negócio ativo (os mesmos listados
+  // no painel), em ordem alfabética.
+  const closerOptions = useMemo(
+    () =>
+      teamClosers
+        .map((c) => ({ ownerId: c.ownerId, nome: c.nome }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+    [teamClosers]
+  );
+
   // Ticket médio de ganho = valor dos negócios ganhos ÷ nº de ganhos.
   const ticketMedioGanho =
     data && data.totals.ganhoCount > 0 ? data.totals.ganhoValor / data.totals.ganhoCount : 0;
@@ -257,7 +267,7 @@ export default function Page() {
               <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-3 flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
                 <LeadSourceFilter value={leadSource} onChange={setLeadSource} />
-                <CloserFilter value={closer} options={cfg.team} onChange={setCloser} />
+                <CloserFilter value={closer} options={closerOptions} onChange={setCloser} />
               </div>
 
               {/* Coluna direita: abas B2B|B2C logo acima do Atualizar (mesma largura) */}
