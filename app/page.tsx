@@ -348,6 +348,11 @@ export default function Page() {
         </div>
       )}
 
+      {/* Taxa de conversão Proposta → Ganho — primeira info do painel */}
+      {data && data.conversion && data.conversion.geral.entered > 0 && (
+        <ConversionCard data={data.conversion} />
+      )}
+
       {/* KPIs */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
@@ -619,16 +624,6 @@ export default function Page() {
           }
         >
           <MacroTemaConversion data={data.macroTema} />
-        </SectionCard>
-      )}
-
-      {/* Taxa de conversão Proposta → Ganho (geral + filtro por mês de criação) */}
-      {data && data.conversion && data.conversion.geral.entered > 0 && (
-        <SectionCard
-          title="Taxa de conversão · Proposta → Ganho"
-          subtitle="quem entrou em Proposta enviada e chegou a Ganho · por data de criação"
-        >
-          <ConversionCard data={data.conversion} />
         </SectionCard>
       )}
 
