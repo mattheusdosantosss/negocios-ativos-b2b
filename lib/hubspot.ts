@@ -426,6 +426,58 @@ export async function fetchFirstCloserMeeting(
   return result;
 }
 
+// ------------------------------------------------------------------
+// Tarefas (tasks) — próxima tarefa aberta por negócio ativo
+// ------------------------------------------------------------------
+
+const TASK_PROPS = ["hs_task_status", "hs_timestamp"];
+
+/** Lê status + data de vencimento (hs_timestamp) de um lote de tarefas. */
+async function fetchTaskDuesByIds(
+  taskIds: string[]
+): Promise<Map<string, { status?: string; due?: string }>> {
+  const map = new Map<string, { status?: string; due?: string }>();
+  const chunks: string[][] = [];
+  for (let i = 0; i < taskIds.length; i += 100) chunks.push(taskIds.slice(i, i + 100));
+  const responses = await mapLimit(chunks, 6, (chunk) =>
+    hsFetch<{ results?: Array<{ id: string; properties: { hs_task_status?: string; hs_timestamp?: string } }> }>(
+      `/crm/v3/objects/tasks/batch/read`,
+      { method: "POST", body: JSON.stringify({ properties: TASK_PROPS, inputs: chunk.map((id) => ({ id })) }) }
+    )
+  );
+  for (const data of responses)
+    for (const t of data.results ?? [])
+      map.set(t.id, { status: t.properties.hs_task_status, due: t.properties.hs_timestamp });
+  return map;
+}
+
+/**
+ * Para cada negócio, o vencimento (ms) da PRÓXIMA tarefa ABERTA — status !=
+ * COMPLETED, menor hs_timestamp. Negócio sem tarefa aberta não entra no mapa
+ * (o consumidor trata a ausência como "sem tarefa"). Usa a associação direta
+ * negócio→tarefa, em lotes (mesma infra das reuniões).
+ */
+export async function fetchNextOpenTaskByDeal(dealIds: string[]): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (dealIds.length === 0) return result;
+  const dealTasks = await fetchAssocIds("deals", "tasks", dealIds);
+  const allTaskIds = [...new Set([...dealTasks.values()].flat())];
+  if (allTaskIds.length === 0) return result;
+  const tasks = await fetchTaskDuesByIds(allTaskIds);
+  for (const [dealId, tids] of dealTasks) {
+    let earliest = Infinity;
+    for (const tid of tids) {
+      const t = tasks.get(tid);
+      if (!t || (t.status || "").toUpperCase() === "COMPLETED") continue; // só abertas
+      const raw = t.due;
+      const ms = raw ? new Date(Number.isNaN(Number(raw)) ? raw : Number(raw)).getTime() : NaN;
+      if (Number.isFinite(ms) && ms < earliest) earliest = ms;
+    }
+    if (Number.isFinite(earliest)) result.set(dealId, earliest);
+  }
+  return result;
+}
+
 /**
  * Agregado dos negócios GANHOS do segmento (config.wonStageIds) — só contagem
  * e soma do amount, pro "ticket médio de ganho". Filtra por data de fechamento

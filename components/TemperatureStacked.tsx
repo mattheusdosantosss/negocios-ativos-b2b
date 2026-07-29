@@ -1,5 +1,6 @@
 "use client";
 
+import { type ReactNode } from "react";
 import { TEMPERATURES, conviccaoEtapa } from "@/lib/aggregate";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -24,6 +25,15 @@ export const PERFIL_STYLE: Record<string, { fill: string; text: string }> = {
   sem_perfil: { fill: "#E8E5E1", text: "#806D61" },
 };
 
+// Cores da situação de tarefa: atrasada = vermelho (crítico), sem tarefa =
+// âmbar (lacuna), ≤24h = verde (ação iminente), +24h = azul (planejada).
+export const TASK_STYLE: Record<string, { fill: string; text: string }> = {
+  atrasada: { fill: "#C0432F", text: "#fff" },
+  sem_tarefa: { fill: "#E8A317", text: "#3A2A00" },
+  prox24: { fill: "#1E9E62", text: "#fff" },
+  mais24: { fill: "#053CAA", text: "#fff" },
+};
+
 type Stage = { id: string; label: string };
 type Category = { id: string; label: string };
 
@@ -42,6 +52,8 @@ type Props = {
   categories?: Category[];
   /** Cores por categoria (default: TEMP_STYLE). */
   styleMap?: Record<string, { fill: string; text: string }>;
+  /** Estatística custom à direita de cada linha (substitui o bloco de convicção). */
+  rightStat?: (stageId: string) => ReactNode;
 };
 
 export default function TemperatureStacked({
@@ -53,6 +65,7 @@ export default function TemperatureStacked({
   showConviccao = true,
   categories = TEMPERATURES,
   styleMap = TEMP_STYLE,
+  rightStat,
 }: Props) {
   const barH = compact ? 22 : 26;
   const stageTotal = (sid: string) =>
@@ -82,10 +95,14 @@ export default function TemperatureStacked({
                 <span className={`font-medium ${compact ? "text-xs" : "text-[13px]"}`}>
                   {s.label} <span className="text-psa-ink-soft font-normal">{num(total)} {unitLabel}</span>
                 </span>
-                {showConviccao && (
-                  <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
-                    convicção <b className="text-psa-ink">{pct(conviccaoEtapa(matrix, s.id))}</b> · {num(semLeitura)} sem leitura
-                  </span>
+                {rightStat ? (
+                  <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">{rightStat(s.id)}</span>
+                ) : (
+                  showConviccao && (
+                    <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
+                      convicção <b className="text-psa-ink">{pct(conviccaoEtapa(matrix, s.id))}</b> · {num(semLeitura)} sem leitura
+                    </span>
+                  )
                 )}
               </div>
               <div className="flex rounded-md overflow-hidden" style={{ height: barH }}>

@@ -7,17 +7,19 @@ import {
   fetchCheckoutDeals,
   fetchClosedCloserDeals,
   fetchFirstCloserMeeting,
+  fetchNextOpenTaskByDeal,
 } from "@/lib/hubspot";
 import {
   aggregate,
   closeTimeMatrix,
   macroTemaByOwner,
   macroTemaFromByOwner,
+  taskMatrix,
   type DashboardData,
   type CloseTimeData,
   type MacroTemaByOwner,
 } from "@/lib/aggregate";
-import { getSegment, type SegmentConfig } from "@/lib/segments";
+import { getSegment, tempStagesOf, type SegmentConfig } from "@/lib/segments";
 import { isLeadSourceId, leadSourceValues } from "@/lib/leadSource";
 import { seedFor } from "@/lib/seed";
 
@@ -128,6 +130,17 @@ export async function GET(req: NextRequest) {
       ? macroTemaFromByOwner(macroRaw.data, owner ? undefined : activeOwners)
       : undefined;
 
+    // Tarefas por etapa dos negócios ativos (não cacheado — muda toda hora; a
+    // leitura de tarefas do escopo ativo é rápida). Se falhar, guarda o aviso.
+    let tasks: DashboardData["tasks"];
+    let taskWarning: string | undefined;
+    try {
+      const dueByDeal = await fetchNextOpenTaskByDeal(deals.map((d) => d.id));
+      tasks = taskMatrix(deals, dueByDeal, owners, tempStagesOf(config), Date.now());
+    } catch (e) {
+      taskWarning = e instanceof Error ? e.message : "erro ao carregar tarefas";
+    }
+
     const data: DashboardData = {
       meta: {
         updatedAt: new Date().toISOString(),
@@ -137,6 +150,7 @@ export async function GET(req: NextRequest) {
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
         closeTimeWarning: closeRaw?.warning || macroRaw?.warning,
+        taskWarning,
       },
       stages,
       tempStages,
@@ -145,6 +159,7 @@ export async function GET(req: NextRequest) {
       checkout,
       closeTime,
       macroTema,
+      tasks,
     };
 
     return NextResponse.json(data);

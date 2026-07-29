@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import KpiCard from "@/components/KpiCard";
-import TemperatureStacked, { PERFIL_STYLE } from "@/components/TemperatureStacked";
+import TemperatureStacked, { PERFIL_STYLE, TASK_STYLE } from "@/components/TemperatureStacked";
 import CloserOpenDeals from "@/components/CloserOpenDeals";
 import CloseTimeChart from "@/components/CloseTimeChart";
 import MacroTemaConversion from "@/components/MacroTemaConversion";
@@ -18,6 +18,7 @@ import {
   EVENT_30D_BUCKETS,
   TEMPERATURES,
   PERFIS,
+  TASK_CATEGORIES,
   allDealsOf,
   dealsForEventoAtrasado,
   dealsForEventoProximo30,
@@ -60,6 +61,7 @@ export default function Page() {
     | { mode: "temp-agg"; stageId: string; tempId: string }
     | { mode: "temp-closer"; row: CloserRow; stageId: string; tempId: string }
     | { mode: "perfil-agg"; stageId: string; perfilId: string }
+    | { mode: "task-agg"; stageId: string; catId: string }
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [showCloserSummary, setShowCloserSummary] = useState(false);
@@ -154,6 +156,7 @@ export default function Page() {
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
     if (modal.mode === "temp-closer") return modal.row.dealsTempPorEtapa[modal.stageId]?.[modal.tempId] ?? [];
     if (modal.mode === "perfil-agg") return dealsForPerfil(data.closers, modal.stageId, modal.perfilId);
+    if (modal.mode === "task-agg") return data.tasks?.deals[modal.stageId]?.[modal.catId] ?? [];
     return modal.stageId === "total" ? allDealsOf(modal.row) : modal.row.dealsPorEtapa[modal.stageId] ?? [];
   }, [modal, data]);
 
@@ -189,6 +192,11 @@ export default function Page() {
       const perfil = PERFIS.find((p) => p.id === modal.perfilId)?.label ?? "";
       return `${perfil} · ${etapa}`;
     }
+    if (modal.mode === "task-agg") {
+      const etapa = data.tempStages.find((s) => s.id === modal.stageId)?.label ?? "";
+      const cat = TASK_CATEGORIES.find((c) => c.id === modal.catId)?.label ?? "";
+      return `${cat} · ${etapa}`;
+    }
     if (modal.mode === "single" && modal.stageId === "total") return "Todos os negócios ativos";
     return data.stages.find((s) => s.id === modal.stageId)?.label ?? "";
   }, [modal, data, cfg.label]);
@@ -197,7 +205,7 @@ export default function Page() {
   const modalDateField = useMemo((): "createdate" | "qualdate" | "activitydate" | "eventdate" | "meetingdate" | "closedate" => {
     if (!modal) return "createdate";
     if (modal.mode === "aging") return "qualdate";
-    if (modal.mode === "activity") return "activitydate";
+    if (modal.mode === "activity" || modal.mode === "task-agg") return "activitydate";
     if (modal.mode === "close-time") return "closedate";
     if (
       modal.mode === "evento-atrasado-agg" ||
@@ -511,6 +519,38 @@ export default function Page() {
             stages={data.tempStages}
             matrix={data.totals.tempPorEtapa}
             onOpen={(stageId, tempId) => setModal({ mode: "temp-agg", stageId, tempId })}
+          />
+        </SectionCard>
+      )}
+
+      {/* Tarefas por etapa do funil — situação da próxima tarefa aberta dos
+          negócios ativos (mesmo componente de barras da temperatura). */}
+      {data && data.tasks && data.tasks.total > 0 && (
+        <SectionCard
+          title="Tarefas por etapa do funil"
+          subtitle={
+            <>
+              {num(data.tasks.total)} ativos ·{" "}
+              <b className="text-psa-ink">{num(data.tasks.totals.atrasada)}</b> com tarefa atrasada ·{" "}
+              <b className="text-psa-ink">{num(data.tasks.totals.sem_tarefa)}</b> sem tarefa
+            </>
+          }
+        >
+          <TemperatureStacked
+            stages={data.tasks.stages}
+            matrix={data.tasks.matrix}
+            categories={TASK_CATEGORIES}
+            styleMap={TASK_STYLE}
+            rightStat={(stageId) => {
+              const r = data.tasks!.matrix[stageId] ?? {};
+              return (
+                <>
+                  <b className="text-psa-ink">{num(r.atrasada ?? 0)}</b> atrasada{(r.atrasada ?? 0) === 1 ? "" : "s"} ·{" "}
+                  <b className="text-psa-ink">{num(r.sem_tarefa ?? 0)}</b> sem tarefa
+                </>
+              );
+            }}
+            onOpen={(stageId, catId) => setModal({ mode: "task-agg", stageId, catId })}
           />
         </SectionCard>
       )}

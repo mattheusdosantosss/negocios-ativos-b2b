@@ -212,6 +212,8 @@ export type DashboardData = {
     pipelineName: string;
     /** Diagnóstico: mensagem se a leitura de reuniões falhar (ex.: falta de escopo). */
     closeTimeWarning?: string;
+    /** Diagnóstico: mensagem se a leitura de tarefas falhar. */
+    taskWarning?: string;
   };
   stages: StageDef[];
   /** Etapas que entram na visão de Temperatura (subconjunto de stages). */
@@ -242,7 +244,73 @@ export type DashboardData = {
   closeTime?: CloseTimeData;
   /** Presente só nos segmentos com hasMacroTema (B2B) — win rate por macro tema. */
   macroTema?: MacroTemaData;
+  /** Situação das tarefas dos negócios ativos por etapa (B2B e B2C). */
+  tasks?: TaskData;
 };
+
+// Situação da PRÓXIMA tarefa aberta de um negócio ativo. Ordem = ordem de
+// exibição na pilha (problemas primeiro).
+export const TASK_CATEGORIES: { id: string; label: string }[] = [
+  { id: "atrasada", label: "Tarefa atrasada" },
+  { id: "sem_tarefa", label: "Sem tarefa" },
+  { id: "prox24", label: "Próx. tarefa ≤ 24h" },
+  { id: "mais24", label: "Próx. tarefa + 24h" },
+];
+const TASK_CAT_IDS = TASK_CATEGORIES.map((c) => c.id);
+
+/** Classifica um negócio pela data (ms) da próxima tarefa aberta (ou ausência). */
+function taskCategory(now: number, dueMs?: number): string {
+  if (dueMs == null || !Number.isFinite(dueMs)) return "sem_tarefa";
+  if (dueMs < now) return "atrasada";
+  if (dueMs <= now + 86_400_000) return "prox24";
+  return "mais24";
+}
+
+/** Situação das tarefas por etapa (matriz etapa × categoria de tarefa). */
+export type TaskData = {
+  stages: StageDef[];
+  matrix: Record<string, Record<string, number>>;
+  deals: Record<string, Record<string, AggregatedDealItem[]>>;
+  total: number;
+  /** Totais por categoria (pro subtítulo). */
+  totals: Record<string, number>;
+};
+
+/**
+ * Distribui os negócios ATIVOS por etapa × situação da próxima tarefa aberta.
+ * `dueByDeal` mapeia dealId → vencimento (ms) da próxima tarefa aberta; a
+ * ausência conta como "sem tarefa". `now` é o instante do request (pra janela
+ * de 24h). Só as etapas informadas (as de temperatura do segmento).
+ */
+export function taskMatrix(
+  deals: Deal[],
+  dueByDeal: Map<string, number>,
+  owners: Map<string, Owner>,
+  stages: StageDef[],
+  now: number
+): TaskData {
+  const stageIds = stages.map((s) => s.id);
+  const stageSet = new Set(stageIds);
+  const matrix: Record<string, Record<string, number>> = Object.fromEntries(
+    stageIds.map((sid) => [sid, Object.fromEntries(TASK_CAT_IDS.map((c) => [c, 0]))])
+  );
+  const dealsMap: Record<string, Record<string, AggregatedDealItem[]>> = Object.fromEntries(
+    stageIds.map((sid) => [sid, Object.fromEntries(TASK_CAT_IDS.map((c) => [c, []]))])
+  );
+  const totals: Record<string, number> = Object.fromEntries(TASK_CAT_IDS.map((c) => [c, 0]));
+  let total = 0;
+  for (const d of deals) {
+    const stage = d.properties.dealstage;
+    if (!stage || !stageSet.has(stage)) continue;
+    const cat = taskCategory(now, dueByDeal.get(d.id));
+    matrix[stage][cat] += 1;
+    totals[cat] += 1;
+    total += 1;
+    const { nome } = resolveOwner(d, owners);
+    dealsMap[stage][cat].push({ ...toDealLite(d), ownerName: nome });
+  }
+  return { stages, matrix, deals: dealsMap, total, totals };
+}
 
 /** Conversão (win rate) por macro tema. Uma linha por macro_tema com fechados. */
 export type MacroTemaRow = {
