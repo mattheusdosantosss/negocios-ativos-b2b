@@ -42,6 +42,9 @@ export type SegmentConfig = {
   /** O segmento exibe o gráfico "Tempo da reunião ao fechamento" (dias da 1ª
    *  reunião concluída com closer até o negócio virar Ganho/Perdido)? */
   hasCloseTime: boolean;
+  /** O segmento exibe o card "Conversão por macro tema" (win rate Ganho ÷
+   *  fechados, por macro_tema, sobre os fechados dos closers)? Só B2B. */
+  hasMacroTema: boolean;
   /** O segmento exibe a seção "Negócios abertos por Closer" (lista por closer
    *  com gráfico de temperatura por etapa)? */
   hasCloserBreakdown: boolean;
@@ -71,6 +74,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     checkoutStages: [],
     hasEvento: true,
     hasCloseTime: false,
+    hasMacroTema: true,
     hasCloserBreakdown: true,
     team: B2B_TEAM,
   },
@@ -96,6 +100,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
     hasEvento: false,
     hasCloseTime: true,
+    hasMacroTema: false,
     hasCloserBreakdown: true,
     team: B2C_TEAM,
   },

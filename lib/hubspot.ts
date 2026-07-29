@@ -271,6 +271,7 @@ const CLOSED_PROPS = [
   "hubspot_owner_id",
   "createdate",
   "temperatura_atual",
+  "macro_tema",
 ];
 
 /**

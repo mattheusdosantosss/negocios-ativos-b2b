@@ -240,6 +240,24 @@ export type DashboardData = {
   /** Presente só nos segmentos com hasCloseTime — distribuição do tempo da 1ª
    *  reunião concluída com closer até o fechamento (Ganho/Perdido). */
   closeTime?: CloseTimeData;
+  /** Presente só nos segmentos com hasMacroTema (B2B) — win rate por macro tema. */
+  macroTema?: MacroTemaData;
+};
+
+/** Conversão (win rate) por macro tema. Uma linha por macro_tema com fechados. */
+export type MacroTemaRow = {
+  id: string; // valor cru do HubSpot ("12. MOTIVAÇÃO")
+  label: string; // rótulo limpo ("Motivação")
+  won: number;
+  lost: number;
+  total: number;
+  conv: number; // won / total
+};
+export type MacroTemaData = {
+  rows: MacroTemaRow[]; // ordenadas por conversão desc
+  total: number;
+  won: number;
+  conv: number; // conversão geral
 };
 
 /** Distribuição "tempo da reunião ao fechamento" (faixas de dias × Ganho/Perdido). */
@@ -584,6 +602,51 @@ export function closeTimeMatrix(
       all: median([...daysArr.won, ...daysArr.lost]),
     },
   };
+}
+
+// Rótulo limpo do macro tema: tira o prefixo "N. " e aplica caixa de título
+// pt-BR (conectores minúsculos). "12. MOTIVAÇÃO" -> "Motivação".
+const PT_MINOR = new Set(["de", "da", "do", "das", "dos", "e", "em"]);
+function macroTemaLabel(raw: string): string {
+  return raw
+    .replace(/^\d+\.\s*/, "")
+    .toLocaleLowerCase("pt-BR")
+    .split(/\s+/)
+    .map((w, i) => (i > 0 && PT_MINOR.has(w) ? w : w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1)))
+    .join(" ");
+}
+
+/**
+ * Win rate por macro tema sobre os negócios FECHADOS (Ganho + Perdido) — uma
+ * linha por macro_tema preenchido, ordenada por conversão desc. Sem corte de
+ * volume (mostra todos os temas); o `total` deixa claro quando a amostra é
+ * pequena. `deals` deve ser a base de fechados dos closers (já filtrada por
+ * closer/origem quando aplicável).
+ */
+export function macroTemaConversion(deals: Deal[], wonStageIds: string[]): MacroTemaData {
+  const wonSet = new Set(wonStageIds);
+  const agg = new Map<string, { won: number; n: number }>();
+  for (const d of deals) {
+    const raw = (d.properties.macro_tema || "").trim();
+    if (!raw) continue;
+    const cur = agg.get(raw) ?? { won: 0, n: 0 };
+    cur.n += 1;
+    if (wonSet.has(d.properties.dealstage || "")) cur.won += 1;
+    agg.set(raw, cur);
+  }
+  const rows: MacroTemaRow[] = [...agg.entries()]
+    .map(([id, v]) => ({
+      id,
+      label: macroTemaLabel(id),
+      won: v.won,
+      lost: v.n - v.won,
+      total: v.n,
+      conv: v.n > 0 ? v.won / v.n : 0,
+    }))
+    .sort((a, b) => b.conv - a.conv || b.total - a.total || a.label.localeCompare(b.label, "pt-BR"));
+  const total = rows.reduce((s, r) => s + r.total, 0);
+  const won = rows.reduce((s, r) => s + r.won, 0);
+  return { rows, total, won, conv: total > 0 ? won / total : 0 };
 }
 
 /** Negócios de uma etapa+temperatura, de TODOS os closers (bloco geral). */

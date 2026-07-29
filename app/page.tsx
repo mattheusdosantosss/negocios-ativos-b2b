@@ -5,6 +5,7 @@ import KpiCard from "@/components/KpiCard";
 import TemperatureStacked, { PERFIL_STYLE } from "@/components/TemperatureStacked";
 import CloserOpenDeals from "@/components/CloserOpenDeals";
 import CloseTimeChart from "@/components/CloseTimeChart";
+import MacroTemaConversion from "@/components/MacroTemaConversion";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
@@ -543,6 +544,25 @@ export default function Page() {
             data={data.closeTime}
             onOpen={(bucketId, outcomeId) => setModal({ mode: "close-time", bucketId, outcomeId })}
           />
+        </div>
+      )}
+
+      {/* Conversão por macro tema (B2B) — win rate Ganho ÷ fechados, por macro
+          tema, sobre os fechados dos closers. Respeita o filtro de Closer do
+          topo (Todos = time; um closer = só ele). */}
+      {data && data.macroTema && data.macroTema.rows.length > 0 && (
+        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+            <h2 className="font-display text-sm font-semibold text-psa-ink">Conversão por macro tema</h2>
+            <span className="text-[11px] text-psa-ink-soft">
+              {num(data.macroTema.total)} fechados com macro tema · conversão geral{" "}
+              <b className="text-psa-ink">
+                {(data.macroTema.conv * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+              </b>{" "}
+              · {data.macroTema.rows.length} temas
+            </span>
+          </div>
+          <MacroTemaConversion data={data.macroTema} />
         </div>
       )}
 

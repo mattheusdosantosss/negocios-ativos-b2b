@@ -8,7 +8,14 @@ import {
   fetchClosedCloserDeals,
   fetchFirstCloserMeeting,
 } from "@/lib/hubspot";
-import { aggregate, closeTimeMatrix, type DashboardData, type CloseTimeData } from "@/lib/aggregate";
+import {
+  aggregate,
+  closeTimeMatrix,
+  macroTemaConversion,
+  type DashboardData,
+  type CloseTimeData,
+  type MacroTemaData,
+} from "@/lib/aggregate";
 import { getSegment, type SegmentConfig } from "@/lib/segments";
 import { isLeadSourceId, leadSourceValues } from "@/lib/leadSource";
 import { seedFor } from "@/lib/seed";
@@ -56,6 +63,23 @@ const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: str
     { revalidate: 3600 }
   )();
 
+// "Conversão por macro tema" (B2B): win rate Ganho ÷ fechados por macro_tema,
+// sobre os fechados dos closers. Reusa a mesma varredura de fechados (terminais
+// → cacheável 1h). Respeita origem e closer selecionados na chave.
+const getMacroTemaCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: MacroTemaData | undefined; warning?: string }> => {
+      try {
+        const closed = await fetchClosedCloserDeals(config, origem, owner);
+        return { data: macroTemaConversion(closed, config.wonStageIds), warning: undefined };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar macro tema" };
+      }
+    },
+    ["macro-tema-v1", config.id, origemId, owner || "all"],
+    { revalidate: 3600 }
+  )();
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || undefined;
@@ -75,12 +99,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to }),
       getWonAggregateCached(config, origemId, origem, owner),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
+      config.hasMacroTema ? getMacroTemaCached(config, origemId, origem, owner) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -91,6 +116,7 @@ export async function GET(req: NextRequest) {
     );
 
     const closeTime = closeRaw?.data;
+    const macroTema = macroRaw?.data;
 
     const data: DashboardData = {
       meta: {
@@ -100,7 +126,7 @@ export async function GET(req: NextRequest) {
         label: config.label,
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
-        closeTimeWarning: closeRaw?.warning,
+        closeTimeWarning: closeRaw?.warning || macroRaw?.warning,
       },
       stages,
       tempStages,
@@ -108,6 +134,7 @@ export async function GET(req: NextRequest) {
       closers,
       checkout,
       closeTime,
+      macroTema,
     };
 
     return NextResponse.json(data);
