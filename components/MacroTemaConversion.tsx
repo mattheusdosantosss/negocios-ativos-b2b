@@ -35,7 +35,7 @@ export default function MacroTemaConversion({ data }: Props) {
             <div key={r.id}>
               <div className="flex justify-between items-baseline mb-1.5 gap-2">
                 <span className="font-medium text-[13px]">
-                  {r.label} <span className="text-psa-ink-soft font-normal">{num(r.total)} fechados</span>
+                  {r.label} <span className="text-psa-ink-soft font-normal">{num(r.total)} negócios</span>
                 </span>
                 <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
                   conversão <b className="text-psa-ink">{pct(r.conv)}</b> · Ganho {num(r.won)} · Perdido {num(r.lost)}

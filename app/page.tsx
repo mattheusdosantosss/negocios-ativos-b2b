@@ -6,6 +6,7 @@ import TemperatureStacked, { PERFIL_STYLE } from "@/components/TemperatureStacke
 import CloserOpenDeals from "@/components/CloserOpenDeals";
 import CloseTimeChart from "@/components/CloseTimeChart";
 import MacroTemaConversion from "@/components/MacroTemaConversion";
+import SectionCard from "@/components/SectionCard";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
 import PeriodFilter from "@/components/PeriodFilter";
@@ -480,10 +481,10 @@ export default function Page() {
 
       {/* Negócios ativos por temperatura (leitura do curador) */}
       {data && conviccao && (
-        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios ativos por temperatura</h2>
-            <span className="text-[11px] text-psa-ink-soft">
+        <SectionCard
+          title="Negócios ativos por temperatura"
+          subtitle={
+            <>
               convicção{" "}
               <b className="text-psa-ink">
                 {(conviccao.conviccao * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
@@ -493,30 +494,32 @@ export default function Page() {
                 {(conviccao.cobertura * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
               </b>{" "}
               · {data.tempStages.length} etapas
-            </span>
-          </div>
+            </>
+          }
+        >
           <TemperatureStacked
             stages={data.tempStages}
             matrix={data.totals.tempPorEtapa}
             onOpen={(stageId, tempId) => setModal({ mode: "temp-agg", stageId, tempId })}
           />
-        </div>
+        </SectionCard>
       )}
 
       {/* Negócios ativos por perfil (mesma lógica da temperatura, dimensão Perfil).
           Só aparece quando há perfil preenchido (B2C) — no B2B a propriedade é vazia. */}
       {data && perfilCobertura && perfilCobertura.comPerfil > 0 && (
-        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios ativos por perfil</h2>
-            <span className="text-[11px] text-psa-ink-soft">
+        <SectionCard
+          title="Negócios ativos por perfil"
+          subtitle={
+            <>
               cobertura{" "}
               <b className="text-psa-ink">
                 {(perfilCobertura.cobertura * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
               </b>{" "}
               · {num(perfilCobertura.comPerfil)} com perfil · {data.tempStages.length} etapas
-            </span>
-          </div>
+            </>
+          }
+        >
           <TemperatureStacked
             stages={data.tempStages}
             matrix={data.totals.perfilPorEtapa}
@@ -525,63 +528,62 @@ export default function Page() {
             showConviccao={false}
             onOpen={(stageId, perfilId) => setModal({ mode: "perfil-agg", stageId, perfilId })}
           />
-        </div>
+        </SectionCard>
       )}
 
       {/* Tempo da reunião ao fechamento — dias da 1ª reunião concluída com o
           closer até o negócio virar Ganho/Perdido (só negócios dos closers). */}
       {data && data.closeTime && (
-        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Tempo da reunião ao fechamento</h2>
-            <span className="text-[11px] text-psa-ink-soft">
+        <SectionCard
+          title="Tempo da reunião ao fechamento"
+          subtitle={
+            <>
               {num(data.closeTime.total)} negócios fechados dos closers · mediana{" "}
               <b className="text-psa-ink">{num(data.closeTime.medianDays.all)}d</b> (ganho{" "}
               {num(data.closeTime.medianDays.won)}d · perdido {num(data.closeTime.medianDays.lost)}d)
-            </span>
-          </div>
+            </>
+          }
+        >
           <CloseTimeChart
             data={data.closeTime}
             onOpen={(bucketId, outcomeId) => setModal({ mode: "close-time", bucketId, outcomeId })}
           />
-        </div>
+        </SectionCard>
       )}
 
       {/* Conversão por macro tema (B2B) — win rate Ganho ÷ fechados, por macro
           tema, sobre os fechados dos closers. Respeita o filtro de Closer do
           topo (Todos = time; um closer = só ele). */}
       {data && data.macroTema && data.macroTema.rows.length > 0 && (
-        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Conversão por macro tema</h2>
-            <span className="text-[11px] text-psa-ink-soft">
-              {num(data.macroTema.total)} fechados com macro tema · conversão geral{" "}
+        <SectionCard
+          title="Conversão por macro tema"
+          subtitle={
+            <>
+              {num(data.macroTema.total)} negócios com macro tema · conversão geral{" "}
               <b className="text-psa-ink">
                 {(data.macroTema.conv * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
               </b>{" "}
               · {data.macroTema.rows.length} temas
-            </span>
-          </div>
+            </>
+          }
+        >
           <MacroTemaConversion data={data.macroTema} />
-        </div>
+        </SectionCard>
       )}
 
       {/* Negócios abertos por Closer — sempre por último (após os gráficos). */}
       {data && cfg.hasCloserBreakdown && (
-        <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-          <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-display text-sm font-semibold text-psa-ink">Negócios abertos por Closer</h2>
-            <span className="text-[11px] text-psa-ink-soft">
-              clique no closer pra abrir a temperatura · no nº de ativos pra listar os negócios
-            </span>
-          </div>
+        <SectionCard
+          title="Negócios abertos por Closer"
+          subtitle="clique no closer pra abrir a temperatura · no nº de ativos pra listar os negócios"
+        >
           <CloserOpenDeals
             closers={data.closers}
             tempStages={data.tempStages}
             onOpenTemp={(row, stageId, tempId) => setModal({ mode: "temp-closer", row, stageId, tempId })}
             onOpenTotal={(row) => setModal({ mode: "single", row, stageId: "total" })}
           />
-        </div>
+        </SectionCard>
       )}
 
       <DealListModal
