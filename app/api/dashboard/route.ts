@@ -9,6 +9,7 @@ import {
   fetchFirstCloserMeeting,
   fetchNextOpenTaskByDeal,
   fetchConversionCounts,
+  fetchPropostaMeetingStats,
 } from "@/lib/hubspot";
 import {
   aggregate,
@@ -112,6 +113,21 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
     { revalidate: 3600 }
   )();
 
+// "Proposta enviada → reunião" (B2B): dos negócios com proposta anexada, quantos
+// tiveram reunião. Via associação negócio→reunião (pesado) → cacheia 1h.
+const getPropostaMeetingCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["propostaMeeting"]; warning?: string }> => {
+      try {
+        return { data: await fetchPropostaMeetingStats(config, { origem, owner }), warning: undefined };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar proposta→reunião" };
+      }
+    },
+    ["proposta-meeting-v1", config.id, origemId, owner || "all"],
+    { revalidate: 3600 }
+  )();
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || undefined;
@@ -131,7 +147,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to }),
@@ -139,6 +155,7 @@ export async function GET(req: NextRequest) {
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
       config.hasMacroTema ? getMacroTemaCached(config, origemId, origem, owner) : Promise.resolve(null),
       getConversionCached(config, origemId, origem, owner),
+      config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -188,6 +205,7 @@ export async function GET(req: NextRequest) {
       macroTema,
       tasks,
       conversion: convRaw?.data,
+      propostaMeeting: propMeetRaw?.data,
     };
 
     return NextResponse.json(data);

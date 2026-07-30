@@ -248,6 +248,8 @@ export type DashboardData = {
   tasks?: TaskData;
   /** Taxa de conversão Proposta → Ganho (geral + por mês de criação). */
   conversion?: ConversionData;
+  /** B2B: dos negócios com proposta anexada, quantos tiveram reunião. */
+  propostaMeeting?: { total: number; alguma: number; realizada: number };
 };
 
 // Taxa de conversão Proposta → Ganho, por mês de criação.

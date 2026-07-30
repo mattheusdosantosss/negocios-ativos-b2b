@@ -550,6 +550,59 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon }, months };
 }
 
+export type PropostaMeetingStats = { total: number; alguma: number; realizada: number };
+
+/**
+ * Dos negócios com proposta anexada (B2B), quantos tiveram reunião. Retorna o
+ * total, quantos têm ALGUMA reunião associada e quantos têm reunião REALIZADA
+ * (hs_meeting_outcome = COMPLETED). Via associação direta negócio→reunião.
+ * Respeita origem/closer.
+ */
+export async function fetchPropostaMeetingStats(
+  config: SegmentConfig,
+  opts?: { origem?: string[]; owner?: string }
+): Promise<PropostaMeetingStats> {
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
+  ];
+  if (opts?.origem && opts.origem.length > 0) {
+    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
+  }
+  if (opts?.owner) {
+    filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
+  }
+  const ids: string[] = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: ["dealname"], limit: 200 };
+    if (after) body.after = after;
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    ids.push(...data.results.map((d) => d.id));
+    after = data.paging?.next?.after;
+  } while (after);
+
+  if (ids.length === 0) return { total: 0, alguma: 0, realizada: 0 };
+
+  const dealMeetings = await fetchAssocIds("deals", "meetings", ids);
+  const allMeetingIds = [...new Set([...dealMeetings.values()].flat())];
+  let meetings: Map<string, { start?: string; ownerId?: string; outcome?: string }> = new Map();
+  if (allMeetingIds.length) meetings = await fetchMeetingsByIds(allMeetingIds);
+
+  let alguma = 0;
+  let realizada = 0;
+  for (const id of ids) {
+    const mids = dealMeetings.get(id) ?? [];
+    const existentes = mids.filter((mid) => meetings.has(mid));
+    if (existentes.length > 0) alguma += 1;
+    if (existentes.some((mid) => meetings.get(mid)?.outcome === MEETING_OUTCOME_DONE)) realizada += 1;
+  }
+  return { total: ids.length, alguma, realizada };
+}
+
 // ------------------------------------------------------------------
 // Tarefas (tasks) — próxima tarefa aberta por negócio ativo
 // ------------------------------------------------------------------

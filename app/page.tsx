@@ -7,6 +7,7 @@ import CloserOpenDeals from "@/components/CloserOpenDeals";
 import CloseTimeChart from "@/components/CloseTimeChart";
 import MacroTemaConversion from "@/components/MacroTemaConversion";
 import ConversionCard from "@/components/ConversionCard";
+import PropostaMeetingCard from "@/components/PropostaMeetingCard";
 import SectionCard from "@/components/SectionCard";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
@@ -393,6 +394,16 @@ export default function Page() {
       {/* Taxa de conversão Proposta → Ganho — logo abaixo dos 4 KPIs principais */}
       {data && data.conversion && data.conversion.geral.entered > 0 && (
         <ConversionCard data={data.conversion} />
+      )}
+
+      {/* Proposta enviada → reunião (B2B) */}
+      {data && data.propostaMeeting && data.propostaMeeting.total > 0 && (
+        <SectionCard
+          title="Proposta enviada → reunião"
+          subtitle="dos negócios com proposta anexada, quantos tiveram reunião"
+        >
+          <PropostaMeetingCard data={data.propostaMeeting} />
+        </SectionCard>
       )}
 
       {/* Checkout — só nos segmentos com fase de pagamento (ex.: B2C) */}

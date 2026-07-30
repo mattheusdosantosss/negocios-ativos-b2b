@@ -47,6 +47,9 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Conversão por macro tema" (win rate Ganho ÷
    *  fechados, por macro_tema, sobre os fechados dos closers)? Só B2B. */
   hasMacroTema: boolean;
+  /** O segmento exibe o card "Proposta enviada → reunião" (% dos negócios com
+   *  proposta anexada que tiveram reunião)? Só B2B. */
+  hasPropostaMeeting: boolean;
   /** Filtro único do denominador da conversão (B2B: tem_proposta_anexada=true;
    *  B2C: dealstage IN Ganho+Perdido). null quando se usa conversionDenomAnyOf. */
   conversionDenomFilter: { propertyName: string; operator: string; value?: string; values?: string[] } | null;
@@ -91,6 +94,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasEvento: true,
     hasCloseTime: false,
     hasMacroTema: true,
+    hasPropostaMeeting: true,
     conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
     conversionDenomAnyOf: null,
     conversionDenomLabel: "só negócios com proposta anexada",
@@ -122,6 +126,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasEvento: false,
     hasCloseTime: true,
     hasMacroTema: false,
+    hasPropostaMeeting: false,
     // Win rate puro: ganhos ÷ (ganhos + perdidos). Denominador = dealstage nas
     // etapas Ganho (1105295876) + Perdido (1059939760) — bate exato com o funil
     // do HubSpot. Sem filtro de proposta (nenhum campo cobre 100% dos ganhos).
