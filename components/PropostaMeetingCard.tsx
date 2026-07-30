@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PropostaMeetingData, PropostaMeetingItem } from "@/lib/hubspot";
 
 const pct = (n: number, d: number) => (d > 0 ? `${((n / d) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "0%");
@@ -30,6 +30,13 @@ const OUTCOME_LABEL: Record<string, string> = {
   RESCHEDULED: "Remarcada",
 };
 const outLabel = (o?: string) => (o ? OUTCOME_LABEL[o] ?? o : "Sem registro");
+// Cor do resultado (pill no modal escuro).
+const outStyle = (o?: string): string => {
+  if (o === "COMPLETED") return "bg-[#1E9E62] text-white";
+  if (o === "NO_SHOW" || o === "CANCELED") return "bg-[#C0432F] text-white";
+  if (o) return "bg-[#E8A317] text-[#3A2A00]";
+  return "bg-white/10 text-white/60";
+};
 
 type Bucket = "realizada" | "agendada" | "sem";
 const SEG: Record<Bucket, { fill: string; text: string; label: string }> = {
@@ -118,60 +125,75 @@ function MeetingModal({
   showMeeting: boolean;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", handler);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handler);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="bg-psa-surface rounded-2xl shadow-card w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-psa-line">
-          <div>
-            <div className="font-display text-sm font-semibold text-psa-ink">{title}</div>
-            <div className="text-[11px] text-psa-ink-soft">{num(items.length)} negócios com proposta enviada</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="relative w-full max-w-2xl max-h-[85vh] bg-psa-ink text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-display text-xl font-bold">{title}</h3>
+            <div className="mt-1 text-xs text-psa-orange font-semibold uppercase tracking-wider">
+              {num(items.length)} {items.length === 1 ? "negócio" : "negócios"} com proposta enviada
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="text-psa-ink-soft hover:text-psa-ink text-lg leading-none px-2">
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2 -mt-1" aria-label="Fechar">
             ×
           </button>
         </div>
-        <div className="overflow-y-auto">
-          <table className="w-full text-[13px]">
-            <thead className="sticky top-0 bg-psa-canvas text-psa-ink-soft">
-              <tr className="text-left">
-                <th className="px-5 py-2 font-semibold">Negócio</th>
-                {showMeeting && <th className="px-3 py-2 font-semibold">Reunião</th>}
-                {showMeeting && <th className="px-3 py-2 font-semibold">Origem</th>}
-                {showMeeting && <th className="px-3 py-2 font-semibold">Resultado</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it, i) => (
-                <tr key={i} className="border-t border-psa-line align-top">
-                  <td className="px-5 py-2">
-                    {it.url ? (
-                      <a href={it.url} target="_blank" rel="noreferrer" className="text-psa-blue hover:underline">
+
+        <div className="flex-1 overflow-y-auto">
+          {items.length === 0 ? (
+            <div className="p-12 text-center text-sm text-white/60">Nenhum negócio.</div>
+          ) : (
+            <ol className="divide-y divide-white/10">
+              {items.map((it, i) => {
+                const content = (
+                  <>
+                    <span className="text-xs font-mono text-white/40 tabular-nums w-8">{String(i + 1).padStart(2, "0")}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm text-white/90 truncate ${it.url ? "group-hover:text-psa-orange group-hover:underline" : ""}`}>
                         {it.dealname}
+                      </div>
+                      {showMeeting && (
+                        <div className="mt-0.5 text-[11px] text-white/50 truncate">
+                          {it.meetingTitle || "Reunião"} · {fmtDate(it.meetingDate)} · {srcLabel(it.source)}
+                        </div>
+                      )}
+                    </div>
+                    {it.url && <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>}
+                    {showMeeting && (
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${outStyle(it.outcome)}`}>
+                        {outLabel(it.outcome)}
+                      </span>
+                    )}
+                  </>
+                );
+                return (
+                  <li key={i} className="hover:bg-white/[0.03] transition-colors">
+                    {it.url ? (
+                      <a href={it.url} target="_blank" rel="noopener noreferrer" className="group px-6 py-3 flex items-center gap-4" title="Abrir negócio no HubSpot">
+                        {content}
                       </a>
                     ) : (
-                      it.dealname
+                      <div className="group px-6 py-3 flex items-center gap-4">{content}</div>
                     )}
-                  </td>
-                  {showMeeting && (
-                    <td className="px-3 py-2 text-psa-ink-soft">
-                      {it.meetingTitle || "Reunião"}
-                      <span className="text-psa-muted"> · {fmtDate(it.meetingDate)}</span>
-                    </td>
-                  )}
-                  {showMeeting && <td className="px-3 py-2 text-psa-ink-soft">{srcLabel(it.source)}</td>}
-                  {showMeeting && <td className="px-3 py-2 text-psa-ink-soft">{outLabel(it.outcome)}</td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
         </div>
       </div>
     </div>
