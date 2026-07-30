@@ -101,14 +101,16 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
         const counts = await fetchConversionCounts(config, { origem, owner });
         const denomLabel = config.conversionRequiresProposta
           ? "negócios com proposta anexada (fechados)"
-          : "negócios criados";
+          : config.conversionRequiresEnteredProposta
+            ? "negócios que entraram em Proposta enviada"
+            : "negócios criados";
         const monthFilterLabel = config.conversionDateProp === "closedate" ? "Mês de fechamento" : "Mês de criação";
         return { data: conversionFromCounts(counts, denomLabel, monthFilterLabel), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" };
       }
     },
-    ["conversion-v7", config.id, origemId, owner || "all"],
+    ["conversion-v8", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 

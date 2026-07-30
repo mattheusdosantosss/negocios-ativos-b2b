@@ -50,6 +50,9 @@ export type SegmentConfig = {
   /** Denominador da taxa de conversão: se true, conta só negócios com proposta
    *  anexada (tem_proposta_anexada=true); se false, todos os criados. */
   conversionRequiresProposta: boolean;
+  /** Denominador da conversão: se true, conta só quem ENTROU na etapa
+   *  "Proposta enviada | 1° Follow" (hs_v2_date_entered_<propostaStageId>). B2C. */
+  conversionRequiresEnteredProposta: boolean;
   /** Data que define o mês da taxa de conversão: "closedate" (B2B, por
    *  fechamento) ou "createdate" (B2C, por criação). */
   conversionDateProp: "closedate" | "createdate";
@@ -86,6 +89,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: false,
     hasMacroTema: true,
     conversionRequiresProposta: true,
+    conversionRequiresEnteredProposta: false,
     conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2B_TEAM,
@@ -115,6 +119,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: true,
     hasMacroTema: false,
     conversionRequiresProposta: false,
+    conversionRequiresEnteredProposta: true,
     conversionDateProp: "createdate",
     hasCloserBreakdown: true,
     team: B2C_TEAM,

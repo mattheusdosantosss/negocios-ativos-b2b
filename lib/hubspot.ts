@@ -488,10 +488,14 @@ export async function fetchConversionCounts(
   if (opts?.owner) {
     base.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
-  // B2B: o denominador conta só negócios com proposta anexada. Como entra no
-  // `base`, vale pro denominador E pro numerador (ganho ⊆ com proposta).
+  // B2B: só negócios com proposta anexada. B2C: só quem entrou na etapa
+  // "Proposta enviada | 1° Follow". Entram no `base` → valem pro denominador E
+  // pro numerador (ganho ⊆ denominador).
   if (config.conversionRequiresProposta) {
     base.push({ propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" });
+  }
+  if (config.conversionRequiresEnteredProposta) {
+    base.push({ propertyName: `hs_v2_date_entered_${config.propostaStageId}`, operator: "HAS_PROPERTY" });
   }
   const wonFilter = { propertyName: "dealstage", operator: "IN", values: config.wonStageIds };
 
