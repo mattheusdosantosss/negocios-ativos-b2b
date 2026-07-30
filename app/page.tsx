@@ -396,16 +396,6 @@ export default function Page() {
         <ConversionCard data={data.conversion} />
       )}
 
-      {/* Proposta enviada → reunião (B2B) */}
-      {data && data.propostaMeeting && data.propostaMeeting.total > 0 && (
-        <SectionCard
-          title="Proposta enviada → reunião"
-          subtitle="dos negócios com proposta anexada, quantos tiveram reunião"
-        >
-          <PropostaMeetingCard data={data.propostaMeeting} />
-        </SectionCard>
-      )}
-
       {/* Checkout — só nos segmentos com fase de pagamento (ex.: B2C) */}
       {data && data.checkout && data.checkout.stages.length > 0 && (
         <section className="rounded-2xl border border-psa-line bg-psa-surface shadow-card overflow-hidden">
@@ -635,6 +625,17 @@ export default function Page() {
           }
         >
           <MacroTemaConversion data={data.macroTema} />
+        </SectionCard>
+      )}
+
+      {/* Proposta enviada → reunião (B2B) — dos negócios com proposta anexada,
+          quantos tiveram reunião (realizada / marcada não realizada / sem). */}
+      {data && data.propostaMeeting && data.propostaMeeting.total > 0 && (
+        <SectionCard
+          title="Proposta enviada → reunião"
+          subtitle="dos negócios com proposta anexada, quantos tiveram reunião"
+        >
+          <PropostaMeetingCard data={data.propostaMeeting} />
         </SectionCard>
       )}
 

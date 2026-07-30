@@ -5,10 +5,10 @@ const num = (n: number) => n.toLocaleString("pt-BR");
 
 type Props = { data: { total: number; alguma: number; realizada: number } };
 
-// realizada (verde) | agendada não realizada (âmbar) | sem reunião (cinza)
+// realizada (verde) | marcada não realizada (âmbar) | sem reunião (cinza)
 const SEG = {
   realizada: { fill: "#1E9E62", text: "#fff", label: "Reunião realizada" },
-  agendada: { fill: "#E8A317", text: "#3A2A00", label: "Reunião agendada (não realizada)" },
+  agendada: { fill: "#E8A317", text: "#3A2A00", label: "Reunião marcada, não realizada" },
   sem: { fill: "#E8E5E1", text: "#806D61", label: "Sem reunião" },
 };
 
@@ -26,8 +26,8 @@ export default function PropostaMeetingCard({ data }: Props) {
           <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{pct(realizada, total)}</span>
         </div>
         <div className="text-sm text-psa-ink-soft">
-          <b className="text-psa-ink">{num(realizada)}</b> tiveram reunião realizada ·{" "}
-          <b className="text-psa-ink">{pct(alguma, total)}</b> ({num(alguma)}) tiveram alguma reunião ·{" "}
+          <b className="text-psa-ink">{num(realizada)}</b> realizaram reunião ·{" "}
+          <b className="text-psa-ink">{pct(alguma, total)}</b> ({num(alguma)}) chegaram a marcar reunião (realizada ou não) ·{" "}
           <span className="text-psa-muted">de {num(total)} com proposta anexada</span>
         </div>
       </div>
