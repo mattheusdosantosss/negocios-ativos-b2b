@@ -47,9 +47,9 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Conversão por macro tema" (win rate Ganho ÷
    *  fechados, por macro_tema, sobre os fechados dos closers)? Só B2B. */
   hasMacroTema: boolean;
-  /** Filtro único do denominador da conversão (B2B: tem_proposta_anexada=true).
-   *  null quando se usa conversionDenomAnyOf. */
-  conversionDenomFilter: { propertyName: string; operator: string; value?: string } | null;
+  /** Filtro único do denominador da conversão (B2B: tem_proposta_anexada=true;
+   *  B2C: dealstage IN Ganho+Perdido). null quando se usa conversionDenomAnyOf. */
+  conversionDenomFilter: { propertyName: string; operator: string; value?: string; values?: string[] } | null;
   /** Denominador mesclado (OR): negócio conta se tiver QUALQUER uma dessas
    *  propriedades preenchida (B2C: "chegou à proposta/negociação"). null = usa
    *  conversionDenomFilter. */
@@ -93,7 +93,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasMacroTema: true,
     conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
     conversionDenomAnyOf: null,
-    conversionDenomLabel: "negócios com proposta anexada (fechados)",
+    conversionDenomLabel: "só negócios com proposta anexada",
     conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2B_TEAM,
@@ -122,12 +122,12 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasEvento: false,
     hasCloseTime: true,
     hasMacroTema: false,
-    // Win rate puro: ganhos ÷ (ganhos + perdidos). Sem filtro de proposta/etapa
-    // porque nenhum campo cobre 100% dos ganhos no B2C — dealstage é o único
-    // dado sem buraco. Denominador = todos os fechados no mês.
-    conversionDenomFilter: null,
+    // Win rate puro: ganhos ÷ (ganhos + perdidos). Denominador = dealstage nas
+    // etapas Ganho (1105295876) + Perdido (1059939760) — bate exato com o funil
+    // do HubSpot. Sem filtro de proposta (nenhum campo cobre 100% dos ganhos).
+    conversionDenomFilter: { propertyName: "dealstage", operator: "IN", values: ["1105295876", "1059939760"] },
     conversionDenomAnyOf: null,
-    conversionDenomLabel: "negócios fechados (ganho + perdido)",
+    conversionDenomLabel: "",
     conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2C_TEAM,

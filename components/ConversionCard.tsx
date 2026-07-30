@@ -26,11 +26,14 @@ export default function ConversionCard({ data }: Props) {
         <div className="mt-1 flex items-baseline gap-3 flex-wrap">
           <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{pct(scope.conv)}</span>
           <span className="text-sm text-psa-ink-soft">
-            <b className="text-psa-ink">{num(scope.won)}</b> ganhos de{" "}
-            <b className="text-psa-ink">{num(scope.entered)}</b> {data.denomLabel} ·{" "}
+            <b className="text-psa-ink">{num(scope.won)}</b> ganhos ·{" "}
+            <b className="text-psa-ink">{num(Math.max(0, scope.entered - scope.won))}</b> perdidos ·{" "}
             <span className="text-psa-muted">{scopeLabel}</span>
           </span>
         </div>
+        {data.denomLabel && (
+          <div className="mt-1 text-[11px] text-psa-muted">{data.denomLabel}</div>
+        )}
       </div>
 
       <div className="flex flex-col shrink-0">
