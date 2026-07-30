@@ -50,6 +50,9 @@ export type SegmentConfig = {
   /** Denominador da taxa de conversão: se true, conta só negócios com proposta
    *  anexada (tem_proposta_anexada=true); se false, todos os criados. */
   conversionRequiresProposta: boolean;
+  /** Data que define o mês da taxa de conversão: "closedate" (B2B, por
+   *  fechamento) ou "createdate" (B2C, por criação). */
+  conversionDateProp: "closedate" | "createdate";
   /** O segmento exibe a seção "Negócios abertos por Closer" (lista por closer
    *  com gráfico de temperatura por etapa)? */
   hasCloserBreakdown: boolean;
@@ -83,6 +86,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: false,
     hasMacroTema: true,
     conversionRequiresProposta: true,
+    conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2B_TEAM,
   },
@@ -111,6 +115,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: true,
     hasMacroTema: false,
     conversionRequiresProposta: false,
+    conversionDateProp: "createdate",
     hasCloserBreakdown: true,
     team: B2C_TEAM,
   },

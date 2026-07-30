@@ -35,7 +35,7 @@ export default function ConversionCard({ data }: Props) {
 
       <div className="flex flex-col shrink-0">
         <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-psa-ink-soft">
-          Mês de criação
+          {data.monthFilterLabel}
         </label>
         <select
           value={month}

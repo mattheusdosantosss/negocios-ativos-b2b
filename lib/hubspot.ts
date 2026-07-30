@@ -520,12 +520,16 @@ export async function fetchConversionCounts(
     if (m < 0) { m = 11; y -= 1; }
   }
 
-  const [geralCreated, geralWon] = await Promise.all([count([]), config.wonStageIds.length ? count([wonFilter]) : Promise.resolve(0)]);
+  const dateProp = config.conversionDateProp; // "closedate" (B2B) ou "createdate" (B2C)
+  const [geralCreated, geralWon] = await Promise.all([
+    count([{ propertyName: dateProp, operator: "HAS_PROPERTY" }]),
+    config.wonStageIds.length ? count([wonFilter]) : Promise.resolve(0),
+  ]);
 
   const months = await mapLimit(windows, 4, async (w) => {
     const range = [
-      { propertyName: "createdate", operator: "GTE", value: String(w.startMs) },
-      { propertyName: "createdate", operator: "LT", value: String(w.endMs) },
+      { propertyName: dateProp, operator: "GTE", value: String(w.startMs) },
+      { propertyName: dateProp, operator: "LT", value: String(w.endMs) },
     ];
     const [created, won] = await Promise.all([
       count(range),

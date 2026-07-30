@@ -264,6 +264,8 @@ export type ConversionData = {
   months: ConversionMonth[]; // desc por key (mais recente primeiro)
   /** Como chamar o denominador na UI (ex.: "negócios criados", "com proposta anexada"). */
   denomLabel: string;
+  /** Rótulo do seletor de mês (ex.: "Mês de criação", "Mês de fechamento"). */
+  monthFilterLabel: string;
 };
 
 /**
@@ -275,7 +277,8 @@ export function conversionFromCounts(
     geral: { created: number; won: number };
     months: { key: string; created: number; won: number }[];
   },
-  denomLabel: string
+  denomLabel: string,
+  monthFilterLabel: string
 ): ConversionData {
   const months: ConversionMonth[] = counts.months
     .map((m) => ({
@@ -287,7 +290,12 @@ export function conversionFromCounts(
     }))
     .sort((a, b) => b.key.localeCompare(a.key));
   const { created, won } = counts.geral;
-  return { geral: { entered: created, won, conv: created > 0 ? won / created : 0 }, months, denomLabel };
+  return {
+    geral: { entered: created, won, conv: created > 0 ? won / created : 0 },
+    months,
+    denomLabel,
+    monthFilterLabel,
+  };
 }
 
 // Situação da PRÓXIMA tarefa aberta de um negócio ativo. Ordem = ordem de

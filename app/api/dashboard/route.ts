@@ -100,14 +100,15 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
         // Numerador = ganhos. Recortado por data de criação.
         const counts = await fetchConversionCounts(config, { origem, owner });
         const denomLabel = config.conversionRequiresProposta
-          ? "negócios com proposta anexada"
+          ? "negócios com proposta anexada (fechados)"
           : "negócios criados";
-        return { data: conversionFromCounts(counts, denomLabel), warning: undefined };
+        const monthFilterLabel = config.conversionDateProp === "closedate" ? "Mês de fechamento" : "Mês de criação";
+        return { data: conversionFromCounts(counts, denomLabel, monthFilterLabel), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" };
       }
     },
-    ["conversion-v6", config.id, origemId, owner || "all"],
+    ["conversion-v7", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 
