@@ -8,7 +8,7 @@ import {
   fetchClosedCloserDeals,
   fetchFirstCloserMeeting,
   fetchNextOpenTaskByDeal,
-  fetchConversionDeals,
+  fetchConversionCounts,
 } from "@/lib/hubspot";
 import {
   aggregate,
@@ -16,7 +16,7 @@ import {
   macroTemaByOwner,
   macroTemaFromByOwner,
   taskMatrix,
-  conversionData,
+  conversionFromCounts,
   type DashboardData,
   type CloseTimeData,
   type MacroTemaByOwner,
@@ -96,13 +96,14 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
   unstable_cache(
     async (): Promise<{ data: ConversionData | undefined; warning?: string }> => {
       try {
-        const deals = await fetchConversionDeals(config, { origem, owner });
-        return { data: conversionData(deals, config), warning: undefined };
+        // Denominador = negócios criados; Numerador = ganhos. Por data de criação.
+        const counts = await fetchConversionCounts(config, { origem, owner });
+        return { data: conversionFromCounts(counts), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" };
       }
     },
-    ["conversion-v1", config.id, origemId, owner || "all"],
+    ["conversion-v5", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 

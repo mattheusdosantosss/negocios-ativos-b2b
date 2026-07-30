@@ -21,13 +21,13 @@ export default function ConversionCard({ data }: Props) {
     <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card flex items-center justify-between gap-6 flex-wrap">
       <div className="min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
-          Taxa de conversão · Proposta → Ganho
+          Taxa de conversão · Ganho ÷ criados
         </div>
         <div className="mt-1 flex items-baseline gap-3 flex-wrap">
           <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{pct(scope.conv)}</span>
           <span className="text-sm text-psa-ink-soft">
             <b className="text-psa-ink">{num(scope.won)}</b> ganhos de{" "}
-            <b className="text-psa-ink">{num(scope.entered)}</b> que entraram em Proposta enviada ·{" "}
+            <b className="text-psa-ink">{num(scope.entered)}</b> negócios criados ·{" "}
             <span className="text-psa-muted">{scopeLabel}</span>
           </span>
         </div>

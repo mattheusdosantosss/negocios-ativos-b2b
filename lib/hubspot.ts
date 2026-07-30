@@ -448,7 +448,7 @@ export async function fetchConversionDeals(
   if (opts?.owner) {
     filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
-  const properties = ["createdate", propostaProp, ...wonProps];
+  const properties = ["createdate"];
   const all: Deal[] = [];
   let after: string | undefined;
   do {
@@ -462,6 +462,74 @@ export async function fetchConversionDeals(
     after = data.paging?.next?.after;
   } while (after);
   return all;
+}
+
+export type ConversionCounts = {
+  geral: { created: number; won: number };
+  months: { key: string; created: number; won: number }[]; // últimos 24 meses
+};
+
+/**
+ * Contagens pra taxa de conversão = GANHOS ÷ CRIADOS, por mês de criação. Usa
+ * busca só de contagem (`limit:1`, lê `total`) — assim não esbarra no teto de
+ * 10 mil registros da Search API. Geral (todo o histórico) + 24 meses. Respeita
+ * origem/closer. Janela de mês no fuso de Brasília (bate com o filtro do HubSpot).
+ */
+export async function fetchConversionCounts(
+  config: SegmentConfig,
+  opts?: { origem?: string[]; owner?: string }
+): Promise<ConversionCounts> {
+  const base: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+  ];
+  if (opts?.origem && opts.origem.length > 0) {
+    base.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
+  }
+  if (opts?.owner) {
+    base.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
+  }
+  const wonFilter = { propertyName: "dealstage", operator: "IN", values: config.wonStageIds };
+
+  const count = async (extra: typeof base): Promise<number> => {
+    const body = { filterGroups: [{ filters: [...base, ...extra] }], limit: 1 };
+    const data = await hsFetch<{ total?: number }>(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return data.total ?? 0;
+  };
+
+  // Janelas dos últimos 24 meses (fuso BR).
+  const nowBr = new Date(Date.now() - BR_OFFSET_MS);
+  let y = nowBr.getUTCFullYear();
+  let m = nowBr.getUTCMonth(); // 0-based
+  const windows: { key: string; startMs: number; endMs: number }[] = [];
+  for (let i = 0; i < 24; i++) {
+    const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+    const startMs = Date.UTC(y, m, 1) + BR_OFFSET_MS;
+    const nY = m === 11 ? y + 1 : y;
+    const nM = m === 11 ? 0 : m + 1;
+    const endMs = Date.UTC(nY, nM, 1) + BR_OFFSET_MS;
+    windows.push({ key, startMs, endMs });
+    m -= 1;
+    if (m < 0) { m = 11; y -= 1; }
+  }
+
+  const [geralCreated, geralWon] = await Promise.all([count([]), config.wonStageIds.length ? count([wonFilter]) : Promise.resolve(0)]);
+
+  const months = await mapLimit(windows, 4, async (w) => {
+    const range = [
+      { propertyName: "createdate", operator: "GTE", value: String(w.startMs) },
+      { propertyName: "createdate", operator: "LT", value: String(w.endMs) },
+    ];
+    const [created, won] = await Promise.all([
+      count(range),
+      config.wonStageIds.length ? count([...range, wonFilter]) : Promise.resolve(0),
+    ]);
+    return { key: w.key, created, won };
+  });
+
+  return { geral: { created: geralCreated, won: geralWon }, months };
 }
 
 // ------------------------------------------------------------------

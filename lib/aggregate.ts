@@ -265,35 +265,24 @@ export type ConversionData = {
 };
 
 /**
- * Taxa de conversão = negócios que entraram em Ganho ÷ negócios que entraram em
- * "Proposta enviada | 1° Follow". `deals` já vem filtrado (todos entraram em
- * Proposta). Marca convertido quem tem hs_v2_date_entered_<ganho> preenchido.
- * Quebra por MÊS de criação (createdate).
+ * Taxa de conversão = negócios GANHOS ÷ negócios CRIADOS, por mês de criação.
+ * Recebe as contagens já apuradas (geral + meses) e só formata os rótulos.
  */
-export function conversionData(deals: Deal[], config: SegmentConfig): ConversionData {
-  const wonProps = config.wonStageIds.map((w) => `hs_v2_date_entered_${w}`);
-  let entered = 0;
-  let won = 0;
-  const byMonth = new Map<string, { entered: number; won: number }>();
-  for (const d of deals) {
-    entered += 1;
-    const isWon = wonProps.some((wp) => d.properties[wp]);
-    if (isWon) won += 1;
-    const cd = d.properties.createdate ? new Date(d.properties.createdate) : null;
-    const key =
-      cd && Number.isFinite(cd.getTime())
-        ? `${cd.getUTCFullYear()}-${String(cd.getUTCMonth() + 1).padStart(2, "0")}`
-        : "sem-data";
-    const cur = byMonth.get(key) ?? { entered: 0, won: 0 };
-    cur.entered += 1;
-    if (isWon) cur.won += 1;
-    byMonth.set(key, cur);
-  }
-  const months: ConversionMonth[] = [...byMonth.entries()]
-    .filter(([k]) => k !== "sem-data")
-    .map(([key, v]) => ({ key, label: mesLabel(key), entered: v.entered, won: v.won, conv: v.entered > 0 ? v.won / v.entered : 0 }))
+export function conversionFromCounts(counts: {
+  geral: { created: number; won: number };
+  months: { key: string; created: number; won: number }[];
+}): ConversionData {
+  const months: ConversionMonth[] = counts.months
+    .map((m) => ({
+      key: m.key,
+      label: mesLabel(m.key),
+      entered: m.created,
+      won: m.won,
+      conv: m.created > 0 ? m.won / m.created : 0,
+    }))
     .sort((a, b) => b.key.localeCompare(a.key));
-  return { geral: { entered, won, conv: entered > 0 ? won / entered : 0 }, months };
+  const { created, won } = counts.geral;
+  return { geral: { entered: created, won, conv: created > 0 ? won / created : 0 }, months };
 }
 
 // Situação da PRÓXIMA tarefa aberta de um negócio ativo. Ordem = ordem de
