@@ -488,19 +488,24 @@ export async function fetchConversionCounts(
   if (opts?.owner) {
     base.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
-  // B2B: só negócios com proposta anexada. B2C: só quem entrou na etapa
-  // "Proposta enviada | 1° Follow". Entram no `base` → valem pro denominador E
-  // pro numerador (ganho ⊆ denominador).
-  if (config.conversionRequiresProposta) {
-    base.push({ propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" });
-  }
-  if (config.conversionRequiresEnteredProposta) {
-    base.push({ propertyName: `hs_v2_date_entered_${config.propostaStageId}`, operator: "HAS_PROPERTY" });
-  }
   const wonFilter = { propertyName: "dealstage", operator: "IN", values: config.wonStageIds };
 
+  // Monta os filterGroups do denominador (que valem pro numerador tb, pois o
+  // ganho é AND dentro de cada grupo). Se `conversionDenomAnyOf`, é um OR:
+  // cada propriedade vira um grupo (base + extra + prop HAS_PROPERTY). Senão,
+  // um único grupo com o filtro simples (ou nenhum).
+  const groupsFor = (extra: typeof base) => {
+    if (config.conversionDenomAnyOf && config.conversionDenomAnyOf.length > 0) {
+      return config.conversionDenomAnyOf.map((prop) => ({
+        filters: [...base, ...extra, { propertyName: prop, operator: "HAS_PROPERTY" }],
+      }));
+    }
+    const denom = config.conversionDenomFilter ? [{ ...config.conversionDenomFilter }] : [];
+    return [{ filters: [...base, ...extra, ...denom] }];
+  };
+
   const count = async (extra: typeof base): Promise<number> => {
-    const body = { filterGroups: [{ filters: [...base, ...extra] }], limit: 1 };
+    const body = { filterGroups: groupsFor(extra), limit: 1 };
     const data = await hsFetch<{ total?: number }>(`/crm/v3/objects/deals/search`, {
       method: "POST",
       body: JSON.stringify(body),

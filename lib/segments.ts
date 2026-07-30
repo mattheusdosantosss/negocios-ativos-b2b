@@ -47,14 +47,17 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Conversão por macro tema" (win rate Ganho ÷
    *  fechados, por macro_tema, sobre os fechados dos closers)? Só B2B. */
   hasMacroTema: boolean;
-  /** Denominador da taxa de conversão: se true, conta só negócios com proposta
-   *  anexada (tem_proposta_anexada=true); se false, todos os criados. */
-  conversionRequiresProposta: boolean;
-  /** Denominador da conversão: se true, conta só quem ENTROU na etapa
-   *  "Proposta enviada | 1° Follow" (hs_v2_date_entered_<propostaStageId>). B2C. */
-  conversionRequiresEnteredProposta: boolean;
-  /** Data que define o mês da taxa de conversão: "closedate" (B2B, por
-   *  fechamento) ou "createdate" (B2C, por criação). */
+  /** Filtro único do denominador da conversão (B2B: tem_proposta_anexada=true).
+   *  null quando se usa conversionDenomAnyOf. */
+  conversionDenomFilter: { propertyName: string; operator: string; value?: string } | null;
+  /** Denominador mesclado (OR): negócio conta se tiver QUALQUER uma dessas
+   *  propriedades preenchida (B2C: "chegou à proposta/negociação"). null = usa
+   *  conversionDenomFilter. */
+  conversionDenomAnyOf: string[] | null;
+  /** Rótulo do denominador na UI. */
+  conversionDenomLabel: string;
+  /** Data que define o mês da taxa de conversão: "closedate" (por fechamento)
+   *  ou "createdate" (por criação). */
   conversionDateProp: "closedate" | "createdate";
   /** O segmento exibe a seção "Negócios abertos por Closer" (lista por closer
    *  com gráfico de temperatura por etapa)? */
@@ -88,8 +91,9 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasEvento: true,
     hasCloseTime: false,
     hasMacroTema: true,
-    conversionRequiresProposta: true,
-    conversionRequiresEnteredProposta: false,
+    conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
+    conversionDenomAnyOf: null,
+    conversionDenomLabel: "negócios com proposta anexada (fechados)",
     conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2B_TEAM,
@@ -118,9 +122,13 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasEvento: false,
     hasCloseTime: true,
     hasMacroTema: false,
-    conversionRequiresProposta: false,
-    conversionRequiresEnteredProposta: true,
-    conversionDateProp: "createdate",
+    // Win rate puro: ganhos ÷ (ganhos + perdidos). Sem filtro de proposta/etapa
+    // porque nenhum campo cobre 100% dos ganhos no B2C — dealstage é o único
+    // dado sem buraco. Denominador = todos os fechados no mês.
+    conversionDenomFilter: null,
+    conversionDenomAnyOf: null,
+    conversionDenomLabel: "negócios fechados (ganho + perdido)",
+    conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2C_TEAM,
   },
