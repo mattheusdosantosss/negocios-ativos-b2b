@@ -124,7 +124,7 @@ const getPropostaMeetingCached = (config: SegmentConfig, origemId: string, orige
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar proposta→reunião" };
       }
     },
-    ["proposta-meeting-v1", config.id, origemId, owner || "all"],
+    ["proposta-meeting-v2", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 

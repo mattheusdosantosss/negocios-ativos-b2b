@@ -504,6 +504,17 @@ export default function Page() {
         )}
       </section>
 
+      {/* Proposta enviada → reunião (B2B) — dos negócios com proposta enviada,
+          quantos realizaram reunião (realizada / marcada sem conclusão / sem). */}
+      {data && data.propostaMeeting && data.propostaMeeting.total > 0 && (
+        <SectionCard
+          title="Proposta enviada → reunião"
+          subtitle="dos negócios com proposta enviada, quantos realizaram reunião"
+        >
+          <PropostaMeetingCard data={data.propostaMeeting} />
+        </SectionCard>
+      )}
+
       {/* Negócios ativos por temperatura (leitura do curador) */}
       {data && conviccao && (
         <SectionCard
@@ -625,17 +636,6 @@ export default function Page() {
           }
         >
           <MacroTemaConversion data={data.macroTema} />
-        </SectionCard>
-      )}
-
-      {/* Proposta enviada → reunião (B2B) — dos negócios com proposta anexada,
-          quantos tiveram reunião (realizada / marcada não realizada / sem). */}
-      {data && data.propostaMeeting && data.propostaMeeting.total > 0 && (
-        <SectionCard
-          title="Proposta enviada → reunião"
-          subtitle="dos negócios com proposta anexada, quantos tiveram reunião"
-        >
-          <PropostaMeetingCard data={data.propostaMeeting} />
         </SectionCard>
       )}
 

@@ -327,9 +327,17 @@ type AssocBatchResponse = { results?: Array<{ from: { id: string }; to: Array<{ 
 type MeetingBatchResponse = {
   results?: Array<{
     id: string;
-    properties: { hs_meeting_start_time?: string; hubspot_owner_id?: string; hs_meeting_outcome?: string };
+    properties: {
+      hs_meeting_start_time?: string;
+      hubspot_owner_id?: string;
+      hs_meeting_outcome?: string;
+      hs_meeting_title?: string;
+      hs_meeting_source?: string;
+    };
   }>;
 };
+
+type MeetingDetail = { start?: string; ownerId?: string; outcome?: string; title?: string; source?: string };
 
 // Resultado da reunião que conta como "reunião realizada" (proposta apresentada).
 // NO_SHOW / CANCELED / RESCHEDULED / SCHEDULED não contam.
@@ -359,10 +367,8 @@ async function fetchAssocIds(fromType: string, toType: string, ids: string[]): P
 }
 
 /** Lê "Hora de início da reunião" + dono de um lote de reuniões (100 por vez). */
-async function fetchMeetingsByIds(
-  meetingIds: string[]
-): Promise<Map<string, { start?: string; ownerId?: string; outcome?: string }>> {
-  const map = new Map<string, { start?: string; ownerId?: string; outcome?: string }>();
+async function fetchMeetingsByIds(meetingIds: string[]): Promise<Map<string, MeetingDetail>> {
+  const map = new Map<string, MeetingDetail>();
   const chunks: string[][] = [];
   for (let i = 0; i < meetingIds.length; i += 100) chunks.push(meetingIds.slice(i, i + 100));
 
@@ -370,7 +376,7 @@ async function fetchMeetingsByIds(
     hsFetch<MeetingBatchResponse>(`/crm/v3/objects/meetings/batch/read`, {
       method: "POST",
       body: JSON.stringify({
-        properties: ["hs_meeting_start_time", "hubspot_owner_id", "hs_meeting_outcome"],
+        properties: ["hs_meeting_start_time", "hubspot_owner_id", "hs_meeting_outcome", "hs_meeting_title", "hs_meeting_source"],
         inputs: chunk.map((id) => ({ id })),
       }),
     })
@@ -381,6 +387,8 @@ async function fetchMeetingsByIds(
         start: m.properties.hs_meeting_start_time,
         ownerId: m.properties.hubspot_owner_id,
         outcome: m.properties.hs_meeting_outcome,
+        title: m.properties.hs_meeting_title,
+        source: m.properties.hs_meeting_source,
       });
     }
   }
@@ -550,18 +558,34 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon }, months };
 }
 
-export type PropostaMeetingStats = { total: number; alguma: number; realizada: number };
+export type PropostaMeetingItem = {
+  dealname: string;
+  url: string;
+  meetingTitle?: string;
+  meetingDate?: string;
+  source?: string;
+  outcome?: string;
+};
+export type PropostaMeetingData = {
+  total: number;
+  alguma: number;
+  realizada: number;
+  /** Listas por bucket pro popup (realizada / marcada não realizada / sem reunião). */
+  deals: { realizada: PropostaMeetingItem[]; agendada: PropostaMeetingItem[]; sem: PropostaMeetingItem[] };
+};
+
+const meetMs = (iso?: string) => (iso ? new Date(iso).getTime() : NaN);
 
 /**
- * Dos negócios com proposta anexada (B2B), quantos tiveram reunião. Retorna o
- * total, quantos têm ALGUMA reunião associada e quantos têm reunião REALIZADA
- * (hs_meeting_outcome = COMPLETED). Via associação direta negócio→reunião.
- * Respeita origem/closer.
+ * Dos negócios com proposta anexada (B2B), quantos tiveram reunião. Retorna
+ * contagens (total / alguma / realizada) + as listas por bucket com a reunião
+ * representativa (título, data, origem e resultado) pro popup. Via associação
+ * direta negócio→reunião. Respeita origem/closer.
  */
 export async function fetchPropostaMeetingStats(
   config: SegmentConfig,
   opts?: { origem?: string[]; owner?: string }
-): Promise<PropostaMeetingStats> {
+): Promise<PropostaMeetingData> {
   const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
     { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
     { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
@@ -572,7 +596,7 @@ export async function fetchPropostaMeetingStats(
   if (opts?.owner) {
     filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
-  const ids: string[] = [];
+  const deals: Deal[] = [];
   let after: string | undefined;
   do {
     const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: ["dealname"], limit: 200 };
@@ -581,26 +605,44 @@ export async function fetchPropostaMeetingStats(
       method: "POST",
       body: JSON.stringify(body),
     });
-    ids.push(...data.results.map((d) => d.id));
+    deals.push(...data.results);
     after = data.paging?.next?.after;
   } while (after);
 
-  if (ids.length === 0) return { total: 0, alguma: 0, realizada: 0 };
+  const empty: PropostaMeetingData = { total: 0, alguma: 0, realizada: 0, deals: { realizada: [], agendada: [], sem: [] } };
+  if (deals.length === 0) return empty;
 
-  const dealMeetings = await fetchAssocIds("deals", "meetings", ids);
+  const dealMeetings = await fetchAssocIds("deals", "meetings", deals.map((d) => d.id));
   const allMeetingIds = [...new Set([...dealMeetings.values()].flat())];
-  let meetings: Map<string, { start?: string; ownerId?: string; outcome?: string }> = new Map();
+  let meetings: Map<string, MeetingDetail> = new Map();
   if (allMeetingIds.length) meetings = await fetchMeetingsByIds(allMeetingIds);
 
-  let alguma = 0;
-  let realizada = 0;
-  for (const id of ids) {
-    const mids = dealMeetings.get(id) ?? [];
-    const existentes = mids.filter((mid) => meetings.has(mid));
-    if (existentes.length > 0) alguma += 1;
-    if (existentes.some((mid) => meetings.get(mid)?.outcome === MEETING_OUTCOME_DONE)) realizada += 1;
+  const out: PropostaMeetingData = { total: deals.length, alguma: 0, realizada: 0, deals: { realizada: [], agendada: [], sem: [] } };
+  for (const d of deals) {
+    const mids = (dealMeetings.get(d.id) ?? []).map((mid) => meetings.get(mid)).filter((m): m is MeetingDetail => !!m);
+    const base = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id) };
+    if (mids.length === 0) {
+      out.deals.sem.push(base);
+      continue;
+    }
+    out.alguma += 1;
+    const completed = mids.filter((m) => m.outcome === MEETING_OUTCOME_DONE);
+    const pick = (completed.length ? completed : mids).sort((a, b) => (meetMs(b.start) || 0) - (meetMs(a.start) || 0))[0];
+    const item: PropostaMeetingItem = {
+      ...base,
+      meetingTitle: pick.title,
+      meetingDate: pick.start,
+      source: pick.source,
+      outcome: pick.outcome,
+    };
+    if (completed.length) {
+      out.realizada += 1;
+      out.deals.realizada.push(item);
+    } else {
+      out.deals.agendada.push(item);
+    }
   }
-  return { total: ids.length, alguma, realizada };
+  return out;
 }
 
 // ------------------------------------------------------------------

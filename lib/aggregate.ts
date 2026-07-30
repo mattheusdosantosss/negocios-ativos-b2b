@@ -1,4 +1,4 @@
-import { ownerDisplayName, dealUrl, type Deal, type Owner } from "./hubspot";
+import { ownerDisplayName, dealUrl, type Deal, type Owner, type PropostaMeetingData } from "./hubspot";
 import type { SegmentConfig, SegmentId, StageDef } from "./segments";
 import { tempStagesOf } from "./segments";
 
@@ -249,7 +249,7 @@ export type DashboardData = {
   /** Taxa de conversão Proposta → Ganho (geral + por mês de criação). */
   conversion?: ConversionData;
   /** B2B: dos negócios com proposta anexada, quantos tiveram reunião. */
-  propostaMeeting?: { total: number; alguma: number; realizada: number };
+  propostaMeeting?: PropostaMeetingData;
 };
 
 // Taxa de conversão Proposta → Ganho, por mês de criação.
