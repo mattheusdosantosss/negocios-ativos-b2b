@@ -262,16 +262,21 @@ export type ConversionMonth = { key: string; label: string; entered: number; won
 export type ConversionData = {
   geral: { entered: number; won: number; conv: number };
   months: ConversionMonth[]; // desc por key (mais recente primeiro)
+  /** Como chamar o denominador na UI (ex.: "negócios criados", "com proposta anexada"). */
+  denomLabel: string;
 };
 
 /**
  * Taxa de conversão = negócios GANHOS ÷ negócios CRIADOS, por mês de criação.
  * Recebe as contagens já apuradas (geral + meses) e só formata os rótulos.
  */
-export function conversionFromCounts(counts: {
-  geral: { created: number; won: number };
-  months: { key: string; created: number; won: number }[];
-}): ConversionData {
+export function conversionFromCounts(
+  counts: {
+    geral: { created: number; won: number };
+    months: { key: string; created: number; won: number }[];
+  },
+  denomLabel: string
+): ConversionData {
   const months: ConversionMonth[] = counts.months
     .map((m) => ({
       key: m.key,
@@ -282,7 +287,7 @@ export function conversionFromCounts(counts: {
     }))
     .sort((a, b) => b.key.localeCompare(a.key));
   const { created, won } = counts.geral;
-  return { geral: { entered: created, won, conv: created > 0 ? won / created : 0 }, months };
+  return { geral: { entered: created, won, conv: created > 0 ? won / created : 0 }, months, denomLabel };
 }
 
 // Situação da PRÓXIMA tarefa aberta de um negócio ativo. Ordem = ordem de

@@ -96,14 +96,18 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
   unstable_cache(
     async (): Promise<{ data: ConversionData | undefined; warning?: string }> => {
       try {
-        // Denominador = negócios criados; Numerador = ganhos. Por data de criação.
+        // Denominador = negócios com proposta anexada (B2B) ou criados (B2C);
+        // Numerador = ganhos. Recortado por data de criação.
         const counts = await fetchConversionCounts(config, { origem, owner });
-        return { data: conversionFromCounts(counts), warning: undefined };
+        const denomLabel = config.conversionRequiresProposta
+          ? "negócios com proposta anexada"
+          : "negócios criados";
+        return { data: conversionFromCounts(counts, denomLabel), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" };
       }
     },
-    ["conversion-v5", config.id, origemId, owner || "all"],
+    ["conversion-v6", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 

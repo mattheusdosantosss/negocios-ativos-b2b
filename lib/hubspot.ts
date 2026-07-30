@@ -488,6 +488,11 @@ export async function fetchConversionCounts(
   if (opts?.owner) {
     base.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
+  // B2B: o denominador conta só negócios com proposta anexada. Como entra no
+  // `base`, vale pro denominador E pro numerador (ganho ⊆ com proposta).
+  if (config.conversionRequiresProposta) {
+    base.push({ propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" });
+  }
   const wonFilter = { propertyName: "dealstage", operator: "IN", values: config.wonStageIds };
 
   const count = async (extra: typeof base): Promise<number> => {

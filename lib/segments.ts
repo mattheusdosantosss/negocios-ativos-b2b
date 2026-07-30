@@ -47,6 +47,9 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Conversão por macro tema" (win rate Ganho ÷
    *  fechados, por macro_tema, sobre os fechados dos closers)? Só B2B. */
   hasMacroTema: boolean;
+  /** Denominador da taxa de conversão: se true, conta só negócios com proposta
+   *  anexada (tem_proposta_anexada=true); se false, todos os criados. */
+  conversionRequiresProposta: boolean;
   /** O segmento exibe a seção "Negócios abertos por Closer" (lista por closer
    *  com gráfico de temperatura por etapa)? */
   hasCloserBreakdown: boolean;
@@ -79,6 +82,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasEvento: true,
     hasCloseTime: false,
     hasMacroTema: true,
+    conversionRequiresProposta: true,
     hasCloserBreakdown: true,
     team: B2B_TEAM,
   },
@@ -106,6 +110,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasEvento: false,
     hasCloseTime: true,
     hasMacroTema: false,
+    conversionRequiresProposta: false,
     hasCloserBreakdown: true,
     team: B2C_TEAM,
   },
