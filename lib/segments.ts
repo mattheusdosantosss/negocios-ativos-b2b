@@ -127,12 +127,13 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: true,
     hasMacroTema: false,
     hasPropostaMeeting: false,
-    // Win rate puro: ganhos ÷ (ganhos + perdidos). Denominador = dealstage nas
-    // etapas Ganho (1105295876) + Perdido (1059939760) — bate exato com o funil
-    // do HubSpot. Sem filtro de proposta (nenhum campo cobre 100% dos ganhos).
-    conversionDenomFilter: { propertyName: "dealstage", operator: "IN", values: ["1105295876", "1059939760"] },
+    // Balizador do B2C (análogo ao "proposta anexada" do B2B): negócio COM VALOR
+    // (valor_liquido_b2c_10) = foi orçado/proposto. 99% dos ganhos têm; só ~48%
+    // dos perdidos (o resto é lead morto que nunca foi orçado). Denominador =
+    // fechados com valor; numerador = ganhos.
+    conversionDenomFilter: { propertyName: "valor_liquido_b2c_10", operator: "HAS_PROPERTY" },
     conversionDenomAnyOf: null,
-    conversionDenomLabel: "",
+    conversionDenomLabel: "só negócios com valor/orçamento",
     conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2C_TEAM,

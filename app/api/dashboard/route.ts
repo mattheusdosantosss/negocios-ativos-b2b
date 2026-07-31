@@ -109,7 +109,7 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" };
       }
     },
-    ["conversion-v13", config.id, origemId, owner || "all"],
+    ["conversion-v14", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 
