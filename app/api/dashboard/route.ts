@@ -115,16 +115,23 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
 
 // "Proposta enviada → reunião" (B2B): dos negócios com proposta anexada, quantos
 // tiveram reunião. Via associação negócio→reunião (pesado) → cacheia 1h.
-const getPropostaMeetingCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
+const getPropostaMeetingCached = (
+  config: SegmentConfig,
+  origemId: string,
+  origem: string[],
+  owner: string | undefined,
+  from: string | undefined,
+  to: string | undefined
+) =>
   unstable_cache(
     async (): Promise<{ data: DashboardData["propostaMeeting"]; warning?: string }> => {
       try {
-        return { data: await fetchPropostaMeetingStats(config, { origem, owner }), warning: undefined };
+        return { data: await fetchPropostaMeetingStats(config, { origem, owner, from, to }), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar proposta→reunião" };
       }
     },
-    ["proposta-meeting-v2", config.id, origemId, owner || "all"],
+    ["proposta-meeting-v2", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
   )();
 
@@ -155,7 +162,7 @@ export async function GET(req: NextRequest) {
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
       config.hasMacroTema ? getMacroTemaCached(config, origemId, origem, owner) : Promise.resolve(null),
       getConversionCached(config, origemId, origem, owner),
-      config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner) : Promise.resolve(null),
+      config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,

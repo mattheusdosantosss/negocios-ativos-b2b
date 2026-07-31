@@ -584,7 +584,7 @@ const meetMs = (iso?: string) => (iso ? new Date(iso).getTime() : NaN);
  */
 export async function fetchPropostaMeetingStats(
   config: SegmentConfig,
-  opts?: { origem?: string[]; owner?: string }
+  opts?: { origem?: string[]; owner?: string; from?: string; to?: string }
 ): Promise<PropostaMeetingData> {
   const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
     { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
@@ -595,6 +595,12 @@ export async function fetchPropostaMeetingStats(
   }
   if (opts?.owner) {
     filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
+  }
+  if (opts?.from) {
+    filters.push({ propertyName: "createdate", operator: "GTE", value: brStartOfDayMs(opts.from).toString() });
+  }
+  if (opts?.to) {
+    filters.push({ propertyName: "createdate", operator: "LTE", value: brEndOfDayMs(opts.to).toString() });
   }
   const deals: Deal[] = [];
   let after: string | undefined;
