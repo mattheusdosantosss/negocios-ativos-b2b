@@ -3,7 +3,6 @@
 import {
   PRESET_OPTIONS,
   PRESET_LABELS,
-  formatPeriodRange,
   type PeriodPreset,
   type PeriodValue,
 } from "@/lib/periods";
@@ -39,12 +38,6 @@ export default function PeriodFilter({ value, onChange }: Props) {
             </option>
           ))}
         </select>
-        {/* Altura reservada sempre → selecionar preset nunca desloca o layout. */}
-        <div className="mt-1 h-4 text-[11px] font-medium text-white/60 truncate">
-          {value.preset !== "all" && value.preset !== "custom"
-            ? formatPeriodRange(value.from, value.to)
-            : ""}
-        </div>
       </div>
 
       {value.preset === "custom" && (
