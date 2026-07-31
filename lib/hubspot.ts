@@ -580,6 +580,8 @@ export async function fetchLostReasons(
     { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
     { propertyName: "dealstage", operator: "IN", values: config.lostStageIds },
     { propertyName: "closedate", operator: "GTE", value: String(cutoff) },
+    // ignora fechamento no futuro (data preenchida errada) — senão cria mês futuro
+    { propertyName: "closedate", operator: "LTE", value: String(Date.now()) },
   ];
   if (opts?.origem && opts.origem.length > 0) {
     filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });

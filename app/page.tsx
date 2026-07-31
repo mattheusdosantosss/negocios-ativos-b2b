@@ -8,7 +8,6 @@ import CloseTimeChart from "@/components/CloseTimeChart";
 import MacroTemaConversion from "@/components/MacroTemaConversion";
 import ConversionCard from "@/components/ConversionCard";
 import PropostaMeetingCard from "@/components/PropostaMeetingCard";
-import MotivosCard from "@/components/MotivosCard";
 import SectionCard from "@/components/SectionCard";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
@@ -392,16 +391,9 @@ export default function Page() {
         />
       </section>
 
-      {/* Taxa de conversão Proposta → Ganho — logo abaixo dos 4 KPIs principais */}
+      {/* Taxa de conversão + motivos de perda (mesmo card, mesmo seletor de mês) */}
       {data && data.conversion && data.conversion.geral.entered > 0 && (
-        <ConversionCard data={data.conversion} />
-      )}
-
-      {/* Motivos de perda (B2C) — por que os negócios foram perdidos */}
-      {data && data.motivos && data.motivos.geral.total > 0 && (
-        <SectionCard title="Motivos de perda" subtitle="por que os negócios B2C são movidos para Perdido">
-          <MotivosCard data={data.motivos} />
-        </SectionCard>
+        <ConversionCard data={data.conversion} motivos={data.motivos} />
       )}
 
       {/* Checkout — só nos segmentos com fase de pagamento (ex.: B2C) */}
