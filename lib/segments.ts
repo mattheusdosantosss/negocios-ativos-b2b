@@ -50,6 +50,9 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Proposta enviada → reunião" (% dos negócios com
    *  proposta anexada que tiveram reunião)? Só B2B. */
   hasPropostaMeeting: boolean;
+  /** O segmento exibe o card "Motivos de perda" (distribuição de
+   *  closed_lost_reason dos perdidos)? Só B2C. */
+  hasLostReasons: boolean;
   /** Filtro único do denominador da conversão (B2B: tem_proposta_anexada=true;
    *  B2C: dealstage IN Ganho+Perdido). null quando se usa conversionDenomAnyOf. */
   conversionDenomFilter: { propertyName: string; operator: string; value?: string; values?: string[] } | null;
@@ -95,6 +98,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: false,
     hasMacroTema: true,
     hasPropostaMeeting: true,
+    hasLostReasons: false,
     conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
     conversionDenomAnyOf: null,
     conversionDenomLabel: "só negócios com proposta anexada",
@@ -127,13 +131,12 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: true,
     hasMacroTema: false,
     hasPropostaMeeting: false,
-    // Balizador do B2C (análogo ao "proposta anexada" do B2B): negócio COM VALOR
-    // (valor_liquido_b2c_10) = foi orçado/proposto. 99% dos ganhos têm; só ~48%
-    // dos perdidos (o resto é lead morto que nunca foi orçado). Denominador =
-    // fechados com valor; numerador = ganhos.
-    conversionDenomFilter: { propertyName: "valor_liquido_b2c_10", operator: "HAS_PROPERTY" },
+    hasLostReasons: true,
+    // Conversão 100%: ganhos ÷ (ganhos + perdidos), todos os fechados. Os motivos
+    // de perda (card "Motivos de perda") explicam o porquê das perdas.
+    conversionDenomFilter: { propertyName: "dealstage", operator: "IN", values: ["1105295876", "1059939760"] },
     conversionDenomAnyOf: null,
-    conversionDenomLabel: "só negócios com valor/orçamento",
+    conversionDenomLabel: "",
     conversionDateProp: "closedate",
     hasCloserBreakdown: true,
     team: B2C_TEAM,

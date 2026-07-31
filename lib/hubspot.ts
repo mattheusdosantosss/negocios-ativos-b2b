@@ -558,6 +558,78 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon }, months };
 }
 
+export type MotivosScope = { total: number; reasons: { name: string; count: number }[] };
+export type MotivosData = { geral: MotivosScope; months: (MotivosScope & { key: string })[] };
+
+/**
+ * Distribuição dos motivos de perda (closed_lost_reason) dos negócios perdidos.
+ * Limita aos últimos ~18 meses de fechamento (não estoura o teto de 10k da
+ * Search) e agrupa por mês (fuso BR) + geral. Respeita origem/closer.
+ */
+export async function fetchLostReasons(
+  config: SegmentConfig,
+  opts?: { origem?: string[]; owner?: string }
+): Promise<MotivosData> {
+  if (config.lostStageIds.length === 0) return { geral: { total: 0, reasons: [] }, months: [] };
+  // Últimos 6 meses de fechamento — o B2C perde ~1,2k/mês, então 18m estouraria
+  // o teto de 10k da Search API. 6m (~7k) cabe com folga.
+  const nowBr = new Date(Date.now() - BR_OFFSET_MS);
+  const cutoff = Date.UTC(nowBr.getUTCFullYear(), nowBr.getUTCMonth() - 5, 1) + BR_OFFSET_MS;
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: "dealstage", operator: "IN", values: config.lostStageIds },
+    { propertyName: "closedate", operator: "GTE", value: String(cutoff) },
+  ];
+  if (opts?.origem && opts.origem.length > 0) {
+    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
+  }
+  if (opts?.owner) {
+    filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
+  }
+  const deals: Deal[] = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters }],
+      properties: ["closedate", "closed_lost_reason"],
+      limit: 200,
+    };
+    if (after) body.after = after;
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    deals.push(...data.results);
+    after = data.paging?.next?.after;
+  } while (after && deals.length < 9800); // blindagem contra o teto de 10k
+
+  const monthKey = (iso?: string) => {
+    const t = iso ? new Date(iso).getTime() : NaN;
+    if (!Number.isFinite(t)) return "sem-data";
+    const d = new Date(t - BR_OFFSET_MS);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  };
+  const geral = new Map<string, number>();
+  const byMonth = new Map<string, Map<string, number>>();
+  for (const d of deals) {
+    const reason = (d.properties.closed_lost_reason || "").trim() || "Sem motivo";
+    geral.set(reason, (geral.get(reason) ?? 0) + 1);
+    const k = monthKey(d.properties.closedate);
+    if (k === "sem-data") continue;
+    if (!byMonth.has(k)) byMonth.set(k, new Map());
+    const m = byMonth.get(k)!;
+    m.set(reason, (m.get(reason) ?? 0) + 1);
+  }
+  const toScope = (m: Map<string, number>): MotivosScope => {
+    const reasons = [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+    return { total: reasons.reduce((s, r) => s + r.count, 0), reasons };
+  };
+  const months = [...byMonth.entries()]
+    .map(([key, m]) => ({ key, ...toScope(m) }))
+    .sort((a, b) => b.key.localeCompare(a.key));
+  return { geral: toScope(geral), months };
+}
+
 export type PropostaMeetingItem = {
   dealname: string;
   url: string;
