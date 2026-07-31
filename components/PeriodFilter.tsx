@@ -24,21 +24,14 @@ export default function PeriodFilter({ value, onChange }: Props) {
 
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <div className="flex flex-col">
-        <label className="mb-2 flex items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/85">
-            Data de criação
-          </span>
-          {value.preset !== "all" && value.preset !== "custom" && (
-            <span className="text-[11px] font-medium text-white/60">
-              · {formatPeriodRange(value.from, value.to)}
-            </span>
-          )}
+      <div className="flex flex-col w-[172px]">
+        <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/85">
+          Data de criação
         </label>
         <select
           value={value.preset}
           onChange={(e) => handlePresetChange(e.target.value as PeriodPreset)}
-          className="rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 min-w-[160px]"
+          className="w-full rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10"
         >
           {PRESET_OPTIONS.map((p) => (
             <option key={p} value={p}>
@@ -46,6 +39,12 @@ export default function PeriodFilter({ value, onChange }: Props) {
             </option>
           ))}
         </select>
+        {/* Altura reservada sempre → selecionar preset nunca desloca o layout. */}
+        <div className="mt-1 h-4 text-[11px] font-medium text-white/60 truncate">
+          {value.preset !== "all" && value.preset !== "custom"
+            ? formatPeriodRange(value.from, value.to)
+            : ""}
+        </div>
       </div>
 
       {value.preset === "custom" && (
