@@ -558,7 +558,8 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon }, months };
 }
 
-export type MotivosScope = { total: number; reasons: { name: string; count: number }[] };
+export type MotivosItem = { dealname: string; url: string };
+export type MotivosScope = { total: number; reasons: { name: string; count: number; deals: MotivosItem[] }[] };
 export type MotivosData = { geral: MotivosScope; months: (MotivosScope & { key: string })[] };
 
 /**
@@ -591,7 +592,7 @@ export async function fetchLostReasons(
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: ["closedate", "closed_lost_reason"],
+      properties: ["closedate", "closed_lost_reason", "dealname"],
       limit: 200,
     };
     if (after) body.after = after;
@@ -609,19 +610,25 @@ export async function fetchLostReasons(
     const d = new Date(t - BR_OFFSET_MS);
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   };
-  const geral = new Map<string, number>();
-  const byMonth = new Map<string, Map<string, number>>();
+  const geral = new Map<string, MotivosItem[]>();
+  const byMonth = new Map<string, Map<string, MotivosItem[]>>();
+  const push = (m: Map<string, MotivosItem[]>, reason: string, item: MotivosItem) => {
+    if (!m.has(reason)) m.set(reason, []);
+    m.get(reason)!.push(item);
+  };
   for (const d of deals) {
     const reason = (d.properties.closed_lost_reason || "").trim() || "Sem motivo";
-    geral.set(reason, (geral.get(reason) ?? 0) + 1);
+    const item: MotivosItem = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id) };
+    push(geral, reason, item);
     const k = monthKey(d.properties.closedate);
     if (k === "sem-data") continue;
     if (!byMonth.has(k)) byMonth.set(k, new Map());
-    const m = byMonth.get(k)!;
-    m.set(reason, (m.get(reason) ?? 0) + 1);
+    push(byMonth.get(k)!, reason, item);
   }
-  const toScope = (m: Map<string, number>): MotivosScope => {
-    const reasons = [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  const toScope = (m: Map<string, MotivosItem[]>): MotivosScope => {
+    const reasons = [...m.entries()]
+      .map(([name, ds]) => ({ name, count: ds.length, deals: ds }))
+      .sort((a, b) => b.count - a.count);
     return { total: reasons.reduce((s, r) => s + r.count, 0), reasons };
   };
   const months = [...byMonth.entries()]
