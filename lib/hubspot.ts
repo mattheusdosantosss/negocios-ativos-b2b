@@ -642,6 +642,8 @@ export async function fetchLostReasons(
 export type PropostaMeetingItem = {
   dealname: string;
   url: string;
+  /** Mês (fuso BR, "YYYY-MM") do envio da proposta — pro filtro do card. */
+  monthKey?: string;
   meetingTitle?: string;
   meetingDate?: string;
   source?: string;
@@ -653,6 +655,8 @@ export type PropostaMeetingData = {
   realizada: number;
   /** Listas por bucket pro popup (realizada / marcada não realizada / sem reunião). */
   deals: { realizada: PropostaMeetingItem[]; agendada: PropostaMeetingItem[]; sem: PropostaMeetingItem[] };
+  /** Meses de envio de proposta presentes (desc), pro filtro "Mês de envio". */
+  months: { key: string; label: string }[];
 };
 
 const meetMs = (iso?: string) => (iso ? new Date(iso).getTime() : NaN);
@@ -671,6 +675,18 @@ export async function fetchPropostaMeetingStats(
     { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
     { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
   ];
+  const MES_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const mKey = (iso?: string) => {
+    const t = iso ? new Date(iso).getTime() : NaN;
+    if (!Number.isFinite(t)) return undefined;
+    const d = new Date(t - BR_OFFSET_MS);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  };
+  const mLabel = (key: string) => {
+    const [y, m] = key.split("-");
+    const ab = MES_ABBR[Number(m) - 1] ?? m;
+    return `${ab.charAt(0).toUpperCase()}${ab.slice(1)}/${y}`;
+  };
   if (opts?.origem && opts.origem.length > 0) {
     filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
   }
@@ -686,7 +702,7 @@ export async function fetchPropostaMeetingStats(
   const deals: Deal[] = [];
   let after: string | undefined;
   do {
-    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: ["dealname"], limit: 200 };
+    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: ["dealname", "data_de_envio_da_ultima_proposta"], limit: 200 };
     if (after) body.after = after;
     const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
       method: "POST",
@@ -696,7 +712,7 @@ export async function fetchPropostaMeetingStats(
     after = data.paging?.next?.after;
   } while (after);
 
-  const empty: PropostaMeetingData = { total: 0, alguma: 0, realizada: 0, deals: { realizada: [], agendada: [], sem: [] } };
+  const empty: PropostaMeetingData = { total: 0, alguma: 0, realizada: 0, deals: { realizada: [], agendada: [], sem: [] }, months: [] };
   if (deals.length === 0) return empty;
 
   const dealMeetings = await fetchAssocIds("deals", "meetings", deals.map((d) => d.id));
@@ -704,10 +720,13 @@ export async function fetchPropostaMeetingStats(
   let meetings: Map<string, MeetingDetail> = new Map();
   if (allMeetingIds.length) meetings = await fetchMeetingsByIds(allMeetingIds);
 
-  const out: PropostaMeetingData = { total: deals.length, alguma: 0, realizada: 0, deals: { realizada: [], agendada: [], sem: [] } };
+  const out: PropostaMeetingData = { total: deals.length, alguma: 0, realizada: 0, deals: { realizada: [], agendada: [], sem: [] }, months: [] };
+  const monthsSeen = new Set<string>();
   for (const d of deals) {
     const mids = (dealMeetings.get(d.id) ?? []).map((mid) => meetings.get(mid)).filter((m): m is MeetingDetail => !!m);
-    const base = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id) };
+    const monthKey = mKey((d.properties as Record<string, string>).data_de_envio_da_ultima_proposta);
+    if (monthKey) monthsSeen.add(monthKey);
+    const base = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), monthKey };
     if (mids.length === 0) {
       out.deals.sem.push(base);
       continue;
@@ -729,6 +748,12 @@ export async function fetchPropostaMeetingStats(
       out.deals.agendada.push(item);
     }
   }
+  // Não oferece meses futuros no filtro (data de proposta preenchida à frente).
+  const nowKey = mKey(new Date(Date.now()).toISOString())!;
+  out.months = [...monthsSeen]
+    .filter((k) => k <= nowKey)
+    .sort((a, b) => b.localeCompare(a))
+    .map((key) => ({ key, label: mLabel(key) }));
   return out;
 }
 

@@ -132,7 +132,7 @@ const getPropostaMeetingCached = (
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar proposta→reunião" };
       }
     },
-    ["proposta-meeting-v2", config.id, origemId, owner || "all", from || "all", to || "all"],
+    ["proposta-meeting-v4", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
   )();
 

@@ -49,25 +49,58 @@ type Props = { data: PropostaMeetingData };
 
 export default function PropostaMeetingCard({ data }: Props) {
   const [open, setOpen] = useState<Bucket | null>(null);
-  const { total, realizada, alguma } = data;
-  const agendada = Math.max(0, alguma - realizada);
-  const sem = Math.max(0, total - alguma);
+  const [month, setMonth] = useState<string>("all");
+
+  // Filtro "exclusivo" do card: recorta as listas por mês de envio da proposta
+  // (client-side, sem refetch) — igual ao "Mês de fechamento" da conversão.
+  const inMonth = (it: PropostaMeetingItem) => month === "all" || it.monthKey === month;
+  const filtered: Record<Bucket, PropostaMeetingItem[]> = {
+    realizada: data.deals.realizada.filter(inMonth),
+    agendada: data.deals.agendada.filter(inMonth),
+    sem: data.deals.sem.filter(inMonth),
+  };
+  const counts: Record<Bucket, number> = {
+    realizada: filtered.realizada.length,
+    agendada: filtered.agendada.length,
+    sem: filtered.sem.length,
+  };
+  const realizada = counts.realizada;
+  const agendada = counts.agendada;
+  const sem = counts.sem;
+  const total = realizada + agendada + sem;
   const w = (n: number) => (total > 0 ? (n / total) * 100 : 0);
-  const counts: Record<Bucket, number> = { realizada, agendada, sem };
 
   return (
     <div>
-      <div className="flex items-baseline gap-6 flex-wrap mb-4">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Reunião realizada</div>
-          <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{pct(realizada, total)}</span>
+      <div className="flex items-start justify-between gap-6 flex-wrap mb-4">
+        <div className="flex items-baseline gap-6 flex-wrap min-w-0">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Reunião realizada</div>
+            <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{pct(realizada, total)}</span>
+          </div>
+          <p className="text-sm text-psa-ink-soft max-w-[70ch] m-0">
+            De <b className="text-psa-ink">{num(total)}</b> negócios com proposta enviada,{" "}
+            <b className="text-psa-ink">{num(realizada)}</b> realizaram uma reunião e outros{" "}
+            <b className="text-psa-ink">{num(agendada)}</b> chegaram a marcar mas não há registro de conclusão.{" "}
+            <b className="text-psa-ink">{num(sem)}</b> não têm nenhuma reunião.
+          </p>
         </div>
-        <p className="text-sm text-psa-ink-soft max-w-[70ch] m-0">
-          De <b className="text-psa-ink">{num(total)}</b> negócios com proposta enviada,{" "}
-          <b className="text-psa-ink">{num(realizada)}</b> realizaram uma reunião e outros{" "}
-          <b className="text-psa-ink">{num(agendada)}</b> chegaram a marcar mas não há registro de conclusão.{" "}
-          <b className="text-psa-ink">{num(sem)}</b> não têm nenhuma reunião.
-        </p>
+
+        <div className="flex flex-col shrink-0">
+          <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-psa-ink-soft">Mês de envio</label>
+          <select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="rounded-lg border border-psa-line bg-psa-canvas px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 min-w-[190px]"
+          >
+            <option value="all">Geral (todo o histórico)</option>
+            {data.months.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-2">
@@ -105,7 +138,7 @@ export default function PropostaMeetingCard({ data }: Props) {
       {open && (
         <MeetingModal
           title={SEG[open].label}
-          items={data.deals[open]}
+          items={filtered[open]}
           showMeeting={open !== "sem"}
           onClose={() => setOpen(null)}
         />
