@@ -103,7 +103,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDenomAnyOf: null,
     conversionDenomLabel: "só negócios com proposta anexada",
     conversionDateProp: "closedate",
-    hasCloserBreakdown: true,
+    hasCloserBreakdown: false,
     team: B2B_TEAM,
   },
   b2c: {
@@ -138,7 +138,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDenomAnyOf: null,
     conversionDenomLabel: "",
     conversionDateProp: "closedate",
-    hasCloserBreakdown: true,
+    hasCloserBreakdown: false,
     team: B2C_TEAM,
   },
 };
