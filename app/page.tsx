@@ -574,8 +574,8 @@ export default function Page() {
       )}
 
       {/* Negócios ativos por perfil (mesma lógica da temperatura, dimensão Perfil).
-          Só aparece quando há perfil preenchido (B2C) — no B2B a propriedade é vazia. */}
-      {data && perfilCobertura && perfilCobertura.comPerfil > 0 && (
+          Só no B2C — no B2B o card não é apresentado. */}
+      {data && data.meta.segment !== "b2b" && perfilCobertura && perfilCobertura.comPerfil > 0 && (
         <SectionCard
           title="Negócios ativos por perfil"
           subtitle={
