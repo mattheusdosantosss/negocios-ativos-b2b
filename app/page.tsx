@@ -391,6 +391,9 @@ export default function Page() {
         />
       </section>
 
+      {/* Meta do mês — acima da Taxa de conversão (B2B e B2C) */}
+      {data && data.monthGoal && <MonthGoalCard data={data.monthGoal} />}
+
       {/* Taxa de conversão + motivos de perda (mesmo card, mesmo seletor de mês) */}
       {data && data.conversion && data.conversion.geral.entered > 0 && (
         <ConversionCard data={data.conversion} motivos={data.motivos} />
@@ -430,28 +433,15 @@ export default function Page() {
         </section>
       )}
 
-      {/* Atenção — fora do time + Data Prevista do Evento */}
+      {/* Atenção — Data Prevista do Evento. Escondida quando não há nada a mostrar
+          (ex.: B2C, que não usa evento). */}
+      {cfg.hasEvento && (
       <section className="rounded-2xl border-2 border-psa-ink/10 bg-psa-surface shadow-card overflow-hidden">
         <div className="flex items-center gap-2 px-5 pt-4">
           <span className="text-lg leading-none">⚠️</span>
           <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Atenção</h2>
         </div>
         <div className={`grid grid-cols-1 gap-4 p-5 ${cfg.hasEvento ? "md:grid-cols-2" : ""}`}>
-          <button
-            type="button"
-            disabled={!data || data.totals.foraDoTime === 0}
-            onClick={() => setModal({ mode: "outside-team" })}
-            className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
-          >
-            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
-              Fora do time {cfg.label}
-            </div>
-            <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
-              {data ? num(data.totals.foraDoTime) : 0}
-            </div>
-            <div className="mt-1 text-[11px] text-psa-ink-soft">Dono não é um dos Closers do time</div>
-          </button>
-
           {cfg.hasEvento && (
             <button
               type="button"
@@ -503,6 +493,7 @@ export default function Page() {
           </div>
         )}
       </section>
+      )}
 
       {/* Proposta enviada → reunião (B2B) — dos negócios com proposta enviada,
           quantos realizaram reunião (realizada / marcada sem conclusão / sem). */}
@@ -678,5 +669,52 @@ export default function Page() {
         teamLabel={cfg.label}
       />
     </main>
+  );
+}
+
+// Meta do mês — destaque na seção Atenção. Progresso da venda do mês (soma da
+// lista RANKING DE VENDAS | MÊS) contra a meta.
+function MonthGoalCard({ data }: { data: NonNullable<DashboardData["monthGoal"]> }) {
+  const { goal, sold, count } = data;
+  const ratio = goal > 0 ? sold / goal : 0;
+  const pctTxt = `${(ratio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  const remaining = Math.max(0, goal - sold);
+  const reached = sold >= goal;
+
+  return (
+    <div className="rounded-xl border-2 border-psa-orange/40 bg-gradient-to-br from-psa-orange/[0.07] to-transparent p-5">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">Meta do mês</div>
+          <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+            <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{brl(sold)}</span>
+            <span className="text-sm text-psa-ink-soft">
+              de <b className="text-psa-ink">{brl(goal)}</b>
+            </span>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">{pctTxt}</div>
+          <div className="text-[11px] text-psa-ink-soft">
+            {num(count)} {count === 1 ? "venda" : "vendas"} no mês
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 h-3 rounded-full bg-psa-canvas overflow-hidden">
+        <div
+          className="h-full rounded-full bg-psa-orange transition-all"
+          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+        />
+      </div>
+      <div className="mt-2 text-[11px] text-psa-ink-soft">
+        {reached ? (
+          <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
+        ) : (
+          <>
+            Faltam <b className="text-psa-ink">{brl(remaining)}</b> pra bater a meta
+          </>
+        )}
+      </div>
+    </div>
   );
 }

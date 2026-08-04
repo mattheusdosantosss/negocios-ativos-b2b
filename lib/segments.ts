@@ -68,6 +68,11 @@ export type SegmentConfig = {
   /** O segmento exibe a seção "Negócios abertos por Closer" (lista por closer
    *  com gráfico de temperatura por etapa)? */
   hasCloserBreakdown: boolean;
+  /** Meta de venda do mês (valor bruto), pro card "Meta do mês". null = sem meta. */
+  monthGoal: number | null;
+  /** Id da lista/segmento do HubSpot (dinâmica "MÊS") cujos negócios somam a
+   *  venda do mês pra bater na meta. null quando o segmento não tem. */
+  rankingListId: string | null;
   /** Roster oficial de closers do segmento (métrica "fora do time"). */
   team: TeamMember[];
 };
@@ -104,6 +109,8 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDenomLabel: "só negócios com proposta anexada",
     conversionDateProp: "closedate",
     hasCloserBreakdown: false,
+    monthGoal: 915_000,
+    rankingListId: "1491", // "RANKING DE VENDAS | MÊS"
     team: B2B_TEAM,
   },
   b2c: {
@@ -139,6 +146,8 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDenomLabel: "",
     conversionDateProp: "closedate",
     hasCloserBreakdown: false,
+    monthGoal: 664_000,
+    rankingListId: "1491", // "RANKING DE VENDAS | MÊS" (filtra pela pipeline B2C)
     team: B2C_TEAM,
   },
 };

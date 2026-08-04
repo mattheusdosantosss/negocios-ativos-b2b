@@ -558,6 +558,44 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon }, months };
 }
 
+export type MonthGoalData = { goal: number; sold: number; count: number };
+
+/**
+ * Progresso da meta do mês: soma o `amount` (valor bruto) dos negócios que são
+ * membros da lista/segmento dinâmica "RANKING DE VENDAS | MÊS" do HubSpot. A
+ * lista já se filtra sozinha pelo mês; aqui só somamos os membros. É o total do
+ * time (não sofre filtro de closer/período).
+ */
+export async function fetchMonthGoalProgress(listId: string, goal: number, pipelineId: string): Promise<MonthGoalData> {
+  // Ids dos membros da lista (paginado). A lista mistura B2B e B2C — o filtro por
+  // pipeline abaixo garante que só entram os negócios do segmento.
+  const ids: string[] = [];
+  let after: string | undefined;
+  do {
+    const qs = new URLSearchParams({ limit: "100", ...(after ? { after } : {}) });
+    const data = await hsFetch<{ results?: { recordId: string | number }[]; paging?: { next?: { after?: string } } }>(
+      `/crm/v3/lists/${listId}/memberships?${qs.toString()}`
+    );
+    ids.push(...(data.results ?? []).map((r) => String(r.recordId)));
+    after = data.paging?.next?.after;
+  } while (after);
+
+  if (ids.length === 0) return { goal, sold: 0, count: 0 };
+
+  // Lê amount + pipeline em lotes de 100; soma só os da pipeline do segmento.
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+  const parts = await mapLimit(chunks, 4, (chunk) =>
+    hsFetch<{ results?: { properties: { amount?: string; pipeline?: string } }[] }>(`/crm/v3/objects/deals/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({ properties: ["amount", "pipeline"], inputs: chunk.map((id) => ({ id })) }),
+    })
+  );
+  const mine = parts.flatMap((p) => p.results ?? []).filter((d) => d.properties.pipeline === pipelineId);
+  const sold = mine.reduce((a, d) => a + Number(d.properties.amount || 0), 0);
+  return { goal, sold, count: mine.length };
+}
+
 export type MotivosItem = { dealname: string; url: string };
 export type MotivosScope = { total: number; reasons: { name: string; count: number; deals: MotivosItem[] }[] };
 export type MotivosData = { geral: MotivosScope; months: (MotivosScope & { key: string })[] };

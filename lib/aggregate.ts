@@ -1,4 +1,4 @@
-import { ownerDisplayName, dealUrl, type Deal, type Owner, type PropostaMeetingData, type MotivosData } from "./hubspot";
+import { ownerDisplayName, dealUrl, type Deal, type Owner, type PropostaMeetingData, type MotivosData, type MonthGoalData } from "./hubspot";
 import type { SegmentConfig, SegmentId, StageDef } from "./segments";
 import { tempStagesOf } from "./segments";
 
@@ -252,6 +252,8 @@ export type DashboardData = {
   propostaMeeting?: PropostaMeetingData;
   /** B2C: distribuição dos motivos de perda (geral + por mês de fechamento). */
   motivos?: MotivosData;
+  /** B2B: progresso da meta do mês (soma da lista RANKING DE VENDAS | MÊS). */
+  monthGoal?: MonthGoalData;
 };
 
 // Taxa de conversão Proposta → Ganho, por mês de criação.
@@ -315,8 +317,8 @@ const TASK_CAT_IDS = TASK_CATEGORIES.map((c) => c.id);
 /** Classifica um negócio pela data (ms) da próxima tarefa aberta (ou ausência). */
 function taskCategory(now: number, dueMs?: number): string {
   if (dueMs == null || !Number.isFinite(dueMs)) return "sem_tarefa";
-  if (dueMs < now) return "atrasada";
-  if (dueMs <= now + 86_400_000) return "prox24";
+  if (dueMs < now - 86_400_000) return "atrasada"; // vencida há mais de 24h
+  if (dueMs <= now + 86_400_000) return "prox24"; // janela de ±24h (inclui vencida < 24h)
   return "mais24";
 }
 

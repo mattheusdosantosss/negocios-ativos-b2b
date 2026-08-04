@@ -11,6 +11,8 @@ import {
   fetchConversionCounts,
   fetchPropostaMeetingStats,
   fetchLostReasons,
+  fetchMonthGoalProgress,
+  pipelineIdFor,
 } from "@/lib/hubspot";
 import {
   aggregate,
@@ -151,6 +153,26 @@ const getLostReasonsCached = (config: SegmentConfig, origemId: string, origem: s
     { revalidate: 3600 }
   )();
 
+// "Meta do mês" (B2B): soma da lista dinâmica RANKING DE VENDAS | MÊS vs a meta.
+// Total do time (não sofre filtro de closer/período). Muda ao longo do mês;
+// cacheia 10 min por segmento.
+const getMonthGoalCached = (config: SegmentConfig) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["monthGoal"]; warning?: string }> => {
+      try {
+        if (!config.rankingListId || config.monthGoal == null) return { data: undefined };
+        return {
+          data: await fetchMonthGoalProgress(config.rankingListId, config.monthGoal, pipelineIdFor(config)),
+          warning: undefined,
+        };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
+      }
+    },
+    ["month-goal-v2", config.id],
+    { revalidate: 600 }
+  )();
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") || undefined;
@@ -170,7 +192,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw, goalRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to }),
@@ -180,6 +202,7 @@ export async function GET(req: NextRequest) {
       getConversionCached(config, origemId, origem, owner),
       config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasLostReasons ? getLostReasonsCached(config, origemId, origem, owner) : Promise.resolve(null),
+      config.monthGoal != null && config.rankingListId ? getMonthGoalCached(config) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -217,7 +240,7 @@ export async function GET(req: NextRequest) {
         label: config.label,
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
-        closeTimeWarning: closeRaw?.warning || macroRaw?.warning || convRaw?.warning,
+        closeTimeWarning: closeRaw?.warning || macroRaw?.warning || convRaw?.warning || goalRaw?.warning,
         taskWarning,
       },
       stages,
@@ -231,6 +254,7 @@ export async function GET(req: NextRequest) {
       conversion: convRaw?.data,
       propostaMeeting: propMeetRaw?.data,
       motivos: motivosRaw?.data,
+      monthGoal: goalRaw?.data,
     };
 
     return NextResponse.json(data);
