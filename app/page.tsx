@@ -34,7 +34,7 @@ import {
   type DashboardData,
 } from "@/lib/aggregate";
 import { SEGMENTS, SEGMENT_TABS, type SegmentId } from "@/lib/segments";
-import { computePeriod, type PeriodValue } from "@/lib/periods";
+import { computePeriod, formatPeriodRange, type PeriodValue } from "@/lib/periods";
 import { type LeadSourceId } from "@/lib/leadSource";
 
 const EVENTO_ATRASADO_LABEL = "Evento que a data já passou";
@@ -391,12 +391,18 @@ export default function Page() {
         />
       </section>
 
-      {/* Meta do mês — acima da Taxa de conversão (B2B e B2C) */}
-      {data && data.monthGoal && <MonthGoalCard data={data.monthGoal} />}
+      {/* Meta do mês — acima da Taxa de conversão (B2B e B2C). Segue o filtro de
+          tempo (por fechamento); barra só em mês cheio. */}
+      {data && data.monthGoal && <MonthGoalCard data={data.monthGoal} period={period} />}
 
-      {/* Taxa de conversão + motivos de perda (mesmo card, mesmo seletor de mês) */}
+      {/* Taxa de conversão + motivos — segue o filtro de tempo: fora de "Todo o
+          período", trava no mês do período selecionado. */}
       {data && data.conversion && data.conversion.geral.entered > 0 && (
-        <ConversionCard data={data.conversion} motivos={data.motivos} />
+        <ConversionCard
+          data={data.conversion}
+          motivos={data.motivos}
+          forcedMonth={period.preset === "all" ? null : period.to.slice(0, 7)}
+        />
       )}
 
       {/* Checkout — só nos segmentos com fase de pagamento (ex.: B2C) */}
@@ -672,9 +678,11 @@ export default function Page() {
   );
 }
 
-// Meta do mês — contador FIXO da meta + histórico de vendas do mês por closer
-// (minimizável). Fonte: lista RANKING DE VENDAS | MÊS, filtrada pela pipeline.
-function MonthGoalCard({ data }: { data: NonNullable<DashboardData["monthGoal"]> }) {
+// Meta do mês — contador FIXO da meta + histórico de vendas por closer
+// (minimizável). Segue o filtro de tempo (por fechamento): em mês cheio (Este
+// mês / Mês passado / padrão) mostra a barra vs a meta; em recortes parciais
+// (Hoje / 7d / 30d / custom) esconde a barra e mostra só o total do período.
+function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["monthGoal"]>; period: PeriodValue }) {
   const { goal, sold, count, byCloser } = data;
   const ratio = goal > 0 ? sold / goal : 0;
   const pctTxt = `${(ratio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
@@ -682,41 +690,57 @@ function MonthGoalCard({ data }: { data: NonNullable<DashboardData["monthGoal"]>
   const reached = sold >= goal;
   const [openHist, setOpenHist] = useState(false);
 
+  const showBar = period.preset === "all" || period.preset === "this_month" || period.preset === "last_month";
+  const periodLabel =
+    period.preset === "all" || period.preset === "this_month"
+      ? "mês atual"
+      : period.preset === "last_month"
+      ? "mês passado"
+      : formatPeriodRange(period.from, period.to);
+
   return (
     <div className="rounded-xl border-2 border-psa-orange/40 bg-gradient-to-br from-psa-orange/[0.07] to-transparent p-5">
       {/* Contador da meta — sempre fixo */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">Meta do mês</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">
+            {showBar ? "Meta do mês" : `Vendas · ${periodLabel}`}
+          </div>
           <div className="mt-1 flex items-baseline gap-2 flex-wrap">
             <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{brl(sold)}</span>
-            <span className="text-sm text-psa-ink-soft">
-              de <b className="text-psa-ink">{brl(goal)}</b>
-            </span>
+            {showBar && (
+              <span className="text-sm text-psa-ink-soft">
+                de <b className="text-psa-ink">{brl(goal)}</b>
+              </span>
+            )}
           </div>
         </div>
         <div className="text-right">
-          <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">{pctTxt}</div>
+          {showBar && <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">{pctTxt}</div>}
           <div className="text-[11px] text-psa-ink-soft">
-            {num(count)} {count === 1 ? "venda" : "vendas"} no mês
+            {num(count)} {count === 1 ? "venda" : "vendas"} · {periodLabel}
           </div>
         </div>
       </div>
-      <div className="mt-3 h-3 rounded-full bg-psa-canvas overflow-hidden">
-        <div
-          className="h-full rounded-full bg-psa-orange transition-all"
-          style={{ width: `${Math.min(100, ratio * 100)}%` }}
-        />
-      </div>
-      <div className="mt-2 text-[11px] text-psa-ink-soft">
-        {reached ? (
-          <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
-        ) : (
-          <>
-            Faltam <b className="text-psa-ink">{brl(remaining)}</b> pra bater a meta
-          </>
-        )}
-      </div>
+      {showBar && (
+        <>
+          <div className="mt-3 h-3 rounded-full bg-psa-canvas overflow-hidden">
+            <div
+              className="h-full rounded-full bg-psa-orange transition-all"
+              style={{ width: `${Math.min(100, ratio * 100)}%` }}
+            />
+          </div>
+          <div className="mt-2 text-[11px] text-psa-ink-soft">
+            {reached ? (
+              <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
+            ) : (
+              <>
+                Faltam <b className="text-psa-ink">{brl(remaining)}</b> pra bater a meta
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Histórico de vendas do mês por closer — minimizável */}
       {byCloser.length > 0 && (
@@ -727,7 +751,7 @@ function MonthGoalCard({ data }: { data: NonNullable<DashboardData["monthGoal"]>
             className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft hover:text-psa-ink"
           >
             <span className="text-psa-orange">{openHist ? "▼" : "▶"}</span>
-            Histórico de vendas do mês
+            Histórico de vendas
             <span className="font-normal normal-case tracking-normal text-psa-muted">
               · {byCloser.length} {byCloser.length === 1 ? "closer" : "closers"}
             </span>

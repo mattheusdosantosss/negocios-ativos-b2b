@@ -11,8 +11,7 @@ import {
   fetchConversionCounts,
   fetchPropostaMeetingStats,
   fetchLostReasons,
-  fetchMonthGoalProgress,
-  pipelineIdFor,
+  fetchSalesByCloser,
 } from "@/lib/hubspot";
 import {
   aggregate,
@@ -153,30 +152,22 @@ const getLostReasonsCached = (config: SegmentConfig, origemId: string, origem: s
     { revalidate: 3600 }
   )();
 
-// "Meta do mês" (B2B): soma da lista dinâmica RANKING DE VENDAS | MÊS vs a meta.
-// Total do time (não sofre filtro de closer/período). Muda ao longo do mês;
-// cacheia 10 min por segmento.
-const getMonthGoalCached = (config: SegmentConfig) =>
+// "Meta do mês": vendas GANHAS da pipeline por data de fechamento no período
+// (sem período → mês corrente) vs a meta mensal fixa. Total do time (não sofre
+// filtro de closer). Cacheia 10 min por segmento + janela de datas.
+const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: string) =>
   unstable_cache(
     async (): Promise<{ data: DashboardData["monthGoal"]; warning?: string }> => {
       try {
-        if (!config.rankingListId || config.monthGoal == null) return { data: undefined };
+        if (config.monthGoal == null) return { data: undefined };
         const owners = await fetchAllOwners();
-        return {
-          data: await fetchMonthGoalProgress(
-            config.rankingListId,
-            config.monthGoal,
-            pipelineIdFor(config),
-            config.team,
-            owners
-          ),
-          warning: undefined,
-        };
+        const sales = await fetchSalesByCloser(config, { from, to }, owners);
+        return { data: { goal: config.monthGoal, ...sales }, warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v3", config.id],
+    ["month-goal-v4", config.id, from || "cur", to || "cur"],
     { revalidate: 600 }
   )();
 
@@ -209,7 +200,7 @@ export async function GET(req: NextRequest) {
       getConversionCached(config, origemId, origem, owner),
       config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasLostReasons ? getLostReasonsCached(config, origemId, origem, owner) : Promise.resolve(null),
-      config.monthGoal != null && config.rankingListId ? getMonthGoalCached(config) : Promise.resolve(null),
+      config.monthGoal != null ? getMonthGoalCached(config, from, to) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,

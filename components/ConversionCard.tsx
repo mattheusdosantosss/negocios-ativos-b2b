@@ -8,18 +8,23 @@ const pct = (x: number) => `${(x * 100).toLocaleString("pt-BR", { maximumFractio
 const pctND = (n: number, d: number) => (d > 0 ? pct(n / d) : "0%");
 const num = (n: number) => n.toLocaleString("pt-BR");
 
-type Props = { data: ConversionData; motivos?: MotivosData };
+type Props = { data: ConversionData; motivos?: MotivosData; forcedMonth?: string | null };
 
 /**
- * Taxa de conversão (ganho × perdido) + motivos de perda no mesmo card, sob o
- * mesmo seletor de mês. Motivos em lista compacta, clicável.
+ * Taxa de conversão (ganho × perdido) + motivos de perda no mesmo card. Segue o
+ * filtro de tempo do topo: quando `forcedMonth` (YYYY-MM) vem setado, trava o
+ * card nesse mês e esconde o seletor; senão, seletor de mês próprio.
  */
-export default function ConversionCard({ data, motivos }: Props) {
-  const [month, setMonth] = useState<string>("all");
+export default function ConversionCard({ data, motivos, forcedMonth }: Props) {
+  const [monthState, setMonth] = useState<string>("all");
   const [open, setOpen] = useState<{ name: string; deals: MotivosItem[] } | null>(null);
 
+  // forcedMonth (do filtro de tempo) manda; se não, usa o seletor interno.
+  const forced = forcedMonth != null;
+  const month = forced ? forcedMonth : monthState;
+
   const scope = month === "all" ? data.geral : data.months.find((m) => m.key === month) ?? data.geral;
-  const scopeLabel = month === "all" ? "todo o histórico" : data.months.find((m) => m.key === month)?.label ?? "";
+  const scopeLabel = month === "all" ? "todo o histórico" : data.months.find((m) => m.key === month)?.label ?? month;
   const mScope = !motivos ? null : month === "all" ? motivos.geral : motivos.months.find((m) => m.key === month) ?? motivos.geral;
   const mMax = mScope?.reasons[0]?.count ?? 1;
 
@@ -43,18 +48,25 @@ export default function ConversionCard({ data, motivos }: Props) {
           <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-psa-ink-soft">
             {data.monthFilterLabel}
           </label>
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-psa-line bg-psa-canvas px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 min-w-[190px]"
-          >
-            <option value="all">Geral (todo o histórico)</option>
-            {data.months.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          {forced ? (
+            // Travado pelo filtro de tempo do topo — mostra o mês, sem seletor.
+            <div className="rounded-lg border border-psa-line bg-psa-canvas px-3 py-2 text-sm text-psa-ink min-w-[190px]">
+              {scopeLabel} <span className="text-psa-muted text-xs">· pelo filtro de tempo</span>
+            </div>
+          ) : (
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="rounded-lg border border-psa-line bg-psa-canvas px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 min-w-[190px]"
+            >
+              <option value="all">Geral (todo o histórico)</option>
+              {data.months.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
