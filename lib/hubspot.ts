@@ -632,7 +632,7 @@ export async function fetchLostReasons(
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: ["closedate", "closed_lost_reason", "dealname"],
+      properties: ["closedate", "dealname", ...config.lostReasonProps],
       limit: 200,
     };
     if (after) body.after = after;
@@ -656,8 +656,16 @@ export async function fetchLostReasons(
     if (!m.has(reason)) m.set(reason, []);
     m.get(reason)!.push(item);
   };
+  const props = config.lostReasonProps;
   for (const d of deals) {
-    const reason = (d.properties.closed_lost_reason || "").trim() || "Sem motivo";
+    // Primeiro motivo preenchido entre as propriedades do segmento (B2B usa
+    // closed_lost_reason + motivo_de_sinalizacao_de_perda).
+    const p = d.properties as Record<string, string | undefined>;
+    let reason = "Sem motivo";
+    for (const prop of props) {
+      const v = (p[prop] || "").trim();
+      if (v) { reason = v; break; }
+    }
     const item: MotivosItem = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id) };
     push(geral, reason, item);
     const k = monthKey(d.properties.closedate);

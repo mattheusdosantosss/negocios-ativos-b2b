@@ -50,9 +50,12 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Proposta enviada → reunião" (% dos negócios com
    *  proposta anexada que tiveram reunião)? Só B2B. */
   hasPropostaMeeting: boolean;
-  /** O segmento exibe o card "Motivos de perda" (distribuição de
-   *  closed_lost_reason dos perdidos)? Só B2C. */
+  /** O segmento exibe o card "Motivos de perda" (distribuição dos motivos dos
+   *  perdidos)? */
   hasLostReasons: boolean;
+  /** Propriedades onde mora o motivo da perda, em ordem de prioridade (o 1º
+   *  preenchido vence). B2B usa closed_lost_reason + motivo_de_sinalizacao_de_perda. */
+  lostReasonProps: string[];
   /** Filtro único do denominador da conversão (B2B: tem_proposta_anexada=true;
    *  B2C: dealstage IN Ganho+Perdido). null quando se usa conversionDenomAnyOf. */
   conversionDenomFilter: { propertyName: string; operator: string; value?: string; values?: string[] } | null;
@@ -103,7 +106,8 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasCloseTime: false,
     hasMacroTema: true,
     hasPropostaMeeting: true,
-    hasLostReasons: false,
+    hasLostReasons: true,
+    lostReasonProps: ["closed_lost_reason", "motivo_de_sinalizacao_de_perda"],
     conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
     conversionDenomAnyOf: null,
     conversionDenomLabel: "só negócios com proposta anexada",
@@ -139,6 +143,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasMacroTema: false,
     hasPropostaMeeting: false,
     hasLostReasons: true,
+    lostReasonProps: ["closed_lost_reason"],
     // Conversão 100%: ganhos ÷ (ganhos + perdidos), todos os fechados. Os motivos
     // de perda (card "Motivos de perda") explicam o porquê das perdas.
     conversionDenomFilter: { propertyName: "dealstage", operator: "IN", values: ["1105295876", "1059939760"] },
