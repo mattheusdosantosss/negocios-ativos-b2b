@@ -628,7 +628,9 @@ export type MotivosReason = {
   /** Dos perdidos por esse motivo, quantos tinham proposta anexada (B2B). */
   com: number;
   sem: number;
-  deals: MotivosItem[];
+  deals: MotivosItem[]; // todos (com + sem)
+  dealsCom: MotivosItem[]; // só com proposta anexada
+  dealsSem: MotivosItem[]; // só sem proposta anexada
 };
 export type MotivosScope = { total: number; reasons: MotivosReason[] };
 export type MotivosData = { geral: MotivosScope; months: (MotivosScope & { key: string })[] };
@@ -718,6 +720,8 @@ export async function fetchLostReasons(
         com: b.com.length,
         sem: b.sem.length,
         deals: [...b.com, ...b.sem],
+        dealsCom: b.com,
+        dealsSem: b.sem,
       }))
       .sort((a, b) => b.count - a.count);
     return { total: reasons.reduce((s, r) => s + r.count, 0), reasons };

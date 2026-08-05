@@ -96,43 +96,92 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
           <div className="flex flex-col gap-1.5">
             {mScope.reasons.map((r) => {
               const barW = (r.count / mMax) * 100; // magnitude do motivo
-              return (
-                <button
-                  key={r.name}
-                  type="button"
-                  onClick={() => setOpen({ name: r.name, deals: r.deals })}
-                  title={
-                    showProposta
-                      ? `${r.name}: ${num(r.count)} · ${num(r.com)} com proposta · ${num(r.sem)} sem proposta`
-                      : `${r.name}: ${num(r.count)}`
-                  }
-                  className="group flex items-center gap-3 text-left"
-                >
-                  <span className="text-[12px] text-psa-ink-soft truncate w-[40%] group-hover:text-psa-ink">{r.name}</span>
-                  <span className="flex-1 h-2.5 rounded bg-psa-canvas overflow-hidden">
-                    {showProposta ? (
-                      // Comprimento = magnitude do motivo; dentro, split com/sem proposta.
-                      <span className="flex h-full" style={{ width: `${barW}%` }}>
-                        {r.com > 0 && <span style={{ width: `${(r.com / r.count) * 100}%`, background: COM_FILL }} />}
-                        {r.sem > 0 && <span style={{ width: `${(r.sem / r.count) * 100}%`, background: SEM_FILL }} />}
-                      </span>
-                    ) : (
+              if (!showProposta) {
+                // B2C — motivo simples, clique lista todos os negócios do motivo.
+                return (
+                  <button
+                    key={r.name}
+                    type="button"
+                    onClick={() => setOpen({ name: r.name, deals: r.deals })}
+                    title={`${r.name}: ${num(r.count)}`}
+                    className="group flex items-center gap-3 text-left"
+                  >
+                    <span className="text-[12px] text-psa-ink-soft truncate w-[40%] group-hover:text-psa-ink">{r.name}</span>
+                    <span className="flex-1 h-2.5 rounded bg-psa-canvas overflow-hidden">
                       <span className="block h-full bg-psa-orange rounded" style={{ width: `${barW}%` }} />
-                    )}
+                    </span>
+                    <span className="text-[11px] text-psa-ink-soft tabular-nums w-[120px] text-right">
+                      <b className="text-psa-ink">{num(r.count)}</b> · {pctND(r.count, mScope.total)}
+                    </span>
+                  </button>
+                );
+              }
+              // B2B — segmentos e números clicáveis separadamente (com / sem proposta).
+              return (
+                <div key={r.name} className="group flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setOpen({ name: r.name, deals: r.deals })}
+                    title={`${r.name}: ${num(r.count)} · clique pra listar todos`}
+                    className="text-[12px] text-psa-ink-soft truncate w-[40%] text-left group-hover:text-psa-ink"
+                  >
+                    {r.name}
+                  </button>
+                  <span className="flex-1 h-2.5 rounded bg-psa-canvas overflow-hidden flex">
+                    {/* magnitude do motivo, dividida em com/sem proposta — cada parte clicável */}
+                    <span className="flex h-full" style={{ width: `${barW}%` }}>
+                      {r.com > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setOpen({ name: `${r.name} · com proposta`, deals: r.dealsCom })}
+                          title={`${num(r.com)} com proposta anexada — clique pra listar`}
+                          style={{ width: `${(r.com / r.count) * 100}%`, background: COM_FILL }}
+                          className="h-full hover:opacity-80"
+                        />
+                      )}
+                      {r.sem > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setOpen({ name: `${r.name} · sem proposta`, deals: r.dealsSem })}
+                          title={`${num(r.sem)} sem proposta anexada — clique pra listar`}
+                          style={{ width: `${(r.sem / r.count) * 100}%`, background: SEM_FILL }}
+                          className="h-full hover:opacity-80"
+                        />
+                      )}
+                    </span>
                   </span>
-                  <span className="text-[11px] text-psa-ink-soft tabular-nums w-[120px] text-right">
-                    {showProposta ? (
-                      <>
-                        <b className="text-psa-ink">{num(r.count)}</b> · <span style={{ color: COM_FILL }}>{num(r.com)}</span>/
-                        {num(r.sem)}
-                      </>
+                  <span className="text-[11px] tabular-nums w-[120px] text-right">
+                    <b className="text-psa-ink">{num(r.count)}</b>{" "}
+                    <span className="text-psa-muted">·</span>{" "}
+                    {r.com > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setOpen({ name: `${r.name} · com proposta`, deals: r.dealsCom })}
+                        title="Listar com proposta anexada"
+                        className="font-semibold hover:underline"
+                        style={{ color: COM_FILL }}
+                      >
+                        {num(r.com)}
+                      </button>
                     ) : (
-                      <>
-                        <b className="text-psa-ink">{num(r.count)}</b> · {pctND(r.count, mScope.total)}
-                      </>
+                      <span style={{ color: COM_FILL }}>0</span>
+                    )}
+                    <span className="text-psa-muted">/</span>
+                    {r.sem > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setOpen({ name: `${r.name} · sem proposta`, deals: r.dealsSem })}
+                        title="Listar sem proposta anexada"
+                        className="font-semibold hover:underline"
+                        style={{ color: SEM_FILL }}
+                      >
+                        {num(r.sem)}
+                      </button>
+                    ) : (
+                      <span style={{ color: SEM_FILL }}>0</span>
                     )}
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
