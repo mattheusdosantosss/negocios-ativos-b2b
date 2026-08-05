@@ -402,6 +402,7 @@ export default function Page() {
           data={data.conversion}
           motivos={data.motivos}
           forcedMonth={period.preset === "all" ? null : period.to.slice(0, 7)}
+          showProposta={cfg.hasPropostaMeeting}
         />
       )}
 

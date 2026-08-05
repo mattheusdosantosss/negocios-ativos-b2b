@@ -622,7 +622,12 @@ export async function fetchSalesByCloser(
 }
 
 export type MotivosItem = { dealname: string; url: string };
-export type MotivosScope = { total: number; reasons: { name: string; count: number; deals: MotivosItem[] }[] };
+export type MotivosScope = {
+  total: number;
+  reasons: { name: string; count: number; deals: MotivosItem[] }[];
+  /** Dos perdidos do escopo, quantos tinham proposta anexada (B2B). */
+  proposta: { com: number; sem: number };
+};
 export type MotivosData = { geral: MotivosScope; months: (MotivosScope & { key: string })[] };
 
 /**
@@ -634,7 +639,8 @@ export async function fetchLostReasons(
   config: SegmentConfig,
   opts?: { origem?: string[]; owner?: string }
 ): Promise<MotivosData> {
-  if (config.lostStageIds.length === 0) return { geral: { total: 0, reasons: [] }, months: [] };
+  const emptyScope: MotivosScope = { total: 0, reasons: [], proposta: { com: 0, sem: 0 } };
+  if (config.lostStageIds.length === 0) return { geral: emptyScope, months: [] };
   // Últimos 6 meses de fechamento — o B2C perde ~1,2k/mês, então 18m estouraria
   // o teto de 10k da Search API. 6m (~7k) cabe com folga.
   const nowBr = new Date(Date.now() - BR_OFFSET_MS);
@@ -657,7 +663,7 @@ export async function fetchLostReasons(
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: ["closedate", "dealname", ...config.lostReasonProps],
+      properties: ["closedate", "dealname", "tem_proposta_anexada", ...config.lostReasonProps],
       limit: 200,
     };
     if (after) body.after = after;
@@ -677,6 +683,9 @@ export async function fetchLostReasons(
   };
   const geral = new Map<string, MotivosItem[]>();
   const byMonth = new Map<string, Map<string, MotivosItem[]>>();
+  // Proposta anexada por escopo (geral + por mês).
+  const geralProp = { com: 0, sem: 0 };
+  const monthProp = new Map<string, { com: number; sem: number }>();
   const push = (m: Map<string, MotivosItem[]>, reason: string, item: MotivosItem) => {
     if (!m.has(reason)) m.set(reason, []);
     m.get(reason)!.push(item);
@@ -691,23 +700,28 @@ export async function fetchLostReasons(
       const v = (p[prop] || "").trim();
       if (v) { reason = v; break; }
     }
+    const hasProp = p.tem_proposta_anexada === "true";
     const item: MotivosItem = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id) };
     push(geral, reason, item);
+    if (hasProp) geralProp.com++; else geralProp.sem++;
     const k = monthKey(d.properties.closedate);
     if (k === "sem-data") continue;
     if (!byMonth.has(k)) byMonth.set(k, new Map());
     push(byMonth.get(k)!, reason, item);
+    if (!monthProp.has(k)) monthProp.set(k, { com: 0, sem: 0 });
+    const mp = monthProp.get(k)!;
+    if (hasProp) mp.com++; else mp.sem++;
   }
-  const toScope = (m: Map<string, MotivosItem[]>): MotivosScope => {
+  const toScope = (m: Map<string, MotivosItem[]>, prop: { com: number; sem: number }): MotivosScope => {
     const reasons = [...m.entries()]
       .map(([name, ds]) => ({ name, count: ds.length, deals: ds }))
       .sort((a, b) => b.count - a.count);
-    return { total: reasons.reduce((s, r) => s + r.count, 0), reasons };
+    return { total: reasons.reduce((s, r) => s + r.count, 0), reasons, proposta: prop };
   };
   const months = [...byMonth.entries()]
-    .map(([key, m]) => ({ key, ...toScope(m) }))
+    .map(([key, m]) => ({ key, ...toScope(m, monthProp.get(key) ?? { com: 0, sem: 0 }) }))
     .sort((a, b) => b.key.localeCompare(a.key));
-  return { geral: toScope(geral), months };
+  return { geral: toScope(geral, geralProp), months };
 }
 
 export type PropostaMeetingItem = {

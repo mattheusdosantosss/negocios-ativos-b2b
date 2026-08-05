@@ -3,19 +3,29 @@
 import { useEffect, useState } from "react";
 import type { ConversionData } from "@/lib/aggregate";
 import type { MotivosData, MotivosItem } from "@/lib/hubspot";
+import TemperatureStacked from "@/components/TemperatureStacked";
+
+const PROPOSTA_CATS = [
+  { id: "com", label: "Com proposta anexada" },
+  { id: "sem", label: "Sem proposta anexada" },
+];
+const PROPOSTA_STYLE = {
+  com: { fill: "#1E9E62", text: "#fff" },
+  sem: { fill: "#E8A317", text: "#3A2A00" },
+};
 
 const pct = (x: number) => `${(x * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 const pctND = (n: number, d: number) => (d > 0 ? pct(n / d) : "0%");
 const num = (n: number) => n.toLocaleString("pt-BR");
 
-type Props = { data: ConversionData; motivos?: MotivosData; forcedMonth?: string | null };
+type Props = { data: ConversionData; motivos?: MotivosData; forcedMonth?: string | null; showProposta?: boolean };
 
 /**
  * Taxa de conversão (ganho × perdido) + motivos de perda no mesmo card. Segue o
  * filtro de tempo do topo: quando `forcedMonth` (YYYY-MM) vem setado, trava o
  * card nesse mês e esconde o seletor; senão, seletor de mês próprio.
  */
-export default function ConversionCard({ data, motivos, forcedMonth }: Props) {
+export default function ConversionCard({ data, motivos, forcedMonth, showProposta }: Props) {
   const [monthState, setMonth] = useState<string>("all");
   const [open, setOpen] = useState<{ name: string; deals: MotivosItem[] } | null>(null);
 
@@ -94,6 +104,24 @@ export default function ConversionCard({ data, motivos, forcedMonth }: Props) {
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Proposta anexada nos perdidos — mesmo padrão do gráfico de temperatura.
+          Só no B2B (onde proposta anexada é o balizador). */}
+      {showProposta && mScope && mScope.proposta.com + mScope.proposta.sem > 0 && (
+        <div className="mt-5 pt-4 border-t border-psa-line">
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
+            Proposta anexada nos perdidos
+          </div>
+          <TemperatureStacked
+            stages={[{ id: "perdidos", label: "" }]}
+            categories={PROPOSTA_CATS}
+            styleMap={PROPOSTA_STYLE}
+            matrix={{ perdidos: { com: mScope.proposta.com, sem: mScope.proposta.sem } }}
+            showConviccao={false}
+            unitLabel="perdidos"
+          />
         </div>
       )}
 
