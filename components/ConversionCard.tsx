@@ -3,16 +3,10 @@
 import { useEffect, useState } from "react";
 import type { ConversionData } from "@/lib/aggregate";
 import type { MotivosData, MotivosItem } from "@/lib/hubspot";
-import TemperatureStacked from "@/components/TemperatureStacked";
 
-const PROPOSTA_CATS = [
-  { id: "com", label: "Com proposta anexada" },
-  { id: "sem", label: "Sem proposta anexada" },
-];
-const PROPOSTA_STYLE = {
-  com: { fill: "#1E9E62", text: "#fff" },
-  sem: { fill: "#E8A317", text: "#3A2A00" },
-};
+// Cores do split de proposta anexada (mesma paleta do gráfico de temperatura).
+const COM_FILL = "#1E9E62"; // com proposta
+const SEM_FILL = "#E8A317"; // sem proposta
 
 const pct = (x: number) => `${(x * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 const pctND = (n: number, d: number) => (d > 0 ? pct(n / d) : "0%");
@@ -82,46 +76,66 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
 
       {mScope && mScope.total > 0 && (
         <div className="mt-5 pt-4 border-t border-psa-line">
-          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
-            Motivos de perda · {num(mScope.total)} <span className="text-psa-muted font-normal normal-case tracking-normal">· clique pra listar</span>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+              Motivos de perda · {num(mScope.total)}{" "}
+              <span className="text-psa-muted font-normal normal-case tracking-normal">· clique pra listar</span>
+            </div>
+            {showProposta && (
+              // Legenda do split de proposta anexada (por motivo).
+              <div className="flex items-center gap-3 text-[10px] text-psa-ink-soft">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-2.5 h-2.5 rounded-[3px]" style={{ background: COM_FILL }} /> Com proposta
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-2.5 h-2.5 rounded-[3px]" style={{ background: SEM_FILL }} /> Sem proposta
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
-            {mScope.reasons.map((r) => (
-              <button
-                key={r.name}
-                type="button"
-                onClick={() => setOpen({ name: r.name, deals: r.deals })}
-                title={`${r.name}: ${num(r.count)}`}
-                className="group flex items-center gap-3 text-left"
-              >
-                <span className="text-[12px] text-psa-ink-soft truncate w-[40%] group-hover:text-psa-ink">{r.name}</span>
-                <span className="flex-1 h-2 rounded bg-psa-canvas overflow-hidden">
-                  <span className="block h-full bg-psa-orange rounded" style={{ width: `${(r.count / mMax) * 100}%` }} />
-                </span>
-                <span className="text-[11px] text-psa-ink-soft tabular-nums w-[86px] text-right">
-                  <b className="text-psa-ink">{num(r.count)}</b> · {pctND(r.count, mScope.total)}
-                </span>
-              </button>
-            ))}
+            {mScope.reasons.map((r) => {
+              const barW = (r.count / mMax) * 100; // magnitude do motivo
+              return (
+                <button
+                  key={r.name}
+                  type="button"
+                  onClick={() => setOpen({ name: r.name, deals: r.deals })}
+                  title={
+                    showProposta
+                      ? `${r.name}: ${num(r.count)} · ${num(r.com)} com proposta · ${num(r.sem)} sem proposta`
+                      : `${r.name}: ${num(r.count)}`
+                  }
+                  className="group flex items-center gap-3 text-left"
+                >
+                  <span className="text-[12px] text-psa-ink-soft truncate w-[40%] group-hover:text-psa-ink">{r.name}</span>
+                  <span className="flex-1 h-2.5 rounded bg-psa-canvas overflow-hidden">
+                    {showProposta ? (
+                      // Comprimento = magnitude do motivo; dentro, split com/sem proposta.
+                      <span className="flex h-full" style={{ width: `${barW}%` }}>
+                        {r.com > 0 && <span style={{ width: `${(r.com / r.count) * 100}%`, background: COM_FILL }} />}
+                        {r.sem > 0 && <span style={{ width: `${(r.sem / r.count) * 100}%`, background: SEM_FILL }} />}
+                      </span>
+                    ) : (
+                      <span className="block h-full bg-psa-orange rounded" style={{ width: `${barW}%` }} />
+                    )}
+                  </span>
+                  <span className="text-[11px] text-psa-ink-soft tabular-nums w-[120px] text-right">
+                    {showProposta ? (
+                      <>
+                        <b className="text-psa-ink">{num(r.count)}</b> · <span style={{ color: COM_FILL }}>{num(r.com)}</span>/
+                        {num(r.sem)}
+                      </>
+                    ) : (
+                      <>
+                        <b className="text-psa-ink">{num(r.count)}</b> · {pctND(r.count, mScope.total)}
+                      </>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-      )}
-
-      {/* Proposta anexada nos perdidos — mesmo padrão do gráfico de temperatura.
-          Só no B2B (onde proposta anexada é o balizador). */}
-      {showProposta && mScope && mScope.proposta.com + mScope.proposta.sem > 0 && (
-        <div className="mt-5 pt-4 border-t border-psa-line">
-          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-3">
-            Proposta anexada nos perdidos
-          </div>
-          <TemperatureStacked
-            stages={[{ id: "perdidos", label: "" }]}
-            categories={PROPOSTA_CATS}
-            styleMap={PROPOSTA_STYLE}
-            matrix={{ perdidos: { com: mScope.proposta.com, sem: mScope.proposta.sem } }}
-            showConviccao={false}
-            unitLabel="perdidos"
-          />
         </div>
       )}
 
