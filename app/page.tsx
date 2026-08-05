@@ -672,17 +672,19 @@ export default function Page() {
   );
 }
 
-// Meta do mês — destaque na seção Atenção. Progresso da venda do mês (soma da
-// lista RANKING DE VENDAS | MÊS) contra a meta.
+// Meta do mês — contador FIXO da meta + histórico de vendas do mês por closer
+// (minimizável). Fonte: lista RANKING DE VENDAS | MÊS, filtrada pela pipeline.
 function MonthGoalCard({ data }: { data: NonNullable<DashboardData["monthGoal"]> }) {
-  const { goal, sold, count } = data;
+  const { goal, sold, count, byCloser } = data;
   const ratio = goal > 0 ? sold / goal : 0;
   const pctTxt = `${(ratio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
   const remaining = Math.max(0, goal - sold);
   const reached = sold >= goal;
+  const [openHist, setOpenHist] = useState(false);
 
   return (
     <div className="rounded-xl border-2 border-psa-orange/40 bg-gradient-to-br from-psa-orange/[0.07] to-transparent p-5">
+      {/* Contador da meta — sempre fixo */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">Meta do mês</div>
@@ -715,6 +717,55 @@ function MonthGoalCard({ data }: { data: NonNullable<DashboardData["monthGoal"]>
           </>
         )}
       </div>
+
+      {/* Histórico de vendas do mês por closer — minimizável */}
+      {byCloser.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-psa-orange/20">
+          <button
+            type="button"
+            onClick={() => setOpenHist((v) => !v)}
+            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft hover:text-psa-ink"
+          >
+            <span className="text-psa-orange">{openHist ? "▼" : "▶"}</span>
+            Histórico de vendas do mês
+            <span className="font-normal normal-case tracking-normal text-psa-muted">
+              · {byCloser.length} {byCloser.length === 1 ? "closer" : "closers"}
+            </span>
+          </button>
+
+          {openHist && (
+            <div className="mt-3 space-y-3">
+              {byCloser.map((c) => (
+                <div key={c.name} className="rounded-lg border border-psa-line bg-psa-surface/60 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[13px] font-medium text-psa-ink truncate">{c.name}</span>
+                    <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
+                      <b className="text-psa-ink tabular-nums">{brl(c.sold)}</b> · {c.count}{" "}
+                      {c.count === 1 ? "venda" : "vendas"}
+                    </span>
+                  </div>
+                  <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1">
+                    {c.sales.map((s, i) => (
+                      <li key={i} className="flex items-center justify-between gap-3 text-[11px]">
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate text-psa-ink-soft hover:text-psa-orange hover:underline"
+                          title={s.dealname}
+                        >
+                          {s.dealname}
+                        </a>
+                        <span className="shrink-0 tabular-nums text-psa-ink-soft">{brl(s.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

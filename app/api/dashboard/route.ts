@@ -161,15 +161,22 @@ const getMonthGoalCached = (config: SegmentConfig) =>
     async (): Promise<{ data: DashboardData["monthGoal"]; warning?: string }> => {
       try {
         if (!config.rankingListId || config.monthGoal == null) return { data: undefined };
+        const owners = await fetchAllOwners();
         return {
-          data: await fetchMonthGoalProgress(config.rankingListId, config.monthGoal, pipelineIdFor(config)),
+          data: await fetchMonthGoalProgress(
+            config.rankingListId,
+            config.monthGoal,
+            pipelineIdFor(config),
+            config.team,
+            owners
+          ),
           warning: undefined,
         };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v2", config.id],
+    ["month-goal-v3", config.id],
     { revalidate: 600 }
   )();
 

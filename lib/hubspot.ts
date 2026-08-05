@@ -558,15 +558,23 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon }, months };
 }
 
-export type MonthGoalData = { goal: number; sold: number; count: number };
+export type MonthGoalSale = { dealname: string; url: string; amount: number; ownerId: string };
+export type MonthGoalCloser = { name: string; sold: number; count: number; sales: { dealname: string; url: string; amount: number }[] };
+export type MonthGoalData = { goal: number; sold: number; count: number; byCloser: MonthGoalCloser[] };
 
 /**
  * Progresso da meta do mês: soma o `amount` (valor bruto) dos negócios que são
- * membros da lista/segmento dinâmica "RANKING DE VENDAS | MÊS" do HubSpot. A
- * lista já se filtra sozinha pelo mês; aqui só somamos os membros. É o total do
- * time (não sofre filtro de closer/período).
+ * membros da lista/segmento dinâmica "RANKING DE VENDAS | MÊS" do HubSpot,
+ * filtrados pela pipeline do segmento. Retorna também o histórico por closer
+ * (nome resolvido via roster do time). Total do time (não sofre filtro).
  */
-export async function fetchMonthGoalProgress(listId: string, goal: number, pipelineId: string): Promise<MonthGoalData> {
+export async function fetchMonthGoalProgress(
+  listId: string,
+  goal: number,
+  pipelineId: string,
+  team: { ownerId: string; nome: string }[],
+  owners: Map<string, Owner>
+): Promise<MonthGoalData> {
   // Ids dos membros da lista (paginado). A lista mistura B2B e B2C — o filtro por
   // pipeline abaixo garante que só entram os negócios do segmento.
   const ids: string[] = [];
@@ -580,20 +588,39 @@ export async function fetchMonthGoalProgress(listId: string, goal: number, pipel
     after = data.paging?.next?.after;
   } while (after);
 
-  if (ids.length === 0) return { goal, sold: 0, count: 0 };
+  if (ids.length === 0) return { goal, sold: 0, count: 0, byCloser: [] };
 
-  // Lê amount + pipeline em lotes de 100; soma só os da pipeline do segmento.
+  // Lê amount + pipeline + dono + nome em lotes de 100; fica só a pipeline do segmento.
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
   const parts = await mapLimit(chunks, 4, (chunk) =>
-    hsFetch<{ results?: { properties: { amount?: string; pipeline?: string } }[] }>(`/crm/v3/objects/deals/batch/read`, {
-      method: "POST",
-      body: JSON.stringify({ properties: ["amount", "pipeline"], inputs: chunk.map((id) => ({ id })) }),
-    })
+    hsFetch<{ results?: { id: string; properties: { amount?: string; pipeline?: string; hubspot_owner_id?: string; dealname?: string } }[] }>(
+      `/crm/v3/objects/deals/batch/read`,
+      {
+        method: "POST",
+        body: JSON.stringify({ properties: ["amount", "pipeline", "hubspot_owner_id", "dealname"], inputs: chunk.map((id) => ({ id })) }),
+      }
+    )
   );
   const mine = parts.flatMap((p) => p.results ?? []).filter((d) => d.properties.pipeline === pipelineId);
   const sold = mine.reduce((a, d) => a + Number(d.properties.amount || 0), 0);
-  return { goal, sold, count: mine.length };
+
+  // Agrupa por dono; nome vem do roster do time (fallback: nome do owner do HubSpot).
+  const teamName = new Map(team.map((m) => [m.ownerId, m.nome]));
+  const byId = new Map<string, MonthGoalCloser>();
+  for (const d of mine) {
+    const oid = d.properties.hubspot_owner_id || "sem-dono";
+    const name = teamName.get(oid) || ownerDisplayName(owners.get(oid));
+    if (!byId.has(oid)) byId.set(oid, { name, sold: 0, count: 0, sales: [] });
+    const c = byId.get(oid)!;
+    const amount = Number(d.properties.amount || 0);
+    c.sold += amount;
+    c.count += 1;
+    c.sales.push({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), amount });
+  }
+  const byCloser = [...byId.values()].sort((a, b) => b.sold - a.sold);
+  byCloser.forEach((c) => c.sales.sort((a, b) => b.amount - a.amount));
+  return { goal, sold, count: mine.length, byCloser };
 }
 
 export type MotivosItem = { dealname: string; url: string };
