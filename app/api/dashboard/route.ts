@@ -41,7 +41,9 @@ const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: 
   unstable_cache(
     () => fetchWonAggregate(config, { origem, owner }),
     ["won-aggregate", config.id, origemId, owner || "all"],
-    { revalidate: 900 }
+    // Agregado histórico (ticket médio de todos os ganhos) — quase não muda;
+    // cacheia 6h pra reduzir a frequência de recomputo caro.
+    { revalidate: 21600 }
   )();
 
 // "Tempo da reunião ao fechamento": negócios FECHADOS dos closers + a 1ª reunião
@@ -58,7 +60,9 @@ const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: str
       try {
         const [owners, closed] = await Promise.all([
           fetchAllOwners(),
-          fetchClosedCloserDeals(config, origem, owner),
+          // Janela de 12 meses: o tempo-até-fechamento recente é representativo e
+          // evita varrer todo o histórico (dezenas de milhares no B2C).
+          fetchClosedCloserDeals(config, origem, owner, 6),
         ]);
         const starts = await fetchFirstCloserMeeting(config, closed.map((d) => d.id));
         return { data: closeTimeMatrix(closed, starts, owners, config.wonStageIds), warning: undefined };
@@ -68,8 +72,8 @@ const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: str
     },
     // Dado histórico (fechados) — muda devagar; cacheia 1h. Chave inclui a
     // origem e o closer selecionados. A maioria das visitas pega do cache.
-    ["close-time-v3", config.id, origemId, owner || "all"],
-    { revalidate: 3600 }
+    ["close-time-v5", config.id, origemId, owner || "all"],
+    { revalidate: 21600 }
   )();
 
 // "Conversão por macro tema" (B2B): win rate Ganho ÷ fechados por macro_tema,
@@ -89,7 +93,7 @@ const getMacroTemaCached = (config: SegmentConfig, origemId: string, origem: str
       }
     },
     ["macro-tema-v2", config.id, origemId, owner || "all"],
-    { revalidate: 3600 }
+    { revalidate: 21600 }
   )();
 
 // "Taxa de conversão" (Proposta → Ganho): histórico dos negócios que entraram em
@@ -112,7 +116,7 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
       }
     },
     ["conversion-v15", config.id, origemId, owner || "all"],
-    { revalidate: 3600 }
+    { revalidate: 21600 }
   )();
 
 // "Proposta enviada → reunião" (B2B): dos negócios com proposta anexada, quantos
@@ -134,7 +138,7 @@ const getPropostaMeetingCached = (
       }
     },
     ["proposta-meeting-v4", config.id, origemId, owner || "all", from || "all", to || "all"],
-    { revalidate: 3600 }
+    { revalidate: 21600 }
   )();
 
 // "Motivos de perda" (B2C): distribuição de closed_lost_reason dos perdidos

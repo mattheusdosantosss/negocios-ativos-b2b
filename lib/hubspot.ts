@@ -283,7 +283,8 @@ const CLOSED_PROPS = [
 export async function fetchClosedCloserDeals(
   config: SegmentConfig,
   origem?: string[],
-  owner?: string
+  owner?: string,
+  sinceMonths?: number
 ): Promise<Deal[]> {
   const stages = [...config.wonStageIds, ...config.lostStageIds];
   // Com um closer selecionado, escopa a UM dono (ainda do roster); senão, o
@@ -296,6 +297,13 @@ export async function fetchClosedCloserDeals(
     { propertyName: "dealstage", operator: "IN", values: stages },
     { propertyName: "hubspot_owner_id", operator: "IN", values: ownerIds },
   ];
+  // Janela recente opcional (fecha por closedate) — evita varrer todo o histórico
+  // quando não é preciso (ex.: gráfico de tempo-até-fechamento do B2C).
+  if (sinceMonths && sinceMonths > 0) {
+    const now = new Date(Date.now() - BR_OFFSET_MS);
+    const cutoff = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (sinceMonths - 1), 1) + BR_OFFSET_MS;
+    filters.push({ propertyName: "closedate", operator: "GTE", value: String(cutoff) });
+  }
   if (origem && origem.length > 0) {
     filters.push({ propertyName: "origem_do_lead", operator: "IN", values: origem });
   }
@@ -543,7 +551,7 @@ export async function fetchConversionCounts(
     config.wonStageIds.length ? count([wonFilter]) : Promise.resolve(0),
   ]);
 
-  const months = await mapLimit(windows, 4, async (w) => {
+  const months = await mapLimit(windows, 8, async (w) => {
     const range = [
       { propertyName: dateProp, operator: "GTE", value: String(w.startMs) },
       { propertyName: dateProp, operator: "LT", value: String(w.endMs) },
