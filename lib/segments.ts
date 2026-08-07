@@ -113,7 +113,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDenomLabel: "só negócios com proposta anexada",
     conversionDateProp: "closedate",
     hasCloserBreakdown: false,
-    monthGoal: 1_310_000,
+    monthGoal: 1_200_000,
     rankingListId: "1491", // "RANKING DE VENDAS | MÊS"
     team: B2B_TEAM,
   },
@@ -151,7 +151,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDenomLabel: "",
     conversionDateProp: "closedate",
     hasCloserBreakdown: false,
-    monthGoal: 810_000,
+    monthGoal: 600_000,
     rankingListId: "1491", // "RANKING DE VENDAS | MÊS" (filtra pela pipeline B2C)
     team: B2C_TEAM,
   },
