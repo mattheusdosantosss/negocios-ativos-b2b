@@ -629,7 +629,7 @@ export async function fetchSalesByCloser(
   return { sold, count: deals.length, byCloser };
 }
 
-export type MotivosItem = { dealname: string; url: string };
+export type MotivosItem = { dealname: string; url: string; closer: string };
 export type MotivosReason = {
   name: string;
   count: number;
@@ -650,7 +650,8 @@ export type MotivosData = { geral: MotivosScope; months: (MotivosScope & { key: 
  */
 export async function fetchLostReasons(
   config: SegmentConfig,
-  opts?: { origem?: string[]; owner?: string }
+  opts?: { origem?: string[]; owner?: string },
+  owners?: Map<string, Owner>
 ): Promise<MotivosData> {
   const emptyScope: MotivosScope = { total: 0, reasons: [] };
   if (config.lostStageIds.length === 0) return { geral: emptyScope, months: [] };
@@ -676,7 +677,7 @@ export async function fetchLostReasons(
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: ["closedate", "dealname", "tem_proposta_anexada", ...config.lostReasonProps],
+      properties: ["closedate", "dealname", "tem_proposta_anexada", "hubspot_owner_id", ...config.lostReasonProps],
       limit: 200,
     };
     if (after) body.after = after;
@@ -703,6 +704,7 @@ export async function fetchLostReasons(
     (hasProp ? m.get(reason)!.com : m.get(reason)!.sem).push(item);
   };
   const props = config.lostReasonProps;
+  const teamName = new Map(config.team.map((m) => [m.ownerId, m.nome]));
   for (const d of deals) {
     // Primeiro motivo preenchido entre as propriedades do segmento (B2B usa
     // closed_lost_reason + motivo_de_sinalizacao_de_perda).
@@ -713,7 +715,9 @@ export async function fetchLostReasons(
       if (v) { reason = v; break; }
     }
     const hasProp = p.tem_proposta_anexada === "true";
-    const item: MotivosItem = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id) };
+    const oid = p.hubspot_owner_id || "";
+    const closer = teamName.get(oid) || ownerDisplayName(owners?.get(oid));
+    const item: MotivosItem = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), closer };
     push(geral, reason, item, hasProp);
     const k = monthKey(d.properties.closedate);
     if (k === "sem-data") continue;

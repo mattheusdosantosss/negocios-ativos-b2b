@@ -147,12 +147,13 @@ const getLostReasonsCached = (config: SegmentConfig, origemId: string, origem: s
   unstable_cache(
     async (): Promise<{ data: DashboardData["motivos"]; warning?: string }> => {
       try {
-        return { data: await fetchLostReasons(config, { origem, owner }), warning: undefined };
+        const owners = await fetchAllOwners();
+        return { data: await fetchLostReasons(config, { origem, owner }, owners), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar motivos de perda" };
       }
     },
-    ["lost-reasons-v8", config.id, origemId, owner || "all"],
+    ["lost-reasons-v9", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 

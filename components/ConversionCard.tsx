@@ -193,7 +193,10 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
   );
 }
 
+type SortKey = "closer" | "negocio";
+
 function MotivosModal({ title, deals, onClose }: { title: string; deals: MotivosItem[]; onClose: () => void }) {
+  const [sort, setSort] = useState<SortKey>("closer");
   useEffect(() => {
     const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", handler);
@@ -205,10 +208,16 @@ function MotivosModal({ title, deals, onClose }: { title: string; deals: Motivos
     };
   }, [onClose]);
 
+  const sorted = [...deals].sort((a, b) =>
+    sort === "closer"
+      ? (a.closer || "").localeCompare(b.closer || "", "pt-BR") || a.dealname.localeCompare(b.dealname, "pt-BR")
+      : a.dealname.localeCompare(b.dealname, "pt-BR")
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xl max-h-[85vh] bg-psa-ink text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-2xl max-h-[85vh] bg-psa-ink text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h3 className="font-display text-xl font-bold">{title}</h3>
@@ -216,17 +225,32 @@ function MotivosModal({ title, deals, onClose }: { title: string; deals: Motivos
               {num(deals.length)} {deals.length === 1 ? "negócio perdido" : "negócios perdidos"}
             </div>
           </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2 -mt-1" aria-label="Fechar">
-            ×
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Ordenação da lista */}
+            <label className="flex items-center gap-1.5 text-[11px] text-white/60">
+              Ordenar
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="rounded-md bg-white/10 border border-white/15 px-2 py-1 text-[12px] text-white focus:outline-none"
+              >
+                <option value="closer">Closer</option>
+                <option value="negocio">Negócio</option>
+              </select>
+            </label>
+            <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2 -mt-1" aria-label="Fechar">
+              ×
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           <ol className="divide-y divide-white/10">
-            {deals.map((d, i) => (
+            {sorted.map((d, i) => (
               <li key={i} className="hover:bg-white/[0.03] transition-colors">
                 <a href={d.url} target="_blank" rel="noopener noreferrer" className="group px-6 py-3 flex items-center gap-4" title="Abrir negócio no HubSpot">
                   <span className="text-xs font-mono text-white/40 tabular-nums w-8">{String(i + 1).padStart(2, "0")}</span>
                   <span className="flex-1 min-w-0 text-sm text-white/90 truncate group-hover:text-psa-orange group-hover:underline">{d.dealname}</span>
+                  <span className="shrink-0 text-[11px] text-white/50 truncate max-w-[160px]" title={d.closer}>{d.closer || "—"}</span>
                   <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
                 </a>
               </li>
