@@ -326,15 +326,16 @@ export default function Page() {
                 <CloserFilter value={closer} options={closerOptions} onChange={setCloser} />
               </div>
 
-              {/* Coluna direita: abas B2B|B2C|FARMER logo acima do Atualizar */}
-              <div className="flex flex-col gap-2.5">
+              {/* Coluna direita: abas B2B|B2C|FARMER logo acima do Atualizar.
+                  Largura fixa (mesma no funil e no farmer). */}
+              <div className="flex flex-col gap-2.5 w-[200px]">
                 {segmentSelector}
 
                 <button
                   type="button"
                   onClick={load}
                   disabled={loading}
-                  className="inline-flex items-center justify-center gap-2 w-[160px] whitespace-nowrap px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
+                  className="inline-flex items-center justify-center gap-2 w-full whitespace-nowrap px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
                   title="Rebuscar os dados no HubSpot agora"
                 >
                   <svg

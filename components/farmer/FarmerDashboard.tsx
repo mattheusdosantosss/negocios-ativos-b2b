@@ -352,13 +352,13 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 w-[200px]">
               {segmentSelector}
               <button
                 type="button"
                 onClick={load}
                 disabled={loading}
-                className="inline-flex items-center justify-center gap-2 min-w-[150px] px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
+                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
                 title="Rebuscar os dados no HubSpot agora"
               >
                 <svg
@@ -382,7 +382,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                 href="https://hubspot-linkedin-dash.vercel.app/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 min-w-[150px] px-4 py-2 rounded-xl bg-psa-blue/20 border border-psa-blue/40 text-sm font-semibold text-white hover:bg-psa-blue/30 transition-all"
+                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 rounded-xl bg-psa-blue/20 border border-psa-blue/40 text-sm font-semibold text-white hover:bg-psa-blue/30 transition-all"
                 title="Abrir o painel de LinkedIn (métricas de LinkedIn)"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
