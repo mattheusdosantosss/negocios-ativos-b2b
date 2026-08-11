@@ -289,7 +289,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
         />
         <div aria-hidden className="pointer-events-none absolute top-0 right-0 h-full w-1.5 bg-psa-orange" />
 
-        <div className="relative px-8 py-8 min-h-[240px]">
+        <div className="relative px-8 py-8 min-h-[260px]">
           <div className="flex items-start justify-between gap-8 flex-wrap">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-psa-orange/15 border border-psa-orange/30">
