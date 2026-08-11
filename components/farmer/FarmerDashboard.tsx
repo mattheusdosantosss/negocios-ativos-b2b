@@ -308,7 +308,8 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
               </p>
             </div>
 
-            <div className="flex items-start gap-2.5 shrink-0">
+            <div className="flex flex-col gap-3 w-full lg:w-auto lg:shrink-0">
+              <div className="flex items-start gap-2.5 flex-wrap">
               {/* Filtros agrupados numa caixa só */}
               <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-4 flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
@@ -379,36 +380,35 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                 {loading ? "Atualizando…" : "Atualizar"}
               </button>
               </div>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="mt-8 -mb-px flex flex-wrap items-end justify-between gap-4">
-            <div className="inline-flex flex-wrap gap-1">
-              {TABS.map((t) => {
-                const active = tab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`relative px-5 py-3 text-sm font-semibold transition-colors rounded-t-xl ${
-                      active ? "bg-psa-canvas text-psa-ink" : "text-white/85 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {t.label}
-                    {active && (
-                      <span className="absolute left-5 right-5 top-0 h-[3px] bg-psa-orange rounded-b-full" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {view?.leader && (
-              <div className="text-xs text-white/85 pb-3">
-                Líder da squad <span className="font-bold text-white">{view.leader}</span>
               </div>
-            )}
+
+              {/* Seletor de squads — abaixo dos filtros, ocupa toda a largura
+                  (até o fim do Atualizar); pills esticados edge-to-edge. */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex w-full rounded-xl bg-white/[0.06] border border-white/10 p-1 gap-1">
+                  {TABS.map((t) => {
+                    const active = tab === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setTab(t.id)}
+                        aria-pressed={active}
+                        className={`flex-1 whitespace-nowrap text-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
+                          active ? "bg-psa-orange text-white shadow" : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {view?.leader && (
+                  <span className="text-[11px] text-white/70 px-1">
+                    Líder <span className="font-bold text-white">{view.leader}</span>
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
