@@ -33,7 +33,8 @@ import {
   type CloserRow,
   type DashboardData,
 } from "@/lib/aggregate";
-import { SEGMENTS, SEGMENT_TABS, type SegmentId } from "@/lib/segments";
+import { SEGMENTS, type SegmentId } from "@/lib/segments";
+import FarmerDashboard from "@/components/farmer/FarmerDashboard";
 import { computePeriod, formatPeriodRange, type PeriodValue } from "@/lib/periods";
 import { type LeadSourceId } from "@/lib/leadSource";
 
@@ -45,6 +46,9 @@ const num = (n: number) => n.toLocaleString("pt-BR");
 
 export default function Page() {
   const [segment, setSegment] = useState<SegmentId>("b2b");
+  // FARMER é uma 3ª "aba" do topo: quando ativa, some o funil e mostra o painel
+  // de Líderes Táticos · Farmers (segment segue "b2b"/"b2c" pros hooks do funil).
+  const [farmerMode, setFarmerMode] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,9 +123,9 @@ export default function Page() {
   }
 
   useEffect(() => {
-    load();
+    if (!farmerMode) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryString]);
+  }, [queryString, farmerMode]);
 
   // Closers do roster do segmento que têm ao menos 1 negócio ativo.
   const teamClosers = useMemo(
@@ -238,6 +242,48 @@ export default function Page() {
   const forecast = useMemo(() => (data ? dealsForecast(data.closers) : []), [data]);
   const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.amount, 0), [forecast]);
 
+  // Seletor de segmento do topo — B2B | B2C | FARMER. Reusado no funil e no
+  // painel de farmers (pra dar pra voltar).
+  const TOP_TABS: { id: "b2b" | "b2c" | "farmer"; label: string }[] = [
+    { id: "b2b", label: "B2B" },
+    { id: "b2c", label: "B2C" },
+    { id: "farmer", label: "FARMER" },
+  ];
+  const activeTop = farmerMode ? "farmer" : segment;
+  const onTopTab = (id: "b2b" | "b2c" | "farmer") => {
+    if (id === "farmer") {
+      setFarmerMode(true);
+      setModal(null);
+      setShowCloserSummary(false);
+      return;
+    }
+    setFarmerMode(false);
+    handleSegmentChange(id);
+  };
+  const segmentSelector = (
+    <div className="flex rounded-xl bg-white/[0.06] border border-white/10 p-1">
+      {TOP_TABS.map((t) => {
+        const active = t.id === activeTop;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onTopTab(t.id)}
+            aria-pressed={active}
+            className={`flex-1 text-center px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
+              active ? "bg-psa-orange text-white shadow" : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // FARMER selecionado → painel de Líderes Táticos · Farmers no lugar do funil.
+  if (farmerMode) return <FarmerDashboard segmentSelector={segmentSelector} />;
+
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
       {/* Hero */}
@@ -280,28 +326,9 @@ export default function Page() {
                 <CloserFilter value={closer} options={closerOptions} onChange={setCloser} />
               </div>
 
-              {/* Coluna direita: abas B2B|B2C logo acima do Atualizar (mesma largura) */}
+              {/* Coluna direita: abas B2B|B2C|FARMER logo acima do Atualizar */}
               <div className="flex flex-col gap-2.5">
-                <div className="flex rounded-xl bg-white/[0.06] border border-white/10 p-1">
-                  {SEGMENT_TABS.map((t) => {
-                    const active = t.id === segment;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => handleSegmentChange(t.id)}
-                        aria-pressed={active}
-                        className={`flex-1 text-center px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
-                          active
-                            ? "bg-psa-orange text-white shadow"
-                            : "text-white/60 hover:text-white hover:bg-white/[0.06]"
-                        }`}
-                      >
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                {segmentSelector}
 
                 <button
                   type="button"
