@@ -45,6 +45,7 @@ export const SQUADS: Squad[] = [
       "joao.backmann@profissionaissa.com", // João Lucas Backmann
       "bruna.saraiva@profissionaissa.com", // Bruna Halfen Saraiva
       "gisele.santos@profissionaissa.com", // Gisele Beatriz Santos dos Santos
+      "alecxia.oliveira@profissionaissa.com", // Alecxia Oliveira e Oliveira
     ],
   },
   {
@@ -70,7 +71,6 @@ export const SQUADS: Squad[] = [
       "jhuly.carvalho@profissionaissa.com", // Jhuly Correa de Carvalho
       "leonardo.gomes@profissionaissa.com", // Leonardo Gomes
       "tercio.silva@profissionaissa.com", // Tércio Ferreira da Silva
-      "alecxia.oliveira@profissionaissa.com", // Alecxia Oliveira e Oliveira
     ],
   },
 ];
