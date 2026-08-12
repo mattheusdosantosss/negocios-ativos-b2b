@@ -178,6 +178,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const [filter, setFilter] = useState<FarmerFilter>("todos");
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [alertExpanded, setAlertExpanded] = useState(false);
+  const [showMetaRules, setShowMetaRules] = useState(false);
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -515,10 +516,44 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
       )}
 
       {/* Meta do mês — demandas levantadas (480 Geral · 120 por squad) */}
-      <div className="rounded-xl border-2 border-psa-orange/40 bg-gradient-to-br from-psa-orange/[0.07] to-transparent p-5">
+      <div className="relative rounded-xl border-2 border-psa-orange/40 bg-gradient-to-br from-psa-orange/[0.07] to-transparent p-5">
+        {/* Regras de "Demandas levantadas" */}
+        <button
+          type="button"
+          onClick={() => setShowMetaRules((v) => !v)}
+          className={`absolute top-3 right-3 w-5 h-5 inline-flex items-center justify-center rounded-full border text-[11px] font-bold transition-colors ${
+            showMetaRules ? "border-psa-blue text-psa-blue" : "border-psa-line text-psa-ink-soft hover:border-psa-blue hover:text-psa-blue"
+          }`}
+          title="Ver regras de Demandas levantadas"
+          aria-label="Regras de Demandas levantadas"
+        >
+          i
+        </button>
+        {showMetaRules && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMetaRules(false)} />
+            <div className="absolute z-50 top-10 right-3 w-72 rounded-xl border border-psa-line bg-psa-surface shadow-card-hover p-3 text-left">
+              <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-2">
+                Regras de “Demandas levantadas”
+              </div>
+              <ul className="space-y-1.5">
+                {RULES.demandas.map((line, i) => (
+                  <li key={i} className="flex gap-1.5 text-xs text-psa-ink leading-snug">
+                    <span className="text-psa-orange mt-0.5 leading-none">•</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+                <li className="flex gap-1.5 text-xs text-red-600 leading-snug">
+                  <span className="mt-0.5 leading-none">•</span>
+                  <span>Perdidos por “Fora do MOA” NÃO contam.</span>
+                </li>
+              </ul>
+            </div>
+          </>
+        )}
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">
+            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange pr-6">
               Meta do mês · demandas {tab === "all" ? "(todas as equipes)" : `· ${tabLabel(tab)}`}
             </div>
             <div className="mt-1 flex items-baseline gap-2 flex-wrap">
@@ -569,28 +604,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
       </div>
 
       {/* KPIs — 5 cards (clicáveis: abrem a lista do escopo atual) */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KpiCard
-          label="Demandas levantadas"
-          value={view ? num(view.demandas) : 0}
-          accent="blue"
-          hint={
-            origem === "carteira"
-              ? "Origem: Carteira"
-              : origem === "acao_crm"
-              ? "Origem: Ação de CRM"
-              : origem === "indicacao"
-              ? "Origem: Indicação"
-              : origem === "palestrante"
-              ? "Origem: Palestrante"
-              : origem === "qualif_farmer"
-              ? "Origem: Qualificação Farmer"
-              : "Origem: todas (Carteira + Ação CRM + Indicação + Palestrante + Qualif.)"
-          }
-          loading={loading}
-          onClick={view ? openAggregated("demandas", view.demandas) : undefined}
-          info={RULES.demandas}
-        />
+      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <KpiCard
           label="Negócios fechados"
           value={view ? num(view.negocios) : 0}
