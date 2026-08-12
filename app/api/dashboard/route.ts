@@ -132,12 +132,13 @@ const getPropostaMeetingCached = (
   unstable_cache(
     async (): Promise<{ data: DashboardData["propostaMeeting"]; warning?: string }> => {
       try {
-        return { data: await fetchPropostaMeetingStats(config, { origem, owner, from, to }), warning: undefined };
+        const owners = await fetchAllOwners();
+        return { data: await fetchPropostaMeetingStats(config, { origem, owner, from, to }, owners), warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar proposta→reunião" };
       }
     },
-    ["proposta-meeting-v4", config.id, origemId, owner || "all", from || "all", to || "all"],
+    ["proposta-meeting-v5", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 21600 }
   )();
 

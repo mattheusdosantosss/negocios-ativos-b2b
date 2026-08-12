@@ -244,18 +244,54 @@ function MotivosModal({ title, deals, onClose }: { title: string; deals: Motivos
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <ol className="divide-y divide-white/10">
-            {sorted.map((d, i) => (
-              <li key={i} className="hover:bg-white/[0.03] transition-colors">
-                <a href={d.url} target="_blank" rel="noopener noreferrer" className="group px-6 py-3 flex items-center gap-4" title="Abrir negócio no HubSpot">
-                  <span className="text-xs font-mono text-white/40 tabular-nums w-8">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="flex-1 min-w-0 text-sm text-white/90 truncate group-hover:text-psa-orange group-hover:underline">{d.dealname}</span>
-                  <span className="shrink-0 text-[11px] text-white/50 truncate max-w-[160px]" title={d.closer}>{d.closer || "—"}</span>
-                  <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
-                </a>
-              </li>
-            ))}
-          </ol>
+          {sort === "closer" ? (
+            // Blocado por closer, no padrão do "Histórico de vendas".
+            <div className="divide-y divide-white/10">
+              {(() => {
+                const groups = new Map<string, MotivosItem[]>();
+                for (const d of deals) {
+                  const name = d.closer || "Sem closer";
+                  if (!groups.has(name)) groups.set(name, []);
+                  groups.get(name)!.push(d);
+                }
+                return [...groups.entries()]
+                  .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "pt-BR"))
+                  .map(([name, ds]) => (
+                    <div key={name} className="px-6 py-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-sm font-semibold text-white/90 truncate">{name}</span>
+                        <span className="text-[11px] text-white/60 whitespace-nowrap">
+                          {ds.length} {ds.length === 1 ? "negócio" : "negócios"}
+                        </span>
+                      </div>
+                      <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1">
+                        {ds.map((d, i) => (
+                          <li key={i} className="text-[11px]">
+                            <a href={d.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2" title="Abrir negócio no HubSpot">
+                              <span className="flex-1 min-w-0 truncate text-white/75 group-hover:text-psa-orange group-hover:underline">{d.dealname}</span>
+                              <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ));
+              })()}
+            </div>
+          ) : (
+            <ol className="divide-y divide-white/10">
+              {sorted.map((d, i) => (
+                <li key={i} className="hover:bg-white/[0.03] transition-colors">
+                  <a href={d.url} target="_blank" rel="noopener noreferrer" className="group px-6 py-3 flex items-center gap-4" title="Abrir negócio no HubSpot">
+                    <span className="text-xs font-mono text-white/40 tabular-nums w-8">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="flex-1 min-w-0 text-sm text-white/90 truncate group-hover:text-psa-orange group-hover:underline">{d.dealname}</span>
+                    <span className="shrink-0 text-[11px] text-white/50 truncate max-w-[160px]" title={d.closer}>{d.closer || "—"}</span>
+                    <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       </div>
     </div>

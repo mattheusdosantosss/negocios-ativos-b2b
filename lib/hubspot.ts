@@ -747,6 +747,8 @@ export async function fetchLostReasons(
 export type PropostaMeetingItem = {
   dealname: string;
   url: string;
+  /** Closer (dono do negócio) — pro agrupamento no popup. */
+  closer?: string;
   /** Mês (fuso BR, "YYYY-MM") do envio da proposta — pro filtro do card. */
   monthKey?: string;
   meetingTitle?: string;
@@ -774,7 +776,8 @@ const meetMs = (iso?: string) => (iso ? new Date(iso).getTime() : NaN);
  */
 export async function fetchPropostaMeetingStats(
   config: SegmentConfig,
-  opts?: { origem?: string[]; owner?: string; from?: string; to?: string }
+  opts?: { origem?: string[]; owner?: string; from?: string; to?: string },
+  owners?: Map<string, Owner>
 ): Promise<PropostaMeetingData> {
   const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
     { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
@@ -807,7 +810,7 @@ export async function fetchPropostaMeetingStats(
   const deals: Deal[] = [];
   let after: string | undefined;
   do {
-    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: ["dealname", "data_de_envio_da_ultima_proposta"], limit: 200 };
+    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: ["dealname", "data_de_envio_da_ultima_proposta", "hubspot_owner_id"], limit: 200 };
     if (after) body.after = after;
     const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
       method: "POST",
@@ -826,12 +829,16 @@ export async function fetchPropostaMeetingStats(
   if (allMeetingIds.length) meetings = await fetchMeetingsByIds(allMeetingIds);
 
   const out: PropostaMeetingData = { total: deals.length, alguma: 0, realizada: 0, deals: { realizada: [], agendada: [], sem: [] }, months: [] };
+  const teamName = new Map(config.team.map((m) => [m.ownerId, m.nome]));
   const monthsSeen = new Set<string>();
   for (const d of deals) {
     const mids = (dealMeetings.get(d.id) ?? []).map((mid) => meetings.get(mid)).filter((m): m is MeetingDetail => !!m);
-    const monthKey = mKey((d.properties as Record<string, string>).data_de_envio_da_ultima_proposta);
+    const dp = d.properties as Record<string, string>;
+    const monthKey = mKey(dp.data_de_envio_da_ultima_proposta);
     if (monthKey) monthsSeen.add(monthKey);
-    const base = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), monthKey };
+    const oid = dp.hubspot_owner_id || "";
+    const closer = teamName.get(oid) || ownerDisplayName(owners?.get(oid));
+    const base = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), closer, monthKey };
     if (mids.length === 0) {
       out.deals.sem.push(base);
       continue;

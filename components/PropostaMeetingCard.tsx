@@ -190,42 +190,64 @@ function MeetingModal({
           {items.length === 0 ? (
             <div className="p-12 text-center text-sm text-white/60">Nenhum negócio.</div>
           ) : (
-            <ol className="divide-y divide-white/10">
-              {items.map((it, i) => {
-                const content = (
-                  <>
-                    <span className="text-xs font-mono text-white/40 tabular-nums w-8">{String(i + 1).padStart(2, "0")}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm text-white/90 truncate ${it.url ? "group-hover:text-psa-orange group-hover:underline" : ""}`}>
-                        {it.dealname}
+            // Blocado por closer, no padrão do "Histórico de vendas".
+            <div className="divide-y divide-white/10">
+              {(() => {
+                const groups = new Map<string, PropostaMeetingItem[]>();
+                for (const it of items) {
+                  const name = it.closer || "Sem closer";
+                  if (!groups.has(name)) groups.set(name, []);
+                  groups.get(name)!.push(it);
+                }
+                return [...groups.entries()]
+                  .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "pt-BR"))
+                  .map(([name, its]) => (
+                    <div key={name} className="px-6 py-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-sm font-semibold text-white/90 truncate">{name}</span>
+                        <span className="text-[11px] text-white/60 whitespace-nowrap">
+                          {num(its.length)} {its.length === 1 ? "negócio" : "negócios"}
+                        </span>
                       </div>
-                      {showMeeting && (
-                        <div className="mt-0.5 text-[11px] text-white/50 truncate">
-                          {it.meetingTitle || "Reunião"} · {fmtDate(it.meetingDate)} · {srcLabel(it.source)}
-                        </div>
-                      )}
+                      <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1.5">
+                        {its.map((it, i) => {
+                          const inner = (
+                            <>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-[12px] text-white/80 truncate ${it.url ? "group-hover:text-psa-orange group-hover:underline" : ""}`}>
+                                  {it.dealname}
+                                </div>
+                                {showMeeting && (
+                                  <div className="mt-0.5 text-[10px] text-white/45 truncate">
+                                    {it.meetingTitle || "Reunião"} · {fmtDate(it.meetingDate)} · {srcLabel(it.source)}
+                                  </div>
+                                )}
+                              </div>
+                              {it.url && <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>}
+                              {showMeeting && (
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${outStyle(it.outcome)}`}>
+                                  {outLabel(it.outcome)}
+                                </span>
+                              )}
+                            </>
+                          );
+                          return (
+                            <li key={i}>
+                              {it.url ? (
+                                <a href={it.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2" title="Abrir negócio no HubSpot">
+                                  {inner}
+                                </a>
+                              ) : (
+                                <div className="group flex items-center gap-2">{inner}</div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
-                    {it.url && <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>}
-                    {showMeeting && (
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap ${outStyle(it.outcome)}`}>
-                        {outLabel(it.outcome)}
-                      </span>
-                    )}
-                  </>
-                );
-                return (
-                  <li key={i} className="hover:bg-white/[0.03] transition-colors">
-                    {it.url ? (
-                      <a href={it.url} target="_blank" rel="noopener noreferrer" className="group px-6 py-3 flex items-center gap-4" title="Abrir negócio no HubSpot">
-                        {content}
-                      </a>
-                    ) : (
-                      <div className="group px-6 py-3 flex items-center gap-4">{content}</div>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
+                  ));
+              })()}
+            </div>
           )}
         </div>
       </div>
