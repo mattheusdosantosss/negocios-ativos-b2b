@@ -49,7 +49,6 @@ export default function DealListModal({
   netValue = false,
 }: Props) {
   const valueOf = (d: DealLite | AggregatedDealItem) => (netValue ? d.valorLiquido : d.amount);
-  const valueLabel = netValue ? "Valor líquido (-10%)" : "Valor bruto";
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -127,71 +126,73 @@ export default function DealListModal({
           {total === 0 ? (
             <div className="p-12 text-center text-sm text-white/60">Nenhum negócio encontrado.</div>
           ) : (
-            <>
-            <div className="px-6 py-2 flex items-center gap-4 border-b border-white/10 text-[10px] font-bold uppercase tracking-wider text-white/40 sticky top-0 bg-psa-ink z-10">
-              <span className="w-8">#</span>
-              <span className="flex-1">Negócio</span>
-              <span className="whitespace-nowrap">{valueLabel}</span>
-              <span className="w-16 text-right whitespace-nowrap">{dateInfo.short}</span>
+            // Blocado por closer, no padrão do "Histórico de vendas": cabeçalho do
+            // closer (nome + total + nº) e os negócios indentados abaixo.
+            <div className="divide-y divide-white/10">
+              {(() => {
+                const groups = new Map<string, Array<DealLite | AggregatedDealItem>>();
+                for (const d of deals) {
+                  const name = ownerOf(d) || closerName || "Sem closer";
+                  if (!groups.has(name)) groups.set(name, []);
+                  groups.get(name)!.push(d);
+                }
+                return [...groups.entries()]
+                  .map(([name, ds]) => ({ name, ds, total: ds.reduce((s, d) => s + valueOf(d), 0) }))
+                  .sort((a, b) => b.total - a.total)
+                  .map((g) => (
+                    <div key={g.name} className="px-6 py-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-sm font-semibold text-white/90 truncate">{g.name}</span>
+                        <span className="text-[11px] text-white/60 whitespace-nowrap">
+                          <b className="text-white tabular-nums">{brl(g.total)}</b> · {g.ds.length}{" "}
+                          {g.ds.length === 1 ? "negócio" : "negócios"}
+                        </span>
+                      </div>
+                      <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1">
+                        {g.ds.map((d) => {
+                          const hasLink = !!d.url;
+                          const row = (
+                            <>
+                              <span
+                                className={`flex-1 min-w-0 truncate text-white/75 ${
+                                  hasLink ? "group-hover:text-psa-orange group-hover:underline" : ""
+                                }`}
+                              >
+                                {d.dealname}
+                              </span>
+                              <span className="shrink-0 flex items-center gap-3">
+                                <span className="text-white/45 tabular-nums" title={dateInfo.long}>
+                                  {fmtDate(d[dateField])}
+                                </span>
+                                <span className="text-psa-orange tabular-nums whitespace-nowrap">{brl(valueOf(d))}</span>
+                              </span>
+                            </>
+                          );
+                          return (
+                            <li key={d.id} className="text-[11px]">
+                              {hasLink ? (
+                                <a
+                                  href={d.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group flex items-center gap-3"
+                                  title="Abrir negócio no HubSpot"
+                                >
+                                  {row}
+                                </a>
+                              ) : (
+                                <div className="group flex items-center gap-3 opacity-80" title="Dado de exemplo">
+                                  {row}
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ));
+              })()}
             </div>
-            <ol className="divide-y divide-white/10">
-              {deals.map((d, i) => {
-                const hasLink = !!d.url;
-                const content = (
-                  <>
-                    <span className="text-xs font-mono text-white/40 tabular-nums w-8">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div
-                        className={`text-sm text-white/90 truncate ${
-                          hasLink ? "group-hover:text-psa-orange group-hover:underline" : ""
-                        }`}
-                      >
-                        {d.dealname}
-                      </div>
-                      {ownerOf(d) && (
-                        <div className="mt-0.5 text-[11px] text-white/50 truncate">{ownerOf(d)}</div>
-                      )}
-                    </div>
-                    {hasLink && <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>}
-                    <div className="text-xs font-medium text-psa-orange tabular-nums whitespace-nowrap">
-                      {brl(valueOf(d))}
-                    </div>
-                    <div
-                      className="text-xs text-white/60 tabular-nums whitespace-nowrap w-16 text-right"
-                      title={dateInfo.long}
-                    >
-                      {fmtDate(d[dateField])}
-                    </div>
-                  </>
-                );
-
-                return (
-                  <li key={d.id} className="hover:bg-white/[0.03] transition-colors">
-                    {hasLink ? (
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group px-6 py-3 flex items-center gap-4"
-                        title="Abrir negócio no HubSpot"
-                      >
-                        {content}
-                      </a>
-                    ) : (
-                      <div
-                        className="group px-6 py-3 flex items-center gap-4 opacity-80"
-                        title="Dado de exemplo — sem registro real no HubSpot"
-                      >
-                        {content}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-            </>
           )}
         </div>
       </div>
