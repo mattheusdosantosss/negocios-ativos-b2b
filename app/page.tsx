@@ -707,6 +707,29 @@ export default function Page() {
   );
 }
 
+// Dias úteis (seg–sex) do mês corrente: total do mês e quantos já passaram
+// (até hoje, inclusive). Base do "ritmo" da meta.
+function businessDaysThisMonth(): { total: number; elapsed: number } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const today = now.getDate();
+  const last = new Date(y, m + 1, 0).getDate();
+  let total = 0;
+  let elapsed = 0;
+  for (let d = 1; d <= last; d++) {
+    const wd = new Date(y, m, d).getDay(); // 0 dom, 6 sáb
+    if (wd === 0 || wd === 6) continue;
+    total++;
+    if (d <= today) elapsed++;
+  }
+  return { total, elapsed };
+}
+
+// Formata um delta de ritmo como "R$ -144.977" / "R$ +12.500".
+const paceLabel = (n: number) =>
+  `R$ ${n < 0 ? "-" : "+"}${Math.abs(Math.round(n)).toLocaleString("pt-BR")}`;
+
 // Meta do mês — contador FIXO da meta + histórico de vendas por closer
 // (minimizável). Segue o filtro de tempo (por fechamento): em mês cheio (Este
 // mês / Mês passado / padrão) mostra a barra vs a meta; em recortes parciais
@@ -718,6 +741,12 @@ function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["mont
   const remaining = Math.max(0, goal - sold);
   const reached = sold >= goal;
   const [openHist, setOpenHist] = useState(false);
+
+  // Ritmo: só no mês corrente. Esperado até hoje = meta × diaÚtil/diasÚteis.
+  const isCurrentMonth = period.preset === "all" || period.preset === "this_month";
+  const bd = businessDaysThisMonth();
+  const expected = bd.total > 0 ? (goal * bd.elapsed) / bd.total : 0;
+  const pace = sold - expected;
 
   const showBar = period.preset === "all" || period.preset === "this_month" || period.preset === "last_month";
   const periodLabel =
@@ -759,13 +788,31 @@ function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["mont
               style={{ width: `${Math.min(100, ratio * 100)}%` }}
             />
           </div>
-          <div className="mt-2 text-[11px] text-psa-ink-soft">
-            {reached ? (
-              <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
-            ) : (
-              <>
-                Faltam <b className="text-psa-ink">{brl(remaining)}</b> pra bater a meta
-              </>
+          <div className="mt-2 flex items-center justify-between gap-3 flex-wrap text-[11px] text-psa-ink-soft">
+            <span>
+              {reached ? (
+                <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
+              ) : (
+                <>
+                  Faltam <b className="text-psa-ink">{brl(remaining)}</b> pra bater a meta
+                </>
+              )}
+            </span>
+            {isCurrentMonth && (
+              <span className="flex items-center gap-2">
+                <span className="text-psa-muted">
+                  Dia útil <b className="text-psa-ink">{bd.elapsed}</b>/{bd.total} · esperado{" "}
+                  <b className="text-psa-ink">{brl(expected)}</b>
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-md font-semibold tabular-nums ${
+                    pace >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                  }`}
+                  title={pace >= 0 ? "Acima da projeção diária" : "Abaixo da projeção diária"}
+                >
+                  {paceLabel(pace)}
+                </span>
+              </span>
             )}
           </div>
         </>

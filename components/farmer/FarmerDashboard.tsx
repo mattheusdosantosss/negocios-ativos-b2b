@@ -143,6 +143,28 @@ const isTicketKind = (kind: ModalKind) =>
   kind === "reunioes_agendadas" ||
   kind === "reunioes_realizadas";
 
+// Dias úteis (seg–sex) do mês corrente: total e quantos já passaram (até hoje).
+function businessDaysThisMonth(): { total: number; elapsed: number } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const today = now.getDate();
+  const last = new Date(y, m + 1, 0).getDate();
+  let total = 0;
+  let elapsed = 0;
+  for (let d = 1; d <= last; d++) {
+    const wd = new Date(y, m, d).getDay();
+    if (wd === 0 || wd === 6) continue;
+    total++;
+    if (d <= today) elapsed++;
+  }
+  return { total, elapsed };
+}
+
+// Meta de demandas do mês: 120 por squad, 480 na visão Geral (soma dos 4).
+const DEMANDAS_META_SQUAD = 120;
+const DEMANDAS_META_GERAL = DEMANDAS_META_SQUAD * 4; // 480
+
 export default function FarmerDashboard({ segmentSelector }: { segmentSelector?: ReactNode }) {
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("this_month"));
   const [mode, setMode] = useState<"bruto" | "liquido">("bruto");
@@ -210,6 +232,17 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const view = computeView(data, tab);
   const csAtivo = !!data?.meta.pipelineCsAtivo;
   const meetingsDisponivel = data?.meta.meetingsDisponivel ?? true;
+
+  // Meta do mês (demandas): 480 na visão Geral, 120 por squad. Ritmo só no mês
+  // corrente (padrão do painel de farmers).
+  const demMeta = tab === "all" ? DEMANDAS_META_GERAL : DEMANDAS_META_SQUAD;
+  const demandas = view?.demandas ?? 0;
+  const demRatio = demMeta > 0 ? demandas / demMeta : 0;
+  const demFalta = Math.max(0, demMeta - demandas);
+  const demIsCurrentMonth = period.preset === "this_month";
+  const bd = businessDaysThisMonth();
+  const demExpected = bd.total > 0 ? (demMeta * bd.elapsed) / bd.total : 0;
+  const demPace = demandas - demExpected;
 
   // Filtro da tabela (Todos / Com ganhos / Sem ganhos) + busca por nome.
   const normalize = (s: string) =>
@@ -480,6 +513,60 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
           )}
         </div>
       )}
+
+      {/* Meta do mês — demandas levantadas (480 Geral · 120 por squad) */}
+      <div className="rounded-xl border-2 border-psa-orange/40 bg-gradient-to-br from-psa-orange/[0.07] to-transparent p-5">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">
+              Meta do mês · demandas {tab === "all" ? "(todas as equipes)" : `· ${tabLabel(tab)}`}
+            </div>
+            <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+              <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{num(demandas)}</span>
+              <span className="text-sm text-psa-ink-soft">
+                de <b className="text-psa-ink">{num(demMeta)}</b> demandas
+              </span>
+            </div>
+          </div>
+          <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">
+            {(demRatio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+          </div>
+        </div>
+        <div className="mt-3 h-3 rounded-full bg-psa-canvas overflow-hidden">
+          <div
+            className="h-full rounded-full bg-psa-orange transition-all"
+            style={{ width: `${Math.min(100, demRatio * 100)}%` }}
+          />
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap text-[11px] text-psa-ink-soft">
+          <span>
+            {demandas >= demMeta ? (
+              <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
+            ) : (
+              <>
+                Faltam <b className="text-psa-ink">{num(demFalta)}</b> demandas pra bater a meta
+              </>
+            )}
+          </span>
+          {demIsCurrentMonth && (
+            <span className="flex items-center gap-2">
+              <span className="text-psa-muted">
+                Dia útil <b className="text-psa-ink">{bd.elapsed}</b>/{bd.total} · esperado{" "}
+                <b className="text-psa-ink">{num(Math.round(demExpected))}</b>
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-md font-semibold tabular-nums ${
+                  demPace >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                }`}
+                title={demPace >= 0 ? "Acima da projeção diária" : "Abaixo da projeção diária"}
+              >
+                {demPace >= 0 ? "+" : "-"}
+                {num(Math.abs(Math.round(demPace)))}
+              </span>
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* KPIs — 5 cards (clicáveis: abrem a lista do escopo atual) */}
       <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
