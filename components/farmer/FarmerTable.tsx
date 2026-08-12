@@ -38,16 +38,19 @@ function DetailPanel({
     indicacao: number;
     palestrante: number;
     qualif_farmer: number;
+    foraMoa: number;
     total: number;
   };
   const byStage = new Map<string, StageAgg>();
   for (const d of f.demandasDeals) {
     const s = d.stage || "—";
-    const e = byStage.get(s) ?? { carteira: 0, acao_crm: 0, indicacao: 0, palestrante: 0, qualif_farmer: 0, total: 0 };
+    const e = byStage.get(s) ?? { carteira: 0, acao_crm: 0, indicacao: 0, palestrante: 0, qualif_farmer: 0, foraMoa: 0, total: 0 };
     e.total += 1;
-    if (d.origemBucket) e[d.origemBucket] += 1;
+    if (d.foraMoa) e.foraMoa += 1; // Fora do MOA vira segmento próprio (não conta na origem)
+    else if (d.origemBucket) e[d.origemBucket] += 1;
     byStage.set(s, e);
   }
+  const foraMoaTotal = f.demandasDeals.filter((d) => d.foraMoa).length;
   const stages = [
     ...stageOrder.filter((s) => byStage.has(s)),
     ...[...byStage.keys()].filter((s) => !stageOrder.includes(s)),
@@ -94,6 +97,12 @@ function DetailPanel({
                 {s.label}
               </span>
             ))}
+            {foraMoaTotal > 0 && (
+              <span className="inline-flex items-center gap-1 font-semibold text-red-600">
+                <span className="inline-block w-2 h-2 rounded-sm bg-red-500" />
+                Fora do MOA (não conta)
+              </span>
+            )}
           </div>
         </div>
         <div className="space-y-2 mt-2">
@@ -128,6 +137,15 @@ function DetailPanel({
                         </div>
                       ) : null
                     )}
+                    {e.foraMoa > 0 && (
+                      <div
+                        className="h-full bg-red-500 flex items-center justify-center text-[9px] font-bold text-white"
+                        style={{ width: `${(e.foraMoa / e.total) * 100}%` }}
+                        title={`Fora do MOA (não conta): ${e.foraMoa}`}
+                      >
+                        {e.foraMoa >= 2 ? e.foraMoa : ""}
+                      </div>
+                    )}
                   </div>
                 </div>
               </button>
@@ -145,6 +163,12 @@ function DetailPanel({
         {item("Palestrante", num(f.demandasPalestrante))}
         {item("Qualificação Farmer", num(f.demandasQualifFarmer))}
         {item("Em aberto", num(f.emAberto))}
+        {foraMoaTotal > 0 && (
+          <div className="flex justify-between gap-2 pt-1 mt-1 border-t border-psa-line/60">
+            <span className="text-red-600">Fora do MOA (não conta)</span>
+            <span className="font-semibold tabular-nums text-red-600">{num(foraMoaTotal)}</span>
+          </div>
+        )}
       </div>
       <div className={groupCls}>
         <div className={titleCls}>Negócios fechados</div>

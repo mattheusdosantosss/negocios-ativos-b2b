@@ -41,6 +41,7 @@ export type DealLite = {
   origemBucket?: "carteira" | "acao_crm" | "indicacao" | "palestrante" | "qualif_farmer"; // segmento do gráfico
   nota?: number; // pontuacao_leadscore (0–12)
   criteriosFaltantes?: string[]; // critérios que faltam pra nota máxima
+  foraMoa?: boolean; // perdido por "Fora do MOA" — não conta como demanda
 };
 
 // Critérios de qualificação (lead score) — valores exatos da enumeração
@@ -180,6 +181,15 @@ function isGanho(deal: Deal): boolean {
 
 function isPerdido(deal: Deal): boolean {
   return deal.properties.dealstage === STAGES.PERDIDO;
+}
+
+// "Fora do MOA": no B2B o motivo pode estar em closed_lost_reason OU em
+// motivo_de_sinalizacao_de_perda. Vale só quando o negócio está perdido.
+function isForaMoa(deal: Deal): boolean {
+  if (!isPerdido(deal)) return false;
+  const a = (deal.properties.closed_lost_reason || "").trim();
+  const b = (deal.properties.motivo_de_sinalizacao_de_perda || "").trim();
+  return a === "Fora do MOA" || b === "Fora do MOA";
 }
 
 // Em aberto = ainda não chegou a um estágio final (nem ganho, nem perdido).
@@ -327,6 +337,9 @@ export function aggregate(input: {
       .split(";")
       .map((s) => s.trim())
       .filter(Boolean);
+    // Perdido por "Fora do MOA" (motivo em qualquer uma das duas propriedades)
+    // NÃO conta como demanda levantada — mas fica na lista, marcado, pra ver.
+    const foraMoa = isForaMoa(deal);
     const lite: DealLite = {
       id: deal.id,
       dealname: deal.properties.dealname || "(sem nome)",
@@ -337,14 +350,16 @@ export function aggregate(input: {
       origemBucket: bucket,
       nota,
       criteriosFaltantes: LEADSCORE_CRITERIOS.filter((c) => !atendidos.includes(c)),
+      foraMoa,
     };
+    row.demandasDeals.push(lite);
+    if (foraMoa) continue; // não entra na contagem (nem por origem, nem em aberto)
     row.demandas += 1;
     if (bucket === "carteira") row.demandasCarteira += 1;
     else if (bucket === "acao_crm") row.demandasAcaoCrm += 1;
     else if (bucket === "indicacao") row.demandasIndicacao += 1;
     else if (bucket === "palestrante") row.demandasPalestrante += 1;
     else if (bucket === "qualif_farmer") row.demandasQualifFarmer += 1;
-    row.demandasDeals.push(lite);
     if (isEmAberto(deal)) {
       row.emAberto += 1;
       row.emAbertoDeals.push(lite);

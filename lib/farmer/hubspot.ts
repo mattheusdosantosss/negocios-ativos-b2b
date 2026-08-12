@@ -53,8 +53,10 @@ export type Deal = {
     origem_da_qualificacao?: string;
     pontuacao_leadscore?: string;
     criterios_atendidos?: string;
-    /** Motivo de fechamento perdido. "Fora do MOA" é excluído das métricas. */
+    /** Motivo de fechamento perdido. "Fora do MOA" é excluído das demandas.
+     *  No B2B o motivo pode estar em qualquer uma das duas propriedades. */
     closed_lost_reason?: string;
+    motivo_de_sinalizacao_de_perda?: string;
     /**
      * "Valor total do contrato (Bruto) (GANHO)" no HubSpot.
      * Só preenchido em deals fechados como ganho. É o BRUTO oficial.
@@ -198,6 +200,7 @@ const DEAL_PROPS = [
   "origem_da_qualificacao",
   "valor_total_do_contrato__bruto___ganho_",
   "closed_lost_reason",
+  "motivo_de_sinalizacao_de_perda",
   "pontuacao_leadscore",
   "criterios_atendidos",
 ];

@@ -202,8 +202,15 @@ export default function DrillModal({ open, onClose, scopeLabel, kind, deals, tic
                           {String(i + 1).padStart(2, "0")}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm text-white/90 truncate group-hover:text-psa-orange group-hover:underline">
-                            {d.dealname}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-sm truncate group-hover:text-psa-orange group-hover:underline ${d.foraMoa ? "text-white/40 line-through" : "text-white/90"}`}>
+                              {d.dealname}
+                            </span>
+                            {d.foraMoa && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 text-[9px] font-bold uppercase tracking-wide">
+                                Fora do MOA · não conta
+                              </span>
+                            )}
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-white/50 truncate">
                             {ownerOf(d) && <span>{ownerOf(d)}</span>}
