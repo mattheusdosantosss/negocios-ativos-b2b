@@ -477,6 +477,21 @@ export default function Page() {
           <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Atenção</h2>
         </div>
         <div className={`grid grid-cols-1 gap-4 p-5 ${cfg.hasEvento ? "md:grid-cols-2" : ""}`}>
+          <button
+            type="button"
+            disabled={!data || data.totals.foraDoTime === 0}
+            onClick={() => setModal({ mode: "outside-team" })}
+            className="text-left rounded-xl border border-psa-line p-4 hover:border-psa-ink/30 hover:bg-psa-canvas/40 transition-all disabled:cursor-default disabled:hover:border-psa-line disabled:hover:bg-transparent"
+          >
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">
+              Fora do time {cfg.label}
+            </div>
+            <div className="mt-1 font-display text-2xl font-bold text-psa-ink tabular-nums">
+              {data ? num(data.totals.foraDoTime) : 0}
+            </div>
+            <div className="mt-1 text-[11px] text-psa-ink-soft">Dono do negócio não é um dos Closers do time</div>
+          </button>
+
           {cfg.hasEvento && (
             <button
               type="button"
