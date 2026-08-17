@@ -35,6 +35,7 @@ function DetailPanel({
   type StageAgg = {
     carteira: number;
     acao_crm: number;
+    acao_crm_carteira: number;
     indicacao: number;
     palestrante: number;
     qualif_farmer: number;
@@ -44,7 +45,7 @@ function DetailPanel({
   const byStage = new Map<string, StageAgg>();
   for (const d of f.demandasDeals) {
     const s = d.stage || "—";
-    const e = byStage.get(s) ?? { carteira: 0, acao_crm: 0, indicacao: 0, palestrante: 0, qualif_farmer: 0, foraMoa: 0, total: 0 };
+    const e = byStage.get(s) ?? { carteira: 0, acao_crm: 0, acao_crm_carteira: 0, indicacao: 0, palestrante: 0, qualif_farmer: 0, foraMoa: 0, total: 0 };
     e.total += 1;
     if (d.foraMoa) e.foraMoa += 1; // Fora do MOA vira segmento próprio (não conta na origem)
     else if (d.origemBucket) e[d.origemBucket] += 1;
@@ -60,6 +61,7 @@ function DetailPanel({
   const SEG = [
     { key: "carteira" as const, label: "Carteira", cls: "bg-psa-blue" },
     { key: "acao_crm" as const, label: "Ação de CRM", cls: "bg-psa-orange" },
+    { key: "acao_crm_carteira" as const, label: "Ação de CRM (Carteira)", cls: "bg-cyan-500" },
     { key: "indicacao" as const, label: "Indicação", cls: "bg-emerald-500" },
     { key: "palestrante" as const, label: "Palestrante", cls: "bg-violet-500" },
     { key: "qualif_farmer" as const, label: "Qualif. Farmer", cls: "bg-psa-muted" },
@@ -159,6 +161,7 @@ function DetailPanel({
         <div className={titleCls}>Demandas levantadas</div>
         {item("Carteira", num(f.demandasCarteira))}
         {item("Ação de CRM", num(f.demandasAcaoCrm))}
+        {item("Ação de CRM (Carteira)", num(f.demandasAcaoCrmCarteira))}
         {item("Indicação", num(f.demandasIndicacao))}
         {item("Palestrante", num(f.demandasPalestrante))}
         {item("Qualificação Farmer", num(f.demandasQualifFarmer))}

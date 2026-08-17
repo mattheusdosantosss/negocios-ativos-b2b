@@ -12,6 +12,7 @@ import {
   PIPELINE_CS_ATIVO,
   ORIGEM_CARTEIRA,
   ORIGEM_ACAO_CRM,
+  ORIGEM_ACAO_CRM_CARTEIRA,
   ORIGEM_INDICACAO,
   ORIGEM_PALESTRANTE,
   ORIGEM_QUALIF_CARTEIRA,
@@ -52,6 +53,10 @@ export async function GET(req: NextRequest) {
       origemLeadValues = [ORIGEM_ACAO_CRM];
       origemQualValues = [];
       break;
+    case "acao_crm_carteira":
+      origemLeadValues = [ORIGEM_ACAO_CRM_CARTEIRA];
+      origemQualValues = [];
+      break;
     case "indicacao":
       origemLeadValues = [ORIGEM_INDICACAO];
       origemQualValues = [];
@@ -65,7 +70,7 @@ export async function GET(req: NextRequest) {
       origemQualValues = [ORIGEM_QUALIF_CARTEIRA];
       break;
     case "todas":
-      origemLeadValues = [ORIGEM_CARTEIRA, ORIGEM_ACAO_CRM, ORIGEM_INDICACAO, ORIGEM_PALESTRANTE];
+      origemLeadValues = [ORIGEM_CARTEIRA, ORIGEM_ACAO_CRM, ORIGEM_ACAO_CRM_CARTEIRA, ORIGEM_INDICACAO, ORIGEM_PALESTRANTE];
       origemQualValues = [ORIGEM_QUALIF_CARTEIRA];
       break;
     default: // carteira

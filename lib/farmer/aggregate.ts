@@ -21,6 +21,7 @@ import {
   STAGES,
   ORIGEM_CARTEIRA,
   ORIGEM_ACAO_CRM,
+  ORIGEM_ACAO_CRM_CARTEIRA,
   ORIGEM_INDICACAO,
   ORIGEM_PALESTRANTE,
   ORIGEM_QUALIF_CARTEIRA,
@@ -38,7 +39,7 @@ export type DealLite = {
   date?: string; // ISO — qualificação (demandas) ou fechamento (negócios)
   origemLead?: string; // Origem do lead do negócio (exposta no drill-down)
   stage?: string; // rótulo da etapa (dealstage) — usado no gráfico por etapa
-  origemBucket?: "carteira" | "acao_crm" | "indicacao" | "palestrante" | "qualif_farmer"; // segmento do gráfico
+  origemBucket?: "carteira" | "acao_crm" | "acao_crm_carteira" | "indicacao" | "palestrante" | "qualif_farmer"; // segmento do gráfico
   nota?: number; // pontuacao_leadscore (0–12)
   criteriosFaltantes?: string[]; // critérios que faltam pra nota máxima
   foraMoa?: boolean; // perdido por "Fora do MOA" — não conta como demanda
@@ -76,6 +77,7 @@ export type FarmerRow = {
   demandas: number;
   demandasCarteira: number; // lead "Carteira do Farmer"
   demandasAcaoCrm: number; // lead "Ação de CRM"
+  demandasAcaoCrmCarteira: number; // lead "Ação de CRM (Carteira)"
   demandasIndicacao: number; // lead "Indicação"
   demandasPalestrante: number; // lead "Palestrante"
   demandasQualifFarmer: number; // qualif "Farmer" (e lead não é Carteira/Ação/Indicação/Palestrante)
@@ -151,6 +153,7 @@ function atribuiPorEmpresa(deal: Deal): boolean {
     deal.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA &&
     lead !== ORIGEM_CARTEIRA &&
     lead !== ORIGEM_ACAO_CRM &&
+    lead !== ORIGEM_ACAO_CRM_CARTEIRA &&
     lead !== ORIGEM_INDICACAO &&
     lead !== ORIGEM_PALESTRANTE
   );
@@ -263,6 +266,7 @@ export function aggregate(input: {
       demandas: 0,
       demandasCarteira: 0,
       demandasAcaoCrm: 0,
+      demandasAcaoCrmCarteira: 0,
       demandasIndicacao: 0,
       demandasPalestrante: 0,
       demandasQualifFarmer: 0,
@@ -324,6 +328,8 @@ export function aggregate(input: {
         ? "carteira"
         : lead === ORIGEM_ACAO_CRM
         ? "acao_crm"
+        : lead === ORIGEM_ACAO_CRM_CARTEIRA
+        ? "acao_crm_carteira"
         : lead === ORIGEM_INDICACAO
         ? "indicacao"
         : lead === ORIGEM_PALESTRANTE
@@ -357,6 +363,7 @@ export function aggregate(input: {
     row.demandas += 1;
     if (bucket === "carteira") row.demandasCarteira += 1;
     else if (bucket === "acao_crm") row.demandasAcaoCrm += 1;
+    else if (bucket === "acao_crm_carteira") row.demandasAcaoCrmCarteira += 1;
     else if (bucket === "indicacao") row.demandasIndicacao += 1;
     else if (bucket === "palestrante") row.demandasPalestrante += 1;
     else if (bucket === "qualif_farmer") row.demandasQualifFarmer += 1;

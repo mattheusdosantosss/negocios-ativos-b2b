@@ -69,14 +69,14 @@ const TABS: { id: TabValue; label: string }[] = [
 // Usa o nome de exibição das propriedades do HubSpot, não os internos.
 const RULES = {
   demandas: [
-    "Origem conforme o seletor: Carteira / Ação de CRM / Indicação / Palestrante / Qualificação Farmer / Todas",
+    "Origem conforme o seletor: Carteira / Ação de CRM / Ação de CRM (Carteira) / Indicação / Palestrante / Qualificação Farmer / Todas",
     'Carteira = origem_do_lead "Carteira do Farmer" · Qualificação Farmer = origem_da_qualificacao "Farmer"',
     "SDR/Farmer Responsável = farmer do squad",
     "Data de Qualificação dentro do mês",
     "Qualquer fase do negócio (todas as fases contam)",
   ],
   negocios: [
-    "Origem conforme o seletor: Carteira / Ação de CRM / Indicação / Palestrante / Qualificação Farmer / Todas",
+    "Origem conforme o seletor: Carteira / Ação de CRM / Ação de CRM (Carteira) / Indicação / Palestrante / Qualificação Farmer / Todas",
     'Carteira = origem_do_lead "Carteira do Farmer" · Qualificação Farmer = origem_da_qualificacao "Farmer"',
     "SDR/Farmer Responsável = farmer do squad",
     "Data de Fechamento dentro do mês (fuso de Brasília)",
@@ -169,7 +169,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("this_month"));
   const [mode, setMode] = useState<"bruto" | "liquido">("bruto");
   const [origem, setOrigem] = useState<
-    "carteira" | "acao_crm" | "indicacao" | "palestrante" | "qualif_farmer" | "todas"
+    "carteira" | "acao_crm" | "acao_crm_carteira" | "indicacao" | "palestrante" | "qualif_farmer" | "todas"
   >("todas");
   const [tab, setTab] = useState<TabValue>("all");
   const [accessKey, setAccessKey] = useState<string>("");
@@ -357,6 +357,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                   >
                     <option value="carteira">Carteira</option>
                     <option value="acao_crm">Ação de CRM</option>
+                    <option value="acao_crm_carteira">Ação de CRM (Carteira)</option>
                     <option value="indicacao">Indicação</option>
                     <option value="palestrante">Palestrante</option>
                     <option value="qualif_farmer">Qualificação Farmer</option>
