@@ -52,6 +52,14 @@ function DetailPanel({
     byStage.set(s, e);
   }
   const foraMoaTotal = f.demandasDeals.filter((d) => d.foraMoa).length;
+  // Empresas únicas das demandas: dedupa por companyId; demanda sem empresa
+  // (inclui B2C) conta 1; Fora do MOA não conta. Mesma regra do card de meta.
+  const empresasUnicas = (() => {
+    const deals = f.demandasDeals.filter((d) => !d.foraMoa);
+    const comp = new Set(deals.filter((d) => d.companyId).map((d) => d.companyId));
+    const semEmpresa = deals.filter((d) => !d.companyId).length;
+    return comp.size + semEmpresa;
+  })();
   const stages = [
     ...stageOrder.filter((s) => byStage.has(s)),
     ...[...byStage.keys()].filter((s) => !stageOrder.includes(s)),
@@ -159,6 +167,10 @@ function DetailPanel({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
       <div className={groupCls}>
         <div className={titleCls}>Demandas levantadas</div>
+        <div className="flex justify-between gap-2 pb-1 mb-1 border-b border-psa-line/60">
+          <span className="text-psa-ink-soft">Empresas únicas</span>
+          <span className="font-bold tabular-nums text-psa-ink" title="Negócios da mesma empresa contam 1; sem empresa (inclui B2C) conta 1">{num(empresasUnicas)}</span>
+        </div>
         {item("Carteira", num(f.demandasCarteira))}
         {item("Ação de CRM", num(f.demandasAcaoCrm))}
         {item("Ação de CRM (Carteira)", num(f.demandasAcaoCrmCarteira))}
