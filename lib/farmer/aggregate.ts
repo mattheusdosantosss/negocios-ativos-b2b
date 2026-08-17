@@ -43,6 +43,7 @@ export type DealLite = {
   nota?: number; // pontuacao_leadscore (0–12)
   criteriosFaltantes?: string[]; // critérios que faltam pra nota máxima
   foraMoa?: boolean; // perdido por "Fora do MOA" — não conta como demanda
+  companyId?: string; // empresa associada — pro "empresas únicas"
 };
 
 // Critérios de qualificação (lead score) — valores exatos da enumeração
@@ -226,6 +227,8 @@ export function aggregate(input: {
   squadByOwnerId?: Map<string, SquadId>;
   /** dealId → ownerId do Proprietário da empresa (atribuição de Qualificação Farmer). */
   dealCompanyOwner?: Map<string, string>;
+  /** dealId → companyId da empresa associada (pro "empresas únicas"). */
+  dealCompanyId?: Map<string, string>;
   /** dealstage id → rótulo legível (p/ o gráfico por etapa). */
   stageLabelById?: Map<string, string>;
   /** Rótulos das etapas B2B na ordem do funil. */
@@ -247,6 +250,7 @@ export function aggregate(input: {
     pipelineCsAtivo,
     squadByOwnerId,
     dealCompanyOwner,
+    dealCompanyId,
     stageLabelById,
     stageOrder,
     b2bPipelineId,
@@ -363,6 +367,7 @@ export function aggregate(input: {
       nota,
       criteriosFaltantes: LEADSCORE_CRITERIOS.filter((c) => !atendidos.includes(c)),
       foraMoa,
+      companyId: dealCompanyId?.get(deal.id),
     };
     row.demandasDeals.push(lite);
     if (foraMoa) continue; // não entra na contagem (nem por origem, nem em aberto)

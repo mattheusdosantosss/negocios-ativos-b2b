@@ -630,6 +630,25 @@ export async function fetchReunioesCriadas(opts: {
 // crédito vai pro dono da empresa (hubspot_owner_id da company), não pro
 // SDR/Farmer Responsável do negócio. Retorna Map<dealId, ownerId da empresa>.
 // Deals sem empresa ou cuja empresa não tem dono ficam FORA do map.
+/** dealId → companyId (1ª empresa associada). Base do "empresas únicas". */
+export async function fetchDealCompanyIds(dealIds: string[]): Promise<Map<string, string>> {
+  const dealToCompany = new Map<string, string>();
+  if (dealIds.length === 0) return dealToCompany;
+  for (const ids of chunk(dealIds, 100)) {
+    const data = await hsFetch<{ results?: Array<{ from?: { id?: string }; to?: Array<{ toObjectId?: string | number }> }> }>(
+      `/crm/v4/associations/deals/companies/batch/read`,
+      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })) }) }
+    );
+    for (const r of data.results ?? []) {
+      const from = String(r.from?.id ?? "");
+      const first = r.to?.[0]?.toObjectId;
+      if (from && first != null) dealToCompany.set(from, String(first));
+    }
+    await sleep(150);
+  }
+  return dealToCompany;
+}
+
 export async function fetchCompanyOwnersForDeals(dealIds: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (dealIds.length === 0) return result;

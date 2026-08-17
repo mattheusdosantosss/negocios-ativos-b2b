@@ -239,6 +239,12 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const demMeta = tab === "all" ? DEMANDAS_META_GERAL : DEMANDAS_META_SQUAD;
   const demandas = view?.demandas ?? 0;
   const demRatio = demMeta > 0 ? demandas / demMeta : 0;
+  // Empresas únicas entre as demandas do escopo: mesma empresa em várias
+  // demandas = 1; demanda sem empresa associada conta como 1 (é distinta).
+  const demandasDoEscopo = (view?.farmers ?? []).flatMap((f) => f.demandasDeals).filter((d) => !d.foraMoa);
+  const empresasUnicas =
+    new Set(demandasDoEscopo.filter((d) => d.companyId).map((d) => d.companyId as string)).size +
+    demandasDoEscopo.filter((d) => !d.companyId).length;
   const demFalta = Math.max(0, demMeta - demandas);
   const demIsCurrentMonth = period.preset === "this_month";
   const bd = businessDaysThisMonth();
@@ -562,6 +568,10 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
               <span className="text-sm text-psa-ink-soft">
                 de <b className="text-psa-ink">{num(demMeta)}</b> demandas
               </span>
+            </div>
+            <div className="mt-1 text-[11px] text-psa-ink-soft">
+              <b className="text-psa-ink tabular-nums">{num(empresasUnicas)}</b> empresas únicas
+              <span className="text-psa-muted"> · mesma empresa em várias demandas conta 1</span>
             </div>
           </div>
           <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">

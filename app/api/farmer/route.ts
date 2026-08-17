@@ -8,6 +8,7 @@ import {
   fetchReunioesCriadas,
   isReuniaoRealizada,
   fetchCompanyOwnersForDeals,
+  fetchDealCompanyIds,
   getDealStages,
   PIPELINE_CS_ATIVO,
   ORIGEM_CARTEIRA,
@@ -110,6 +111,7 @@ export async function GET(req: NextRequest) {
       d.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA &&
       d.properties.origem_do_lead !== ORIGEM_CARTEIRA &&
       d.properties.origem_do_lead !== ORIGEM_ACAO_CRM &&
+      d.properties.origem_do_lead !== ORIGEM_ACAO_CRM_CARTEIRA &&
       d.properties.origem_do_lead !== ORIGEM_INDICACAO &&
       d.properties.origem_do_lead !== ORIGEM_PALESTRANTE;
     const qualDealIds = Array.from(
@@ -118,6 +120,9 @@ export async function GET(req: NextRequest) {
     const dealCompanyOwner = qualDealIds.length
       ? await fetchCompanyOwnersForDeals(qualDealIds)
       : new Map<string, string>();
+
+    // Empresa (companyId) de cada demanda — pro "empresas únicas" do card de meta.
+    const dealCompanyId = await fetchDealCompanyIds(dealsQualificados.map((d) => d.id));
 
     // Etapas (dealstage) pra rotular e ordenar o gráfico por etapa. Degrada
     // silenciosamente se falhar (gráfico usa os ids crus / sem ordem).
@@ -173,6 +178,7 @@ export async function GET(req: NextRequest) {
       pipelineCsAtivo: PIPELINE_CS_ATIVO,
       squadByOwnerId,
       dealCompanyOwner,
+      dealCompanyId,
       stageLabelById,
       stageOrder,
       b2bPipelineId: process.env.HUBSPOT_PIPELINE_B2B || "default",
