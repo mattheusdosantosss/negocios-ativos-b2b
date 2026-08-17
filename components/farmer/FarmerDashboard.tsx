@@ -100,11 +100,11 @@ const RULES = {
     "Data de criação do ticket dentro do mês",
   ],
   reunioes: [
-    "Objeto: Reuniões",
-    "Criado por ID do Usuário = farmer do squad",
-    "Reunião associada a um negócio na pipeline B2B (Funil de Vendas B2B)",
-    "Data de criação da reunião dentro do mês",
-    "Realizadas = reuniões com resultado “Realizada”",
+    "Base = empresas únicas (as demandas do período)",
+    "Agendada = a empresa tem ≥1 negócio com reunião associada (associação Deal→Meeting, qualquer outcome)",
+    "Realizada = ≥1 dessas reuniões com resultado “Concluída” (hs_meeting_outcome = COMPLETED)",
+    "% = empresas com reunião realizada ÷ empresas únicas",
+    "Demanda sem empresa vinculada (inclui B2C) conta 1",
   ],
 };
 
@@ -656,9 +656,9 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
           hint={
             !meetingsDisponivel
               ? "Sem acesso a Reuniões (verificar scope)"
-              : view && view.reunioesAgendadas > 0
-              ? `${Math.round((view.reunioesRealizadas / view.reunioesAgendadas) * 100)}% realizadas`
-              : "Realizadas / agendadas no mês"
+              : view && empresasUnicas > 0
+              ? `${Math.round((view.reunioesRealizadas / empresasUnicas) * 100)}% das ${num(empresasUnicas)} empresas únicas realizadas`
+              : "Empresas únicas com reunião realizada / agendada"
           }
           loading={loading}
           info={RULES.reunioes}

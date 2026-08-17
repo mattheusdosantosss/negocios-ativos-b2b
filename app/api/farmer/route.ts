@@ -5,8 +5,7 @@ import {
   fetchDealsByClose,
   fetchCsTramitacoesEmAndamento,
   fetchCsTramitacoesCriadas,
-  fetchReunioesCriadas,
-  isReuniaoRealizada,
+  fetchDealMeetingStatus,
   fetchCompanyOwnersForDeals,
   fetchDealCompanyIds,
   getDealStages,
@@ -90,16 +89,6 @@ export async function GET(req: NextRequest) {
     const squadByOwnerId = new Map(resolved.map((f) => [f.ownerId, f.squadId]));
     const ownerIds = Array.from(allowedOwnerIds);
 
-    // Reuniões usam o ID de USUÁRIO (hs_created_by_user_id), não o ownerId.
-    // Mapeia userId → ownerId pra atribuir a reunião ao farmer certo.
-    const userIdToOwnerId = new Map<string, string>();
-    for (const ownerId of allowedOwnerIds) {
-      const owner = owners.get(ownerId);
-      const uid = owner?.userId != null ? String(owner.userId) : ownerId; // fallback: userId == ownerId
-      userIdToOwnerId.set(uid, ownerId);
-    }
-    const userIds = Array.from(userIdToOwnerId.keys());
-
     // 2) Deals em dois recortes + tickets de tramitação (snapshot).
     //    Sequencial pra evitar 429 quando há muitas páginas.
     const dealsQualificados = await fetchDealsByQualification({ from, to, ownerIds, origemLeadValues, origemQualValues });
@@ -142,24 +131,12 @@ export async function GET(req: NextRequest) {
       ? await fetchCsTramitacoesCriadas({ ownerIds, from, to })
       : [];
 
-    // Reuniões — degrada com elegância se o token não tiver scope de meetings.
-    type ReuniaoItem = { ownerId: string; id: string; title: string; date?: string; realizada: boolean };
-    let reunioes: ReuniaoItem[] = [];
+    // Reuniões por empresa única: status de reunião de cada demanda via
+    // associação Deal→Meeting. Degrada com elegância se faltar scope de meetings.
+    let dealMeeting = new Map<string, { agendada: boolean; realizada: boolean }>();
     let meetingsDisponivel = true;
     try {
-      const meetings = await fetchReunioesCriadas({ userIds, from, to });
-      for (const m of meetings) {
-        const uid = m.properties.hs_created_by_user_id;
-        const ownerId = uid ? userIdToOwnerId.get(String(uid)) : undefined;
-        if (!ownerId) continue;
-        reunioes.push({
-          ownerId,
-          id: m.id,
-          title: m.properties.hs_meeting_title || "(sem título)",
-          date: m.properties.hs_meeting_start_time || m.properties.hs_createdate || m.properties.createdate,
-          realizada: isReuniaoRealizada(m),
-        });
-      }
+      dealMeeting = await fetchDealMeetingStatus(dealsQualificados.map((d) => d.id));
     } catch (e) {
       meetingsDisponivel = false;
       console.error("[dashboard] reuniões indisponíveis:", e instanceof Error ? e.message : e);
@@ -170,7 +147,7 @@ export async function GET(req: NextRequest) {
       dealsFechados,
       tickets,
       ticketsCriados,
-      reunioes,
+      dealMeeting,
       meetingsDisponivel,
       owners,
       allowedOwnerIds,

@@ -499,10 +499,6 @@ export const PIPELINE_CS_ATIVO = !!PIPELINE_CS;
 // bloqueado, então não dá pra introspectar — ajuste aqui se necessário).
 
 const PIPELINE_B2B = process.env.HUBSPOT_PIPELINE_B2B || "default";
-const MEETING_CREATED_BY = process.env.HUBSPOT_MEETING_CREATED_BY || "hs_created_by_user_id";
-const MEETING_DATE_FIELD = process.env.HUBSPOT_MEETING_DATE_FIELD || "hs_createdate";
-// Data da atividade da reunião (2º recorte do período, além da data de criação).
-const MEETING_ACTIVITY_FIELD = process.env.HUBSPOT_MEETING_ACTIVITY_FIELD || "hs_meeting_start_time";
 const MEETING_OUTCOME_FIELD = process.env.HUBSPOT_MEETING_OUTCOME_FIELD || "hs_meeting_outcome";
 // Valor (ou valores, separados por vírgula) do resultado que conta como "realizada".
 const MEETING_OUTCOME_REALIZADA = (process.env.HUBSPOT_MEETING_OUTCOME_REALIZADA || "COMPLETED")
@@ -510,73 +506,63 @@ const MEETING_OUTCOME_REALIZADA = (process.env.HUBSPOT_MEETING_OUTCOME_REALIZADA
   .map((s) => s.trim().toUpperCase())
   .filter(Boolean);
 
-const MEETING_PROPS = [
-  "hs_meeting_title",
-  MEETING_OUTCOME_FIELD,
-  "hs_meeting_start_time",
-  MEETING_CREATED_BY,
-  "hs_createdate",
-  "createdate",
-];
-
-export function isReuniaoRealizada(m: Meeting): boolean {
-  const out = (m.properties[MEETING_OUTCOME_FIELD] || "").toUpperCase();
-  return MEETING_OUTCOME_REALIZADA.includes(out);
-}
-
 const chunk = <T>(arr: T[], size: number): T[][] => {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
 };
 
-
 /**
- * Reuniões criadas no período pelos usuários informados, associadas a um
- * negócio na pipeline B2B. Recorte pela data de criação (MEETING_DATE_FIELD).
+ * Status de reunião por negócio, via associação CRM Deal → Meeting (v4):
+ *  - agendada: o negócio tem ≥1 reunião associada (qualquer outcome)
+ *  - realizada: ≥1 dessas reuniões tem hs_meeting_outcome = COMPLETED
+ * Negócios sem reunião associada ficam FORA do map.
  */
-export async function fetchReunioesCriadas(opts: {
-  userIds: Array<string | number>;
-  from?: string;
-  to?: string;
-}): Promise<Meeting[]> {
-  const userIds = opts.userIds.map((u) => String(u)).filter(Boolean);
-  if (userIds.length === 0) return [];
+export async function fetchDealMeetingStatus(
+  dealIds: string[]
+): Promise<Map<string, { agendada: boolean; realizada: boolean }>> {
+  const out = new Map<string, { agendada: boolean; realizada: boolean }>();
+  if (dealIds.length === 0) return out;
 
-  const filters: Array<Record<string, unknown>> = [
-    { propertyName: MEETING_CREATED_BY, operator: "IN", values: userIds.slice(0, 100) },
-  ];
-  if (opts.from) {
-    const g = brStartOfDayMs(opts.from).toString();
-    filters.push({ propertyName: MEETING_DATE_FIELD, operator: "GTE", value: g });
-    filters.push({ propertyName: MEETING_ACTIVITY_FIELD, operator: "GTE", value: g });
+  // 1) deal → meetings
+  const dealToMeetings = new Map<string, string[]>();
+  const allMeetingIds = new Set<string>();
+  for (const ids of chunk(dealIds, 100)) {
+    const data = await hsFetch<{ results?: Array<{ from?: { id?: string }; to?: Array<{ toObjectId?: string | number }> }> }>(
+      `/crm/v4/associations/deals/meetings/batch/read`,
+      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })) }) }
+    );
+    for (const r of data.results ?? []) {
+      const from = String(r.from?.id ?? "");
+      if (!from) continue;
+      const ms = (r.to ?? []).map((t) => String(t.toObjectId ?? "")).filter(Boolean);
+      if (ms.length === 0) continue;
+      dealToMeetings.set(from, ms);
+      ms.forEach((m) => allMeetingIds.add(m));
+    }
+    await sleep(150);
   }
-  if (opts.to) {
-    const l = brEndOfDayMs(opts.to).toString();
-    filters.push({ propertyName: MEETING_DATE_FIELD, operator: "LTE", value: l });
-    filters.push({ propertyName: MEETING_ACTIVITY_FIELD, operator: "LTE", value: l });
+  if (allMeetingIds.size === 0) return out;
+
+  // 2) meeting → outcome (marca as COMPLETED)
+  const completed = new Set<string>();
+  for (const ids of chunk([...allMeetingIds], 100)) {
+    const data = await hsFetch<{ results?: Array<{ id: string; properties?: Record<string, string> }> }>(
+      `/crm/v3/objects/meetings/batch/read`,
+      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: [MEETING_OUTCOME_FIELD] }) }
+    );
+    for (const m of data.results ?? []) {
+      const o = (m.properties?.[MEETING_OUTCOME_FIELD] || "").toUpperCase();
+      if (MEETING_OUTCOME_REALIZADA.includes(o)) completed.add(String(m.id));
+    }
+    await sleep(150);
   }
 
-  const all: Meeting[] = [];
-  let after: string | undefined;
-  do {
-    const body: Record<string, unknown> = {
-      filterGroups: [{ filters }],
-      properties: MEETING_PROPS,
-      limit: 100,
-      sorts: [{ propertyName: MEETING_DATE_FIELD, direction: "DESCENDING" }],
-    };
-    if (after) body.after = after;
-    const data: SearchResponse<Meeting> = await hsFetch(`/crm/v3/objects/meetings/search`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    all.push(...data.results);
-    after = data.paging?.next?.after;
-    if (after) await sleep(150);
-  } while (after);
-
-  return all;
+  // 3) por negócio: agendada sempre; realizada se alguma reunião é COMPLETED
+  for (const [dealId, ms] of dealToMeetings) {
+    out.set(dealId, { agendada: true, realizada: ms.some((m) => completed.has(m)) });
+  }
+  return out;
 }
 
 // ============================================================

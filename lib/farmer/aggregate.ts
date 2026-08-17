@@ -44,7 +44,38 @@ export type DealLite = {
   criteriosFaltantes?: string[]; // critérios que faltam pra nota máxima
   foraMoa?: boolean; // perdido por "Fora do MOA" — não conta como demanda
   companyId?: string; // empresa associada — pro "empresas únicas"
+  temReuniao?: boolean; // negócio tem ≥1 reunião associada (qualquer outcome)
+  reuniaoRealizada?: boolean; // ≥1 dessas reuniões com outcome COMPLETED
 };
+
+/**
+ * Reuniões por EMPRESA ÚNICA (mesma base do card de empresas únicas):
+ *  - agendadas: empresas com ≥1 demanda que tem reunião associada ao negócio
+ *  - realizadas: empresas com ≥1 demanda com reunião COMPLETED
+ * Demandas sem empresa vinculada (inclui B2C) contam 1 cada. Fora do MOA não conta.
+ */
+function contaReunioesUnicas(deals: DealLite[]): { agendadas: number; realizadas: number } {
+  const byCompany = new Map<string, { ag: boolean; re: boolean }>();
+  let agendadas = 0;
+  let realizadas = 0; // demandas sem empresa: cada uma é 1 unidade
+  for (const d of deals) {
+    if (d.foraMoa) continue;
+    if (d.companyId) {
+      const cur = byCompany.get(d.companyId) ?? { ag: false, re: false };
+      cur.ag = cur.ag || !!d.temReuniao;
+      cur.re = cur.re || !!d.reuniaoRealizada;
+      byCompany.set(d.companyId, cur);
+    } else {
+      if (d.temReuniao) agendadas += 1;
+      if (d.reuniaoRealizada) realizadas += 1;
+    }
+  }
+  for (const u of byCompany.values()) {
+    if (u.ag) agendadas += 1;
+    if (u.re) realizadas += 1;
+  }
+  return { agendadas, realizadas };
+}
 
 // Critérios de qualificação (lead score) — valores exatos da enumeração
 // criterios_atendidos no HubSpot. Os atendidos vêm separados por ";".
@@ -215,8 +246,8 @@ export function aggregate(input: {
   tickets: Ticket[];
   /** Tickets CS nessas etapas criados no período. Tramitações criadas no mês. */
   ticketsCriados: Ticket[];
-  /** Reuniões já filtradas (criadas por farmer no período, associadas a deal B2B). */
-  reunioes: Array<{ ownerId: string; id: string; title: string; date?: string; realizada: boolean }>;
+  /** dealId → status de reunião (associação Deal→Meeting). Base do card de reuniões. */
+  dealMeeting?: Map<string, { agendada: boolean; realizada: boolean }>;
   /** False se a busca de reuniões falhou (ex.: token sem scope de meetings). */
   meetingsDisponivel: boolean;
   owners: Map<string, Owner>;
@@ -242,7 +273,7 @@ export function aggregate(input: {
     dealsFechados,
     tickets,
     ticketsCriados,
-    reunioes,
+    dealMeeting,
     meetingsDisponivel,
     owners,
     allowedOwnerIds,
@@ -368,6 +399,8 @@ export function aggregate(input: {
       criteriosFaltantes: LEADSCORE_CRITERIOS.filter((c) => !atendidos.includes(c)),
       foraMoa,
       companyId: dealCompanyId?.get(deal.id),
+      temReuniao: dealMeeting?.get(deal.id)?.agendada ?? false,
+      reuniaoRealizada: dealMeeting?.get(deal.id)?.realizada ?? false,
     };
     row.demandasDeals.push(lite);
     if (foraMoa) continue; // não entra na contagem (nem por origem, nem em aberto)
@@ -441,14 +474,15 @@ export function aggregate(input: {
     }
   }
 
-  // Reuniões: agendadas (todas) e realizadas (resultado "realizada").
-  // A lista já vem filtrada (criadas pelo farmer no período + deal B2B).
-  for (const r of reunioes) {
-    const row = byFarmer.get(r.ownerId);
-    if (!row) continue;
-    row.reunioesAgendadas += 1;
-    if (r.realizada) row.reunioesRealizadas += 1;
-    row.reunioesList.push({ id: r.id, title: r.title, date: r.date, realizada: r.realizada });
+  // Reuniões por empresa única (demandas com reunião associada ao negócio).
+  // Lista de drill-down = os negócios com reunião (COMPLETED marca realizada).
+  for (const row of byFarmer.values()) {
+    const ru = contaReunioesUnicas(row.demandasDeals);
+    row.reunioesAgendadas = ru.agendadas;
+    row.reunioesRealizadas = ru.realizadas;
+    row.reunioesList = row.demandasDeals
+      .filter((d) => !d.foraMoa && d.temReuniao)
+      .map((d) => ({ id: d.id, title: d.dealname, date: d.date, realizada: !!d.reuniaoRealizada }));
   }
 
   // Nota média (lead score) por farmer — média das demandas que têm nota.
@@ -464,6 +498,7 @@ export function aggregate(input: {
     const members = farmers
       .filter((f) => f.squadId === s.id)
       .sort((a, b) => b.receita - a.receita || b.negocios - a.negocios || b.demandas - a.demandas);
+    const ruSquad = contaReunioesUnicas(members.flatMap((m) => m.demandasDeals));
     return {
       id: s.id,
       label: s.label,
@@ -477,11 +512,12 @@ export function aggregate(input: {
       receita: members.reduce((sum, f) => sum + f.receita, 0),
       tramitacoes: members.reduce((sum, f) => sum + f.tramitacoes, 0),
       tramitacoesCriadas: members.reduce((sum, f) => sum + f.tramitacoesCriadas, 0),
-      reunioesAgendadas: members.reduce((sum, f) => sum + f.reunioesAgendadas, 0),
-      reunioesRealizadas: members.reduce((sum, f) => sum + f.reunioesRealizadas, 0),
+      reunioesAgendadas: ruSquad.agendadas,
+      reunioesRealizadas: ruSquad.realizadas,
     };
   });
 
+  const ruGeral = contaReunioesUnicas(farmers.flatMap((f) => f.demandasDeals));
   const geral: Totais = {
     demandas: farmers.reduce((s, f) => s + f.demandas, 0),
     emAberto: farmers.reduce((s, f) => s + f.emAberto, 0),
@@ -491,8 +527,8 @@ export function aggregate(input: {
     receita: farmers.reduce((s, f) => s + f.receita, 0),
     tramitacoes: farmers.reduce((s, f) => s + f.tramitacoes, 0),
     tramitacoesCriadas: farmers.reduce((s, f) => s + f.tramitacoesCriadas, 0),
-    reunioesAgendadas: farmers.reduce((s, f) => s + f.reunioesAgendadas, 0),
-    reunioesRealizadas: farmers.reduce((s, f) => s + f.reunioesRealizadas, 0),
+    reunioesAgendadas: ruGeral.agendadas,
+    reunioesRealizadas: ruGeral.realizadas,
   };
 
   return {
