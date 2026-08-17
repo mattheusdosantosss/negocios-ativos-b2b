@@ -501,6 +501,8 @@ export const PIPELINE_CS_ATIVO = !!PIPELINE_CS;
 const PIPELINE_B2B = process.env.HUBSPOT_PIPELINE_B2B || "default";
 const MEETING_CREATED_BY = process.env.HUBSPOT_MEETING_CREATED_BY || "hs_created_by_user_id";
 const MEETING_DATE_FIELD = process.env.HUBSPOT_MEETING_DATE_FIELD || "hs_createdate";
+// Data da atividade da reunião (2º recorte do período, além da data de criação).
+const MEETING_ACTIVITY_FIELD = process.env.HUBSPOT_MEETING_ACTIVITY_FIELD || "hs_meeting_start_time";
 const MEETING_OUTCOME_FIELD = process.env.HUBSPOT_MEETING_OUTCOME_FIELD || "hs_meeting_outcome";
 // Valor (ou valores, separados por vírgula) do resultado que conta como "realizada".
 const MEETING_OUTCOME_REALIZADA = (process.env.HUBSPOT_MEETING_OUTCOME_REALIZADA || "COMPLETED")
@@ -592,10 +594,14 @@ export async function fetchReunioesCriadas(opts: {
     { propertyName: MEETING_CREATED_BY, operator: "IN", values: userIds.slice(0, 100) },
   ];
   if (opts.from) {
-    filters.push({ propertyName: MEETING_DATE_FIELD, operator: "GTE", value: brStartOfDayMs(opts.from).toString() });
+    const g = brStartOfDayMs(opts.from).toString();
+    filters.push({ propertyName: MEETING_DATE_FIELD, operator: "GTE", value: g });
+    filters.push({ propertyName: MEETING_ACTIVITY_FIELD, operator: "GTE", value: g });
   }
   if (opts.to) {
-    filters.push({ propertyName: MEETING_DATE_FIELD, operator: "LTE", value: brEndOfDayMs(opts.to).toString() });
+    const l = brEndOfDayMs(opts.to).toString();
+    filters.push({ propertyName: MEETING_DATE_FIELD, operator: "LTE", value: l });
+    filters.push({ propertyName: MEETING_ACTIVITY_FIELD, operator: "LTE", value: l });
   }
 
   const all: Meeting[] = [];
