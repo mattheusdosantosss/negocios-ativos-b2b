@@ -530,53 +530,6 @@ const chunk = <T>(arr: T[], size: number): T[][] => {
   return out;
 };
 
-/**
- * Dado um conjunto de reuniões, retorna o Set de ids que estão associadas a
- * pelo menos um negócio na pipeline B2B. Faz 2 passos em lote:
- *  1) associações meeting→deal (v4 batch)
- *  2) lê o `pipeline` desses deals (v3 batch) e marca os da B2B
- */
-async function meetingIdsComDealB2B(meetings: Meeting[]): Promise<Set<string>> {
-  const ok = new Set<string>();
-  if (meetings.length === 0) return ok;
-
-  const meetingToDeals = new Map<string, string[]>();
-  const allDealIds = new Set<string>();
-
-  for (const ids of chunk(meetings.map((m) => m.id), 100)) {
-    const data = await hsFetch<{ results?: Array<{ from?: { id?: string }; to?: Array<{ toObjectId?: string | number }> }> }>(
-      `/crm/v4/associations/meetings/deals/batch/read`,
-      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })) }) }
-    );
-    for (const r of data.results ?? []) {
-      const from = String(r.from?.id ?? "");
-      if (!from) continue;
-      const deals = (r.to ?? []).map((t) => String(t.toObjectId ?? "")).filter(Boolean);
-      meetingToDeals.set(from, deals);
-      deals.forEach((d) => allDealIds.add(d));
-    }
-    await sleep(150);
-  }
-
-  if (allDealIds.size === 0) return ok;
-
-  const b2bDeals = new Set<string>();
-  for (const ids of chunk([...allDealIds], 100)) {
-    const data = await hsFetch<{ results?: Array<{ id: string; properties?: { pipeline?: string } }> }>(
-      `/crm/v3/objects/deals/batch/read`,
-      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["pipeline"] }) }
-    );
-    for (const d of data.results ?? []) {
-      if (d.properties?.pipeline === PIPELINE_B2B) b2bDeals.add(String(d.id));
-    }
-    await sleep(150);
-  }
-
-  for (const [mId, deals] of meetingToDeals) {
-    if (deals.some((d) => b2bDeals.has(d))) ok.add(mId);
-  }
-  return ok;
-}
 
 /**
  * Reuniões criadas no período pelos usuários informados, associadas a um
@@ -623,9 +576,7 @@ export async function fetchReunioesCriadas(opts: {
     if (after) await sleep(150);
   } while (after);
 
-  // Mantém só as associadas a negócio na pipeline B2B
-  const b2b = await meetingIdsComDealB2B(all);
-  return all.filter((m) => b2b.has(m.id));
+  return all;
 }
 
 // ============================================================
