@@ -8,6 +8,7 @@ import {
   fetchDealMeetingStatus,
   fetchCompanyOwnersForDeals,
   fetchDealCompanyIds,
+  fetchCompanyNames,
   getDealStages,
   PIPELINE_CS_ATIVO,
   ORIGEM_CARTEIRA,
@@ -113,6 +114,14 @@ export async function GET(req: NextRequest) {
     // Empresa (companyId) de cada demanda — pro "empresas únicas" do card de meta.
     const dealCompanyId = await fetchDealCompanyIds(dealsQualificados.map((d) => d.id));
 
+    // Nome da empresa de cada demanda — pro modal de empresas únicas (lista).
+    const companyNames = await fetchCompanyNames([...new Set(dealCompanyId.values())]);
+    const dealCompanyName = new Map<string, string>();
+    for (const [dealId, companyId] of dealCompanyId) {
+      const nm = companyNames.get(companyId);
+      if (nm) dealCompanyName.set(dealId, nm);
+    }
+
     // Etapas (dealstage) pra rotular e ordenar o gráfico por etapa. Degrada
     // silenciosamente se falhar (gráfico usa os ids crus / sem ordem).
     let stageLabelById = new Map<string, string>();
@@ -156,6 +165,7 @@ export async function GET(req: NextRequest) {
       squadByOwnerId,
       dealCompanyOwner,
       dealCompanyId,
+      dealCompanyName,
       stageLabelById,
       stageOrder,
       b2bPipelineId: process.env.HUBSPOT_PIPELINE_B2B || "default",

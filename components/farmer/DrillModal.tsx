@@ -12,8 +12,8 @@ export type AggregatedTicketItem = TicketLite & { ownerName: string };
 const HUBSPOT_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || "49656171";
 
 // Link direto pro registro. objectTypeId: deals = 0-3, tickets = 0-5, meetings = 0-47.
-const OBJ_TYPE_ID: Record<"deal" | "ticket" | "meeting", string> = { deal: "0-3", ticket: "0-5", meeting: "0-47" };
-const hubspotRecordUrl = (objeto: "deal" | "ticket" | "meeting", id: string) =>
+const OBJ_TYPE_ID: Record<"deal" | "ticket" | "meeting" | "company", string> = { deal: "0-3", ticket: "0-5", meeting: "0-47", company: "0-2" };
+const hubspotRecordUrl = (objeto: "deal" | "ticket" | "meeting" | "company", id: string) =>
   `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/${OBJ_TYPE_ID[objeto]}/${id}`;
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -29,6 +29,7 @@ const fmtDate = (iso?: string) => {
 // "receita" reusa a lista de negócios (mesmos deals ganhos), só muda o título.
 export type ModalKind =
   | "demandas"
+  | "empresas_unicas"
   | "aberto"
   | "negocios"
   | "perdidos"
@@ -40,6 +41,7 @@ export type ModalKind =
 
 const TITLES: Record<ModalKind, { titulo: string; sing: string; plural: string }> = {
   demandas: { titulo: "Demandas levantadas", sing: "demanda", plural: "demandas" },
+  empresas_unicas: { titulo: "Empresas únicas", sing: "empresa", plural: "empresas" },
   aberto: { titulo: "Negócios em aberto", sing: "negócio em aberto", plural: "negócios em aberto" },
   negocios: { titulo: "Negócios fechados", sing: "negócio fechado", plural: "negócios fechados" },
   perdidos: { titulo: "Negócios perdidos", sing: "negócio perdido", plural: "negócios perdidos" },
@@ -192,19 +194,19 @@ export default function DrillModal({ open, onClose, scopeLabel, kind, deals, tic
                 : dealItems.map((d, i) => (
                     <li key={d.id} className="hover:bg-white/[0.03] transition-colors">
                       <a
-                        href={hubspotRecordUrl("deal", d.id)}
+                        href={kind === "empresas_unicas" && d.companyId ? hubspotRecordUrl("company", d.companyId) : hubspotRecordUrl("deal", d.id)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="group px-6 py-3 flex items-start gap-4"
-                        title="Abrir negócio no HubSpot"
+                        title={kind === "empresas_unicas" && d.companyId ? "Abrir empresa no HubSpot" : "Abrir negócio no HubSpot"}
                       >
                         <span className="text-xs font-mono text-white/40 tabular-nums w-8">
                           {String(i + 1).padStart(2, "0")}
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className={`text-sm truncate group-hover:text-psa-orange group-hover:underline ${d.foraMoa ? "text-white/40 line-through" : "text-white/90"}`}>
-                              {d.dealname}
+                            <span className={`text-sm truncate group-hover:text-psa-orange group-hover:underline ${d.foraMoa ? "text-white/40 line-through" : "text-white/90"} ${kind === "empresas_unicas" && !d.companyId ? "italic text-white/50" : ""}`}>
+                              {kind === "empresas_unicas" ? (d.companyName || "— sem empresa vinculada —") : d.dealname}
                             </span>
                             {d.foraMoa && (
                               <span className="shrink-0 px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 text-[9px] font-bold uppercase tracking-wide">
@@ -213,12 +215,15 @@ export default function DrillModal({ open, onClose, scopeLabel, kind, deals, tic
                             )}
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-white/50 truncate">
+                            {kind === "empresas_unicas" && (
+                              <span className="text-white/40">Negócio: {d.dealname}</span>
+                            )}
                             {ownerOf(d) && <span>{ownerOf(d)}</span>}
                             {d.origemLead && (
                               <span className="text-white/40">Origem: {d.origemLead}</span>
                             )}
                           </div>
-                          {d.nota != null && (
+                          {kind !== "empresas_unicas" && d.nota != null && (
                             <div className="mt-0.5 text-[11px]">
                               <span className="font-semibold text-psa-orange">Nota {nota2(d.nota)}/12</span>
                               {d.criteriosFaltantes && d.criteriosFaltantes.length > 0 ? (

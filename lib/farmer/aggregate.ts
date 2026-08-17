@@ -44,6 +44,7 @@ export type DealLite = {
   criteriosFaltantes?: string[]; // critérios que faltam pra nota máxima
   foraMoa?: boolean; // perdido por "Fora do MOA" — não conta como demanda
   companyId?: string; // empresa associada — pro "empresas únicas"
+  companyName?: string; // nome da empresa associada — pro modal de empresas únicas
   temReuniao?: boolean; // negócio tem ≥1 reunião associada (qualquer outcome)
   reuniaoRealizada?: boolean; // ≥1 dessas reuniões com outcome COMPLETED
 };
@@ -260,6 +261,8 @@ export function aggregate(input: {
   dealCompanyOwner?: Map<string, string>;
   /** dealId → companyId da empresa associada (pro "empresas únicas"). */
   dealCompanyId?: Map<string, string>;
+  /** dealId → nome da empresa associada (pro modal de empresas únicas). */
+  dealCompanyName?: Map<string, string>;
   /** dealstage id → rótulo legível (p/ o gráfico por etapa). */
   stageLabelById?: Map<string, string>;
   /** Rótulos das etapas B2B na ordem do funil. */
@@ -282,6 +285,7 @@ export function aggregate(input: {
     squadByOwnerId,
     dealCompanyOwner,
     dealCompanyId,
+    dealCompanyName,
     stageLabelById,
     stageOrder,
     b2bPipelineId,
@@ -403,6 +407,7 @@ export function aggregate(input: {
       criteriosFaltantes: LEADSCORE_CRITERIOS.filter((c) => !atendidos.includes(c)),
       foraMoa,
       companyId: dealCompanyId?.get(deal.id),
+      companyName: dealCompanyName?.get(deal.id),
       temReuniao: dealMeeting?.get(deal.id)?.agendada ?? false,
       reuniaoRealizada: dealMeeting?.get(deal.id)?.realizada ?? false,
     };

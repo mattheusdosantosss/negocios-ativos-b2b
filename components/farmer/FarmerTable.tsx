@@ -169,7 +169,18 @@ function DetailPanel({
         <div className={titleCls}>Demandas levantadas</div>
         <div className="flex justify-between gap-2 pb-1 mb-1 border-b border-psa-line/60">
           <span className="text-psa-ink-soft">Empresas únicas</span>
-          <span className="font-bold tabular-nums text-psa-ink" title="Negócios da mesma empresa contam 1; sem empresa (inclui B2C) conta 1">{num(empresasUnicas)}</span>
+          {onOpen && empresasUnicas > 0 ? (
+            <button
+              type="button"
+              onClick={() => onOpen("empresas_unicas")}
+              className="font-bold tabular-nums text-psa-ink hover:text-psa-orange hover:underline underline-offset-2"
+              title="Ver empresas únicas (negócios da mesma empresa contam 1; sem empresa conta 1)"
+            >
+              {num(empresasUnicas)}
+            </button>
+          ) : (
+            <span className="font-bold tabular-nums text-psa-ink" title="Negócios da mesma empresa contam 1; sem empresa (inclui B2C) conta 1">{num(empresasUnicas)}</span>
+          )}
         </div>
         {item("Carteira", num(f.demandasCarteira))}
         {item("Ação de CRM", num(f.demandasAcaoCrm))}

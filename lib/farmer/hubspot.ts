@@ -592,6 +592,21 @@ export async function fetchDealCompanyIds(dealIds: string[]): Promise<Map<string
   return dealToCompany;
 }
 
+/** companyId → nome da empresa (pro modal de empresas únicas). */
+export async function fetchCompanyNames(companyIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (companyIds.length === 0) return out;
+  for (const ids of chunk(companyIds, 100)) {
+    const data = await hsFetch<{ results?: Array<{ id: string; properties?: { name?: string } }> }>(
+      `/crm/v3/objects/companies/batch/read`,
+      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["name"] }) }
+    );
+    for (const c of data.results ?? []) out.set(String(c.id), c.properties?.name || "");
+    await sleep(150);
+  }
+  return out;
+}
+
 export async function fetchCompanyOwnersForDeals(dealIds: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (dealIds.length === 0) return result;
