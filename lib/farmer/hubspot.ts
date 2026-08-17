@@ -254,15 +254,9 @@ async function fetchDealsByDateField(opts: {
   // Filtros AND compartilhados por TODOS os grupos (data + estágio). O filtro de
   // responsável NÃO é compartilhado: no grupo de qualificação a atribuição é
   // pelo Proprietário da empresa, então não filtramos por sdrfarmer lá.
-  // Farmer é B2B: só a pipeline B2B. Sem isso, o grupo de Qualificação Farmer
-  // (sem filtro de dono) puxava negócios de outras pipelines, ex.: B2C (que
-  // nunca tem empresa associada → caíam no alerta "sem Proprietário").
   const sharedFilters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
-    { propertyName: "pipeline", operator: "EQ", value: PIPELINE_B2B },
+    { propertyName: dateField, operator: "HAS_PROPERTY" },
   ];
-  // HAS_PROPERTY é redundante quando há GTE/LTE (que já exigem o campo). Só o
-  // usamos sem intervalo — assim não estoura o teto de 6 filtros por grupo.
-  if (!from && !to) sharedFilters.push({ propertyName: dateField, operator: "HAS_PROPERTY" });
   if (stages && stages.length > 0) {
     sharedFilters.push({ propertyName: "dealstage", operator: "IN", values: stages });
   }

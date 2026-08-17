@@ -230,6 +230,9 @@ export function aggregate(input: {
   stageLabelById?: Map<string, string>;
   /** Rótulos das etapas B2B na ordem do funil. */
   stageOrder?: string[];
+  /** Id da pipeline B2B. Negócios fora dela (ex.: B2C) não entram no alerta
+   *  "sem Proprietário de empresa" (B2C nunca tem empresa associada). */
+  b2bPipelineId?: string;
 }): DashboardData {
   const {
     dealsQualificados,
@@ -246,6 +249,7 @@ export function aggregate(input: {
     dealCompanyOwner,
     stageLabelById,
     stageOrder,
+    b2bPipelineId,
   } = input;
 
   // NOTA: não há exclusão de "Fora do MOA" aqui — o painel conta exatamente o
@@ -301,7 +305,9 @@ export function aggregate(input: {
     if (atribuiPorEmpresa(deal)) {
       const oid = dealCompanyOwner?.get(deal.id);
       const row = oid ? byFarmer.get(oid) : undefined;
-      if (!row) {
+      // B2C nunca tem empresa associada → não faz sentido no alerta "sem
+      // Proprietário de empresa". Só alerta negócios da pipeline B2B.
+      if (!row && (!b2bPipelineId || deal.properties.pipeline === b2bPipelineId)) {
         alertasMap.set(deal.id, {
           dealId: deal.id,
           dealname: deal.properties.dealname || "(sem nome)",

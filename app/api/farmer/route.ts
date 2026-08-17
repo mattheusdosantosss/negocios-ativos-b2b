@@ -175,6 +175,7 @@ export async function GET(req: NextRequest) {
       dealCompanyOwner,
       stageLabelById,
       stageOrder,
+      b2bPipelineId: process.env.HUBSPOT_PIPELINE_B2B || "default",
     });
 
     return NextResponse.json(data);
