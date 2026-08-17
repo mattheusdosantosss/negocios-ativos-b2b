@@ -254,12 +254,15 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const demMeta = tab === "all" ? DEMANDAS_META_GERAL : DEMANDAS_META_SQUAD;
   const demandas = view?.demandas ?? 0;
   const demRatio = demMeta > 0 ? demandas / demMeta : 0;
-  // Empresas únicas entre as demandas do escopo: mesma empresa em várias
-  // demandas = 1; demanda sem empresa associada conta como 1 (é distinta).
-  const demandasDoEscopo = (view?.farmers ?? []).flatMap((f) => f.demandasDeals).filter((d) => !d.foraMoa);
-  const empresasUnicas =
-    new Set(demandasDoEscopo.filter((d) => d.companyId).map((d) => d.companyId as string)).size +
-    demandasDoEscopo.filter((d) => !d.companyId).length;
+  // Empresas únicas: dedup POR FARMER (mesma empresa em várias demandas do
+  // mesmo farmer = 1; sem empresa = 1). Entre farmers diferentes NÃO dedupa —
+  // total do escopo = soma do valor de cada farmer.
+  const empresasUnicas = (view?.farmers ?? []).reduce((sum, f) => {
+    const ds = f.demandasDeals.filter((d) => !d.foraMoa);
+    const comp = new Set(ds.filter((d) => d.companyId).map((d) => d.companyId as string)).size;
+    const semEmpresa = ds.filter((d) => !d.companyId).length;
+    return sum + comp + semEmpresa;
+  }, 0);
   const demFalta = Math.max(0, demMeta - demandas);
   const demIsCurrentMonth = period.preset === "this_month";
   const bd = businessDaysThisMonth();

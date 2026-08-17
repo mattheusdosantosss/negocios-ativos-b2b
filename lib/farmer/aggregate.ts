@@ -507,7 +507,6 @@ export function aggregate(input: {
     const members = farmers
       .filter((f) => f.squadId === s.id)
       .sort((a, b) => b.receita - a.receita || b.negocios - a.negocios || b.demandas - a.demandas);
-    const ruSquad = contaReunioesUnicas(members.flatMap((m) => m.demandasDeals));
     return {
       id: s.id,
       label: s.label,
@@ -521,12 +520,11 @@ export function aggregate(input: {
       receita: members.reduce((sum, f) => sum + f.receita, 0),
       tramitacoes: members.reduce((sum, f) => sum + f.tramitacoes, 0),
       tramitacoesCriadas: members.reduce((sum, f) => sum + f.tramitacoesCriadas, 0),
-      reunioesAgendadas: ruSquad.agendadas,
-      reunioesRealizadas: ruSquad.realizadas,
+      reunioesAgendadas: members.reduce((sum, f) => sum + f.reunioesAgendadas, 0),
+      reunioesRealizadas: members.reduce((sum, f) => sum + f.reunioesRealizadas, 0),
     };
   });
 
-  const ruGeral = contaReunioesUnicas(farmers.flatMap((f) => f.demandasDeals));
   const geral: Totais = {
     demandas: farmers.reduce((s, f) => s + f.demandas, 0),
     emAberto: farmers.reduce((s, f) => s + f.emAberto, 0),
@@ -536,8 +534,8 @@ export function aggregate(input: {
     receita: farmers.reduce((s, f) => s + f.receita, 0),
     tramitacoes: farmers.reduce((s, f) => s + f.tramitacoes, 0),
     tramitacoesCriadas: farmers.reduce((s, f) => s + f.tramitacoesCriadas, 0),
-    reunioesAgendadas: ruGeral.agendadas,
-    reunioesRealizadas: ruGeral.realizadas,
+    reunioesAgendadas: farmers.reduce((s, f) => s + f.reunioesAgendadas, 0),
+    reunioesRealizadas: farmers.reduce((s, f) => s + f.reunioesRealizadas, 0),
   };
 
   return {
