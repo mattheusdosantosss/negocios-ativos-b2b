@@ -340,15 +340,19 @@ export function aggregate(input: {
     if (atribuiPorEmpresa(deal)) {
       const oid = dealCompanyOwner?.get(deal.id);
       const row = oid ? byFarmer.get(oid) : undefined;
-      // B2C nunca tem empresa associada → não faz sentido no alerta "sem
-      // Proprietário de empresa". Só alerta negócios da pipeline B2B.
-      if (!row && (!b2bPipelineId || deal.properties.pipeline === b2bPipelineId)) {
+      if (row) return row;
+      // Sem empresa/dono. B2B deveria ter empresa → alerta "sem Proprietário"
+      // e não conta (dado a corrigir). B2C nunca tem empresa → cai pro Farmer
+      // Responsável pela qualificação pra não perder a demanda.
+      if (!b2bPipelineId || deal.properties.pipeline === b2bPipelineId) {
         alertasMap.set(deal.id, {
           dealId: deal.id,
           dealname: deal.properties.dealname || "(sem nome)",
         });
+        return undefined;
       }
-      return row;
+      const fb = deal.properties.sdrfarmer_responsavel;
+      return fb ? byFarmer.get(fb) : undefined;
     }
     const oid = deal.properties.sdrfarmer_responsavel;
     return oid ? byFarmer.get(oid) : undefined;
