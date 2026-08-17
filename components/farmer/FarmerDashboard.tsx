@@ -564,14 +564,11 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
               Meta do mês · demandas {tab === "all" ? "(todas as equipes)" : `· ${tabLabel(tab)}`}
             </div>
             <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-              <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{num(demandas)}</span>
-              <span className="text-sm text-psa-ink-soft">
-                de <b className="text-psa-ink">{num(demMeta)}</b> demandas
-              </span>
+              <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{num(empresasUnicas)}</span>
+              <span className="text-sm text-psa-ink-soft">empresas únicas</span>
             </div>
             <div className="mt-1 text-[11px] text-psa-ink-soft">
-              <b className="text-psa-ink tabular-nums">{num(empresasUnicas)}</b> empresas únicas
-              <span className="text-psa-muted"> · mesma empresa em várias demandas conta 1</span>
+              <b className="text-psa-ink tabular-nums">{num(demandas)}</b> de {num(demMeta)} demandas
             </div>
           </div>
           <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">
