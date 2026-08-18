@@ -133,14 +133,15 @@ export default function Page() {
     [data]
   );
 
-  // Opções do filtro de Closer: só quem tem negócio ativo (os mesmos listados
-  // no painel), em ordem alfabética.
+  // Opções do filtro de Closer: roster COMPLETO do segmento (estável), não a
+  // lista filtrada de data.closers — senão, ao escolher um closer a lista
+  // encolheria só pra ele e não daria pra trocar direto pra outro.
   const closerOptions = useMemo(
     () =>
-      teamClosers
-        .map((c) => ({ ownerId: c.ownerId, nome: c.nome }))
+      cfg.team
+        .map((m) => ({ ownerId: m.ownerId, nome: m.nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
-    [teamClosers]
+    [cfg.team]
   );
 
   // Ticket médio de ganho = valor dos negócios ganhos ÷ nº de ganhos.
