@@ -103,7 +103,8 @@ const RULES = {
     "Base = empresas únicas (as demandas do período)",
     "Agendada = a empresa tem ≥1 negócio com reunião associada (associação Deal→Meeting, qualquer outcome)",
     "Realizada = ≥1 dessas reuniões com resultado “Concluída” (hs_meeting_outcome = COMPLETED)",
-    "% = empresas com reunião realizada ÷ empresas únicas",
+    "Comparativo sempre sobre empresas únicas: “X de N empresas”",
+    "% do card = empresas com reunião agendada ÷ empresas únicas",
     "Demanda sem empresa vinculada (inclui B2C) conta 1",
   ],
 };
@@ -668,15 +669,15 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
           info={RULES.tramitacoesCriadas}
         />
         <KpiCard
-          label="Reuniões (realiz./agend.)"
-          value={view ? `${num(view.reunioesRealizadas)} / ${num(view.reunioesAgendadas)}` : "0 / 0"}
+          label="Reuniões agendadas / empresas"
+          value={view ? `${num(view.reunioesAgendadas)} de ${num(empresasUnicas)}` : "0 de 0"}
           accent="blue"
           hint={
             !meetingsDisponivel
               ? "Sem acesso a Reuniões (verificar scope)"
               : view && empresasUnicas > 0
-              ? `${Math.round((view.reunioesRealizadas / empresasUnicas) * 100)}% das ${num(empresasUnicas)} empresas únicas realizadas`
-              : "Empresas únicas com reunião realizada / agendada"
+              ? `${num(view.reunioesRealizadas)} realizadas · ${Math.round((view.reunioesAgendadas / empresasUnicas) * 100)}% das empresas com reunião`
+              : "Empresas com reunião agendada · base = empresas únicas"
           }
           loading={loading}
           info={RULES.reunioes}
