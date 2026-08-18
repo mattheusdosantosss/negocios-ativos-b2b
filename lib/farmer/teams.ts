@@ -71,7 +71,6 @@ export const SQUADS: Squad[] = [
       "vitoria.schaeffer@profissionaissa.com", // Vitoria Garcia Schaeffer
       "jhuly.carvalho@profissionaissa.com", // Jhuly Correa de Carvalho
       "leonardo.gomes@profissionaissa.com", // Leonardo Gomes
-      "tercio.silva@profissionaissa.com", // Tércio Ferreira da Silva
       "samuel.oliveira@profissionaissa.com", // Samuel Marques Brião de Oliveira
     ],
   },
