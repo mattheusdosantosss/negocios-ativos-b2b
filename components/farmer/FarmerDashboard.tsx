@@ -74,6 +74,7 @@ const RULES = {
     "SDR/Farmer Responsável = farmer do squad",
     "Data de Qualificação dentro do mês",
     "Qualquer fase do negócio (todas as fases contam)",
+    "Meta do mês (480 geral / 120 squad) é medida em EMPRESAS ÚNICAS: %, faltam e ritmo usam empresas únicas, não a contagem de demandas",
   ],
   negocios: [
     "Origem conforme o seletor: Carteira / Ação de CRM / Ação de CRM (Carteira) / Indicação / Palestrante / Qualificação Farmer / Todas",
@@ -250,11 +251,10 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const csAtivo = !!data?.meta.pipelineCsAtivo;
   const meetingsDisponivel = data?.meta.meetingsDisponivel ?? true;
 
-  // Meta do mês (demandas): 480 na visão Geral, 120 por squad. Ritmo só no mês
-  // corrente (padrão do painel de farmers).
+  // Meta do mês: 480 na visão Geral, 120 por squad — medida em EMPRESAS ÚNICAS
+  // (não em demandas). Ritmo só no mês corrente (padrão do painel de farmers).
   const demMeta = tab === "all" ? DEMANDAS_META_GERAL : DEMANDAS_META_SQUAD;
   const demandas = view?.demandas ?? 0;
-  const demRatio = demMeta > 0 ? demandas / demMeta : 0;
   // Empresas únicas: dedup POR FARMER (mesma empresa em várias demandas do
   // mesmo farmer = 1; sem empresa = 1). Entre farmers diferentes NÃO dedupa —
   // total do escopo = soma do valor de cada farmer.
@@ -264,11 +264,12 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
     const semEmpresa = ds.filter((d) => !d.companyId).length;
     return sum + comp + semEmpresa;
   }, 0);
-  const demFalta = Math.max(0, demMeta - demandas);
+  const demRatio = demMeta > 0 ? empresasUnicas / demMeta : 0;
+  const demFalta = Math.max(0, demMeta - empresasUnicas);
   const demIsCurrentMonth = period.preset === "this_month";
   const bd = businessDaysThisMonth();
   const demExpected = bd.total > 0 ? (demMeta * bd.elapsed) / bd.total : 0;
-  const demPace = demandas - demExpected;
+  const demPace = empresasUnicas - demExpected;
 
   // Filtro da tabela (Todos / Com ganhos / Sem ganhos) + busca por nome.
   const normalize = (s: string) =>
@@ -580,14 +581,14 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange pr-6">
-              Meta do mês · demandas {tab === "all" ? "(todas as equipes)" : `· ${tabLabel(tab)}`}
+              Meta do mês · empresas únicas {tab === "all" ? "(todas as equipes)" : `· ${tabLabel(tab)}`}
             </div>
             <div className="mt-1 flex items-baseline gap-2 flex-wrap">
               <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{num(empresasUnicas)}</span>
-              <span className="text-sm text-psa-ink-soft">empresas únicas</span>
+              <span className="text-sm text-psa-ink-soft">de {num(demMeta)} empresas únicas</span>
             </div>
             <div className="mt-1 text-[11px] text-psa-ink-soft">
-              <b className="text-psa-ink tabular-nums">{num(demandas)}</b> de {num(demMeta)} demandas
+              <b className="text-psa-ink tabular-nums">{num(demandas)}</b> demandas levantadas
             </div>
           </div>
           <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">
@@ -602,11 +603,11 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
         </div>
         <div className="mt-2 flex items-center justify-between gap-3 flex-wrap text-[11px] text-psa-ink-soft">
           <span>
-            {demandas >= demMeta ? (
+            {empresasUnicas >= demMeta ? (
               <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
             ) : (
               <>
-                Faltam <b className="text-psa-ink">{num(demFalta)}</b> demandas pra bater a meta
+                Faltam <b className="text-psa-ink">{num(demFalta)}</b> empresas únicas pra bater a meta
               </>
             )}
           </span>
