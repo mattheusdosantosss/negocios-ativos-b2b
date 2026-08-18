@@ -49,16 +49,10 @@ type Props = { data: PropostaMeetingData };
 
 export default function PropostaMeetingCard({ data }: Props) {
   const [open, setOpen] = useState<Bucket | null>(null);
-  const [month, setMonth] = useState<string>("all");
 
-  // Filtro "exclusivo" do card: recorta as listas por mês de envio da proposta
-  // (client-side, sem refetch) — igual ao "Mês de fechamento" da conversão.
-  const inMonth = (it: PropostaMeetingItem) => month === "all" || it.monthKey === month;
-  const filtered: Record<Bucket, PropostaMeetingItem[]> = {
-    realizada: data.deals.realizada.filter(inMonth),
-    agendada: data.deals.agendada.filter(inMonth),
-    sem: data.deals.sem.filter(inMonth),
-  };
+  // Sem filtro próprio de mês: o card segue o período global (Data de criação),
+  // igual aos demais cards. Os dados já vêm escopados pela API.
+  const filtered = data.deals;
   const counts: Record<Bucket, number> = {
     realizada: filtered.realizada.length,
     agendada: filtered.agendada.length,
@@ -84,22 +78,6 @@ export default function PropostaMeetingCard({ data }: Props) {
             <b className="text-psa-ink">{num(agendada)}</b> chegaram a marcar mas não há registro de conclusão.{" "}
             <b className="text-psa-ink">{num(sem)}</b> não têm nenhuma reunião.
           </p>
-        </div>
-
-        <div className="flex flex-col shrink-0">
-          <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-psa-ink-soft">Mês de envio</label>
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-psa-line bg-psa-canvas px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 min-w-[190px]"
-          >
-            <option value="all">Geral (todo o histórico)</option>
-            {data.months.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
