@@ -258,7 +258,7 @@ export function fetchActiveDeals(
  * Segue o mesmo filtro de período por Data de criação. Vazio se o segmento
  * não tem etapas de checkout.
  */
-export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string; to?: string }): Promise<Deal[]> {
+export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string; to?: string; owner?: string }): Promise<Deal[]> {
   return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
 }
 
@@ -583,7 +583,7 @@ function brStartOfCurrentMonthMs(): number {
  */
 export async function fetchSalesByCloser(
   config: SegmentConfig,
-  opts: { from?: string; to?: string },
+  opts: { from?: string; to?: string; owner?: string },
   owners: Map<string, Owner>
 ): Promise<{ sold: number; count: number; byCloser: MonthGoalCloser[] }> {
   const startMs = opts.from ? brStartOfDayMs(opts.from) : brStartOfCurrentMonthMs();
@@ -594,6 +594,7 @@ export async function fetchSalesByCloser(
     { propertyName: "closedate", operator: "GTE", value: String(startMs) },
     { propertyName: "closedate", operator: "LTE", value: String(endMs) },
   ];
+  if (opts.owner) filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   const deals: Deal[] = [];
   let after: string | undefined;
   do {

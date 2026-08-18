@@ -71,7 +71,7 @@ export default function Page() {
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [showCloserSummary, setShowCloserSummary] = useState(false);
-  const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
+  const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("this_month"));
   const [leadSource, setLeadSource] = useState<LeadSourceId>("all");
   const [closer, setCloser] = useState<string>("all"); // ownerId do roster ou "all"
 

@@ -159,21 +159,21 @@ const getLostReasonsCached = (config: SegmentConfig, origemId: string, origem: s
   )();
 
 // "Meta do mês": vendas GANHAS da pipeline por data de fechamento no período
-// (sem período → mês corrente) vs a meta mensal fixa. Total do time (não sofre
-// filtro de closer). Cacheia 10 min por segmento + janela de datas.
-const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: string) =>
+// (sem período → mês corrente) vs a meta mensal fixa. Segue o filtro de Closer
+// (um closer → só as vendas dele). Cacheia 10 min por segmento + datas + closer.
+const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: string, owner?: string) =>
   unstable_cache(
     async (): Promise<{ data: DashboardData["monthGoal"]; warning?: string }> => {
       try {
         if (config.monthGoal == null) return { data: undefined };
         const owners = await fetchAllOwners();
-        const sales = await fetchSalesByCloser(config, { from, to }, owners);
+        const sales = await fetchSalesByCloser(config, { from, to, owner }, owners);
         return { data: { goal: config.monthGoal, ...sales }, warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v4", config.id, from || "cur", to || "cur"],
+    ["month-goal-v4", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();
 
@@ -199,14 +199,14 @@ export async function GET(req: NextRequest) {
     const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw, goalRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
-      fetchCheckoutDeals(config, { from, to }),
+      fetchCheckoutDeals(config, { from, to, owner }),
       getWonAggregateCached(config, origemId, origem, owner),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
       config.hasMacroTema ? getMacroTemaCached(config, origemId, origem, owner) : Promise.resolve(null),
       getConversionCached(config, origemId, origem, owner),
       config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasLostReasons ? getLostReasonsCached(config, origemId, origem, owner) : Promise.resolve(null),
-      config.monthGoal != null ? getMonthGoalCached(config, from, to) : Promise.resolve(null),
+      config.monthGoal != null ? getMonthGoalCached(config, from, to, owner) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
