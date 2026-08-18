@@ -59,6 +59,7 @@ export const SQUADS: Squad[] = [
       "hans.lopes@profissionaissa.com", // Hans Kelton Sales Lopes
       "rafael.brack@profissionaissa.com", // Rafael Brack
       "wagner.freitas@profissionaissa.com", // Wagner Macedo Freitas
+      "juliano.marques@profissionaissa.com", // Juliano Machado Marques
     ],
   },
   {
@@ -71,6 +72,7 @@ export const SQUADS: Squad[] = [
       "jhuly.carvalho@profissionaissa.com", // Jhuly Correa de Carvalho
       "leonardo.gomes@profissionaissa.com", // Leonardo Gomes
       "tercio.silva@profissionaissa.com", // Tércio Ferreira da Silva
+      "samuel.oliveira@profissionaissa.com", // Samuel Marques Brião de Oliveira
     ],
   },
 ];
