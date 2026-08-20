@@ -196,32 +196,69 @@ function DetailPanel({
         </div>
       </div>
     )}
-    {/* Perfil completo do tomador de decisão (carteira) — barra de destaque */}
+    {/* Perfil completo do tomador de decisão (carteira) — medidor radial */}
     {(() => {
       const c = carteiraByOwner?.[f.ownerId];
       const total = c?.carteira ?? 0;
       const comp = c?.completo ?? 0;
       const pct = total > 0 ? (comp / total) * 100 : 0;
       const loading = carteiraByOwner == null;
+      const faltam = Math.max(0, total - comp);
+      // Anel: r=32, circunferência ≈ 201; offset preenche a fração do %.
+      const R = 32;
+      const CIRC = 2 * Math.PI * R;
+      const gid = `carteiraGrad-${f.ownerId}`;
       return (
-        <div className="rounded-lg border-2 border-psa-blue/40 bg-gradient-to-br from-psa-blue/[0.07] to-transparent p-4">
-          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <div className="rounded-xl border-2 border-psa-blue/40 bg-gradient-to-br from-psa-blue/[0.08] via-psa-blue/[0.03] to-transparent p-4 flex items-center gap-5">
+          <div className="relative shrink-0" style={{ width: 92, height: 92 }}>
+            <svg width={92} height={92} viewBox="0 0 92 92" className="-rotate-90">
+              <defs>
+                <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#38bdf8" />
+                  <stop offset="100%" stopColor="#2563eb" />
+                </linearGradient>
+              </defs>
+              <circle cx={46} cy={46} r={R} fill="none" stroke="currentColor" strokeWidth={9} className="text-psa-canvas" />
+              <circle
+                cx={46}
+                cy={46}
+                r={R}
+                fill="none"
+                stroke={`url(#${gid})`}
+                strokeWidth={9}
+                strokeLinecap="round"
+                strokeDasharray={CIRC}
+                strokeDashoffset={loading ? CIRC : CIRC * (1 - Math.min(1, pct / 100))}
+                style={{ transition: "stroke-dashoffset 0.6s ease" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-display text-xl font-extrabold text-psa-ink tabular-nums leading-none">
+                {loading || total === 0 ? "…" : `${Math.round(pct)}%`}
+              </span>
+              <span className="text-[8px] font-bold uppercase tracking-wide text-psa-ink-soft mt-0.5">completo</span>
+            </div>
+          </div>
+          <div className="min-w-0">
             <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-blue">
               Perfil completo · tomador de decisão (carteira)
             </div>
-            <div className="text-sm text-psa-ink-soft">
-              {loading ? "carregando…" : (
-                <><b className="text-psa-ink tabular-nums">{num(comp)}</b> de <b className="text-psa-ink tabular-nums">{num(total)}</b> empresas</>
-              )}
+            <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+              <span className="font-display text-2xl font-extrabold text-psa-ink tabular-nums">
+                {loading ? "…" : num(comp)}
+              </span>
+              <span className="text-sm text-psa-ink-soft">de {loading ? "…" : num(total)} empresas com perfil completo</span>
             </div>
-          </div>
-          <div className="mt-2 flex items-center gap-3">
-            <div className="flex-1 h-3 rounded-full bg-psa-canvas overflow-hidden">
-              <div className="h-full rounded-full bg-psa-blue transition-all" style={{ width: loading ? "0%" : `${Math.min(100, pct)}%` }} />
+            <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-blue/10 text-psa-blue font-semibold">
+                <span className="w-2 h-2 rounded-full bg-gradient-to-br from-sky-400 to-blue-600" />
+                {loading ? "…" : num(comp)} completos
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-canvas text-psa-ink-soft">
+                <span className="w-2 h-2 rounded-full bg-psa-line" />
+                {loading ? "…" : num(faltam)} a completar
+              </span>
             </div>
-            <span className="font-display text-2xl font-extrabold text-psa-blue tabular-nums whitespace-nowrap">
-              {loading || total === 0 ? "…" : `${Math.round(pct)}%`}
-            </span>
           </div>
         </div>
       );
