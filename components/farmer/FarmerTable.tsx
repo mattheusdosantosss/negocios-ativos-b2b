@@ -98,7 +98,26 @@ function DetailPanel({
     { key: "qualif_farmer" as const, label: "Qualif. Farmer", cls: "bg-psa-muted" },
   ];
 
-  const tileCls = "rounded-xl border border-psa-line bg-psa-surface p-4 flex flex-col hover:shadow-card transition-shadow";
+  const tileCls = "rounded-xl border border-psa-line bg-psa-surface p-4 flex flex-col transition-all";
+  const tileClickCls = `${tileCls} cursor-pointer hover:border-psa-orange/50 hover:shadow-card hover:bg-psa-canvas/30`;
+  // Props do card clicável (o card TODO abre a lista principal). Sub-itens usam
+  // stopPropagation pra abrir a lista específica sem disparar o card.
+  const cardProps = (onClick?: () => void): {
+    className: string;
+    onClick?: () => void;
+    role?: "button";
+    tabIndex?: number;
+    onKeyDown?: (e: { key: string; preventDefault: () => void }) => void;
+  } =>
+    onClick
+      ? {
+          className: tileClickCls,
+          onClick,
+          role: "button",
+          tabIndex: 0,
+          onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } },
+        }
+      : { className: tileCls };
   const accentText: Record<string, string> = { blue: "text-psa-blue", orange: "text-psa-orange", emerald: "text-emerald-600", slate: "text-slate-600", cyan: "text-cyan-600" };
   const accentDot: Record<string, string> = { blue: "bg-psa-blue", orange: "bg-psa-orange", emerald: "bg-emerald-500", slate: "bg-slate-500", cyan: "bg-cyan-500" };
   // Cabeçalho do tile: dot colorido + label (padrão único p/ todos os cards).
@@ -108,33 +127,26 @@ function DetailPanel({
       <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">{label}</span>
     </div>
   );
-  // Número herói do tile (clicável abre a lista quando onClick é passado).
-  const hero = (value: string, sub: ReactNode, accent: string, onClick?: () => void) => (
+  // Número herói do tile (o card inteiro é o clique principal — sem botão aqui).
+  const hero = (value: string, sub: ReactNode, accent: string) => (
     <div className="flex items-baseline gap-2 flex-wrap">
-      {onClick ? (
-        <button
-          type="button"
-          onClick={onClick}
-          className={`group font-display text-3xl font-extrabold tabular-nums ${accentText[accent]} cursor-pointer inline-flex items-baseline gap-1 hover:underline underline-offset-2 decoration-2`}
-          title="Ver lista"
-        >
-          {value}
-          <span className="text-sm opacity-40 group-hover:opacity-100 transition-opacity">↗</span>
-        </button>
-      ) : (
-        <span className={`font-display text-3xl font-extrabold tabular-nums ${accentText[accent]}`}>{value}</span>
-      )}
+      <span className={`font-display text-3xl font-extrabold tabular-nums ${accentText[accent]}`}>{value}</span>
       {sub && <span className="text-[11px] text-psa-ink-soft">{sub}</span>}
     </div>
   );
-  // Linha de apoio label : valor (com afordância de clique).
+  // Linha de apoio label : valor. Se clicável, abre a lista específica (não o
+  // card) via stopPropagation.
   const row = (label: string, value: string, onClick?: () => void) => (
     <div className="flex items-center justify-between gap-2 py-0.5 text-[11px]">
       <span className="text-psa-ink-soft">{label}</span>
       {onClick ? (
-        <button type="button" onClick={onClick} className="group inline-flex items-center gap-1 font-semibold tabular-nums text-psa-ink cursor-pointer hover:text-psa-orange hover:underline underline-offset-2" title="Ver lista">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
+          className="font-semibold tabular-nums text-psa-ink cursor-pointer hover:text-psa-orange hover:underline underline-offset-2"
+          title="Ver lista"
+        >
           {value}
-          <span className="text-psa-orange text-[9px] opacity-50 group-hover:opacity-100">↗</span>
         </button>
       ) : (
         <span className="font-semibold tabular-nums text-psa-ink">{value}</span>
@@ -299,21 +311,24 @@ function DetailPanel({
       );
     })()}
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      {/* Demandas levantadas */}
-      <div className={tileCls}>
+      {/* Demandas levantadas — card inteiro abre a lista de demandas */}
+      <div {...cardProps(onOpen && f.demandas > 0 ? () => onOpen("demandas") : undefined)} title="Ver demandas levantadas">
         {head("Demandas levantadas", "blue")}
         {hero(
           num(f.demandas),
-          <button
-            type="button"
-            onClick={onOpen && empresasUnicas > 0 ? () => onOpen("empresas_unicas") : undefined}
-            className="cursor-pointer hover:text-psa-orange hover:underline underline-offset-2"
-            title="Ver empresas únicas"
-          >
-            {num(empresasUnicas)} empresas únicas ↗
-          </button>,
-          "blue",
-          onOpen && f.demandas > 0 ? () => onOpen("demandas") : undefined
+          onOpen && empresasUnicas > 0 ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onOpen("empresas_unicas"); }}
+              className="cursor-pointer hover:text-psa-orange hover:underline underline-offset-2"
+              title="Ver empresas únicas"
+            >
+              {num(empresasUnicas)} empresas únicas
+            </button>
+          ) : (
+            <>{num(empresasUnicas)} empresas únicas</>
+          ),
+          "blue"
         )}
         <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
           {origens.filter((o) => o.count > 0).length === 0 ? (
@@ -332,7 +347,7 @@ function DetailPanel({
         <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={onOpen && f.emAberto > 0 ? () => onOpen("aberto") : undefined}
+            onClick={onOpen && f.emAberto > 0 ? (e) => { e.stopPropagation(); onOpen("aberto"); } : undefined}
             disabled={!onOpen || f.emAberto === 0}
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-psa-canvas text-[11px] text-psa-ink-soft enabled:cursor-pointer enabled:hover:bg-psa-line/40 transition-colors"
             title="Ver negócios em aberto"
@@ -342,7 +357,7 @@ function DetailPanel({
           {foraMoaTotal > 0 && (
             <button
               type="button"
-              onClick={onOpen ? () => onOpen("fora_moa") : undefined}
+              onClick={onOpen ? (e) => { e.stopPropagation(); onOpen("fora_moa"); } : undefined}
               disabled={!onOpen}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-[11px] text-red-600 enabled:cursor-pointer enabled:hover:bg-red-100 transition-colors"
               title="Ver negócios Fora do MOA"
@@ -353,29 +368,29 @@ function DetailPanel({
         </div>
       </div>
 
-      {/* Negócios fechados */}
-      <div className={tileCls}>
+      {/* Negócios fechados — card inteiro abre os ganhos */}
+      <div {...cardProps(onOpen && f.negocios > 0 ? () => onOpen("negocios") : undefined)} title="Ver negócios fechados (ganhos)">
         {head("Negócios fechados", "orange")}
-        {hero(num(f.negocios), "ganhos", "orange", onOpen && f.negocios > 0 ? () => onOpen("negocios") : undefined)}
+        {hero(num(f.negocios), "ganhos", "orange")}
         <div className="mt-auto pt-3 space-y-0.5">
           {row("Receita", brl(f.receita), onOpen && f.negocios > 0 ? () => onOpen("receita") : undefined)}
           {row("Perdidos", num(f.perdidos), onOpen && f.perdidos > 0 ? () => onOpen("perdidos") : undefined)}
         </div>
       </div>
 
-      {/* Tramitações */}
-      <div className={tileCls}>
+      {/* Tramitações — card inteiro abre as em andamento */}
+      <div {...cardProps(onOpen && f.tramitacoes > 0 ? () => onOpen("tramitacoes") : undefined)} title="Ver tramitações em andamento">
         {head("Tramitações", "slate")}
-        {hero(num(f.tramitacoes), "em andamento", "slate", onOpen && f.tramitacoes > 0 ? () => onOpen("tramitacoes") : undefined)}
+        {hero(num(f.tramitacoes), "em andamento", "slate")}
         <div className="mt-auto pt-3">
           {row("Criadas no mês", num(f.tramitacoesCriadas), onOpen && f.tramitacoesCriadas > 0 ? () => onOpen("tramitacoes_criadas") : undefined)}
         </div>
       </div>
 
-      {/* Reuniões */}
-      <div className={tileCls}>
+      {/* Reuniões — card inteiro abre as realizadas */}
+      <div {...cardProps(onOpen && f.reunioesRealizadas > 0 ? () => onOpen("reunioes_realizadas") : undefined)} title="Ver reuniões realizadas">
         {head("Reuniões", "cyan")}
-        {hero(num(f.reunioesRealizadas), "realizadas", "cyan", onOpen && f.reunioesRealizadas > 0 ? () => onOpen("reunioes_realizadas") : undefined)}
+        {hero(num(f.reunioesRealizadas), "realizadas", "cyan")}
         <div className="mt-auto pt-3">
           {row("Agendadas", num(f.reunioesAgendadas), onOpen && f.reunioesAgendadas > 0 ? () => onOpen("reunioes_agendadas") : undefined)}
         </div>
