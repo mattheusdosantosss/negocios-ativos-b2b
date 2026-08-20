@@ -150,6 +150,20 @@ async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0): Promis
   return res.json() as Promise<T>;
 }
 
+// Limitador global da Search API (~4 req/s). Reserva um "slot" de 250ms por
+// busca via timestamp compartilhado, permitindo concorrência (a latência de uma
+// busca é escondida enquanto outra é disparada) sem estourar o limite → evita
+// 429. Usado só nas buscas pesadas de carteira/contatos.
+let _nextSearchSlot = 0;
+async function hsSearchPaced<T>(path: string, body: unknown): Promise<T> {
+  const now = Date.now();
+  const start = Math.max(now, _nextSearchSlot);
+  _nextSearchSlot = start + 250;
+  const wait = start - now;
+  if (wait > 0) await sleep(wait);
+  return hsFetch<T>(path, { method: "POST", body: JSON.stringify(body) });
+}
+
 // ============================================================
 // Owners
 // ============================================================
@@ -623,37 +637,49 @@ export async function fetchCompanyNames(companyIds: string[]): Promise<Map<strin
 // contato associado está no conjunto. Objeto simples (serializável p/ cache).
 export type CarteiraPerfil = Record<string, { carteira: number; completo: number }>;
 
-// A Search API do HubSpot tem limite de ~4 req/s. Espaçamos as BUSCAS em 260ms
-// (sequenciais) pra respeitar isso proativamente — mais rápido do que disparar
-// em paralelo e apanhar 429 (que faz backoff de 1–4s por chamada).
-const SEARCH_GAP_MS = 260;
-
 // Todos os contatos que são Tomador de Decisão COMPLETOS (Nome, Telefone,
 // E-mail e LinkedIn preenchidos). Retorna o Set de ids.
+//
+// Particionado por faixas de createdate, rodando EM PARALELO — todas as buscas
+// passam pelo limitador global (hsSearchPaced) de 4/s, então a concorrência
+// esconde a latência sem estourar o rate limit. O filtro de firstname sai do
+// server (não cabe com o range: máx 6 filtros/grupo) e é verificado em código.
 async function fetchContatosDmCompletos(): Promise<Set<string>> {
   const ids = new Set<string>();
-  let after: string | undefined;
-  do {
-    const body: Record<string, unknown> = {
-      filterGroups: [{ filters: [
-        { propertyName: "hs_buying_role", operator: "EQ", value: "DECISION_MAKER" },
-        { propertyName: "firstname", operator: "HAS_PROPERTY" },
-        { propertyName: "phone", operator: "HAS_PROPERTY" },
-        { propertyName: "email", operator: "HAS_PROPERTY" },
-        { propertyName: "linkedin", operator: "HAS_PROPERTY" },
-      ] }],
-      properties: ["hs_object_id"],
-      limit: 100,
-    };
-    if (after) body.after = after;
-    const data: SearchResponse<{ id: string }> = await hsFetch(`/crm/v3/objects/contacts/search`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    for (const c of data.results) ids.add(String(c.id));
-    after = data.paging?.next?.after;
-    if (after) await sleep(SEARCH_GAP_MS);
-  } while (after);
+  const bounds: number[] = [];
+  for (let y = 2024; y <= 2027; y++) {
+    for (let m = 0; m < 12; m += 3) {
+      bounds.push(Date.parse(`${y}-${String(m + 1).padStart(2, "0")}-01T00:00:00Z`));
+    }
+  }
+  const buckets: Array<{ gte?: number; lt?: number }> = [{ lt: bounds[0] }];
+  for (let i = 0; i < bounds.length - 1; i++) buckets.push({ gte: bounds[i], lt: bounds[i + 1] });
+  buckets.push({ gte: bounds[bounds.length - 1] });
+
+  const base = [
+    { propertyName: "hs_buying_role", operator: "EQ", value: "DECISION_MAKER" },
+    { propertyName: "phone", operator: "HAS_PROPERTY" },
+    { propertyName: "email", operator: "HAS_PROPERTY" },
+    { propertyName: "linkedin", operator: "HAS_PROPERTY" },
+  ];
+  await Promise.all(buckets.map(async (b) => {
+    const filters: Array<Record<string, unknown>> = [...base];
+    if (b.gte != null) filters.push({ propertyName: "createdate", operator: "GTE", value: String(b.gte) });
+    if (b.lt != null) filters.push({ propertyName: "createdate", operator: "LT", value: String(b.lt) });
+    let after: string | undefined;
+    do {
+      const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: ["firstname"], limit: 100 };
+      if (after) body.after = after;
+      const data: SearchResponse<{ id: string; properties: { firstname?: string } }> = await hsSearchPaced(
+        `/crm/v3/objects/contacts/search`,
+        body
+      );
+      for (const c of data.results) {
+        if ((c.properties?.firstname ?? "").trim() !== "") ids.add(String(c.id));
+      }
+      after = data.paging?.next?.after;
+    } while (after);
+  }));
   return ids;
 }
 
@@ -680,7 +706,7 @@ async function fetchEmpresasComDmCompleto(contatoIds: string[]): Promise<Set<str
   return empresas;
 }
 
-// Total da carteira de UM farmer (só a contagem — 1 busca, lê o `total`).
+// Total da carteira de UM farmer (só a contagem — 1 busca paced, lê o `total`).
 async function carteiraTotalDoOwner(ownerId: string): Promise<number> {
   const body = {
     filterGroups: [{ filters: [
@@ -690,31 +716,26 @@ async function carteiraTotalDoOwner(ownerId: string): Promise<number> {
     properties: ["hubspot_owner_id"],
     limit: 1,
   };
-  const data: SearchResponse<{ id: string }> = await hsFetch(`/crm/v3/objects/companies/search`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  const data: SearchResponse<{ id: string }> = await hsSearchPaced(`/crm/v3/objects/companies/search`, body);
   return data.total ?? 0;
 }
 
-// Perfil completo por farmer. Minimiza chamadas à Search API (limite ~4/s):
-//  - carteiraTotal: 1 busca de contagem por owner.
-//  - completo: das empresas que têm contato DM completo (empresasComDm), lê
-//    dono+status via batch-read (NÃO é search → mais rápido) e credita ao owner
-//    quando a empresa é Carteirizada e o dono é do time.
+// Perfil completo por farmer. Todas as buscas passam pelo limitador global de
+// 4/s (hsSearchPaced), com concorrência pra esconder a latência:
+//  - carteiraTotal: 1 busca de contagem por owner (todas concorrentes).
+//  - completo: das empresas com contato DM completo, lê dono+status via
+//    batch-read (NÃO é search → rápido) e credita quando Carteirizada + do time.
+// As empresas-com-DM (v4) e as contagens rodam em paralelo (buckets distintos).
 export async function fetchCarteiraPerfilCompleto(ownerIds: string[]): Promise<CarteiraPerfil> {
   const out: CarteiraPerfil = {};
   for (const id of ownerIds) out[id] = { carteira: 0, completo: 0 };
   if (ownerIds.length === 0) return out;
 
   const dmCompletos = await fetchContatosDmCompletos();
-  const empresasComDm = await fetchEmpresasComDmCompleto([...dmCompletos]);
-
-  // carteiraTotal — buscas de contagem, sequenciais e espaçadas (search 4/s).
-  for (const oid of ownerIds) {
-    out[oid].carteira = await carteiraTotalDoOwner(oid);
-    await sleep(SEARCH_GAP_MS);
-  }
+  const [empresasComDm] = await Promise.all([
+    fetchEmpresasComDmCompleto([...dmCompletos]),
+    Promise.all(ownerIds.map(async (oid) => { out[oid].carteira = await carteiraTotalDoOwner(oid); })),
+  ]);
 
   // completo — batch-read (não-search) das empresas com DM completo.
   const teamSet = new Set(ownerIds);
