@@ -112,8 +112,14 @@ function DetailPanel({
   const hero = (value: string, sub: ReactNode, accent: string, onClick?: () => void) => (
     <div className="flex items-baseline gap-2 flex-wrap">
       {onClick ? (
-        <button type="button" onClick={onClick} className={`font-display text-3xl font-extrabold tabular-nums ${accentText[accent]} hover:opacity-75 transition-opacity`} title="Ver lista">
+        <button
+          type="button"
+          onClick={onClick}
+          className={`group font-display text-3xl font-extrabold tabular-nums ${accentText[accent]} cursor-pointer inline-flex items-baseline gap-1 hover:underline underline-offset-2 decoration-2`}
+          title="Ver lista"
+        >
           {value}
+          <span className="text-sm opacity-40 group-hover:opacity-100 transition-opacity">↗</span>
         </button>
       ) : (
         <span className={`font-display text-3xl font-extrabold tabular-nums ${accentText[accent]}`}>{value}</span>
@@ -126,9 +132,9 @@ function DetailPanel({
     <div className="flex items-center justify-between gap-2 py-0.5 text-[11px]">
       <span className="text-psa-ink-soft">{label}</span>
       {onClick ? (
-        <button type="button" onClick={onClick} className="group inline-flex items-center gap-1 font-semibold tabular-nums text-psa-ink hover:text-psa-orange" title="Ver lista">
+        <button type="button" onClick={onClick} className="group inline-flex items-center gap-1 font-semibold tabular-nums text-psa-ink cursor-pointer hover:text-psa-orange hover:underline underline-offset-2" title="Ver lista">
           {value}
-          <span className="opacity-0 group-hover:opacity-100 text-psa-orange text-[9px]">↗</span>
+          <span className="text-psa-orange text-[9px] opacity-50 group-hover:opacity-100">↗</span>
         </button>
       ) : (
         <span className="font-semibold tabular-nums text-psa-ink">{value}</span>
@@ -270,7 +276,7 @@ function DetailPanel({
               <button
                 type="button"
                 onClick={loading || comp === 0 ? undefined : () => openCarteira("completos")}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-blue/10 text-psa-blue font-semibold enabled:hover:bg-psa-blue/20 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-blue/10 text-psa-blue font-semibold enabled:cursor-pointer enabled:hover:bg-psa-blue/20 transition-colors"
                 disabled={loading || comp === 0}
                 title="Ver empresas com perfil completo"
               >
@@ -280,7 +286,7 @@ function DetailPanel({
               <button
                 type="button"
                 onClick={loading || faltam === 0 ? undefined : () => openCarteira("pendentes")}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-canvas text-psa-ink-soft enabled:hover:bg-psa-line/40 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-canvas text-psa-ink-soft enabled:cursor-pointer enabled:hover:bg-psa-line/40 transition-colors"
                 disabled={loading || faltam === 0}
                 title="Ver empresas com perfil pendente (e o que falta)"
               >
@@ -301,7 +307,7 @@ function DetailPanel({
           <button
             type="button"
             onClick={onOpen && empresasUnicas > 0 ? () => onOpen("empresas_unicas") : undefined}
-            className="hover:text-psa-orange"
+            className="cursor-pointer hover:text-psa-orange hover:underline underline-offset-2"
             title="Ver empresas únicas"
           >
             {num(empresasUnicas)} empresas únicas ↗
@@ -328,7 +334,7 @@ function DetailPanel({
             type="button"
             onClick={onOpen && f.emAberto > 0 ? () => onOpen("aberto") : undefined}
             disabled={!onOpen || f.emAberto === 0}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-psa-canvas text-[11px] text-psa-ink-soft enabled:hover:bg-psa-line/40 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-psa-canvas text-[11px] text-psa-ink-soft enabled:cursor-pointer enabled:hover:bg-psa-line/40 transition-colors"
             title="Ver negócios em aberto"
           >
             Em aberto <b className="text-psa-ink tabular-nums">{num(f.emAberto)}</b>
@@ -338,7 +344,7 @@ function DetailPanel({
               type="button"
               onClick={onOpen ? () => onOpen("fora_moa") : undefined}
               disabled={!onOpen}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-[11px] text-red-600 enabled:hover:bg-red-100 transition-colors"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-[11px] text-red-600 enabled:cursor-pointer enabled:hover:bg-red-100 transition-colors"
               title="Ver negócios Fora do MOA"
             >
               Fora do MOA <b className="tabular-nums">{num(foraMoaTotal)}</b>
