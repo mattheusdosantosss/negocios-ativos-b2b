@@ -124,6 +124,8 @@ export type FarmerRow = {
   reunioesAgendadas: number; // reuniões criadas pelo farmer (B2B) no período
   reunioesRealizadas: number; // dessas, as com resultado "realizada"
   reunioesList: Array<{ id: string; title: string; date?: string; realizada: boolean }>;
+  carteiraTotal: number; // empresas Carteirizada do farmer (snapshot, ignora período)
+  perfilCompleto: number; // dessas, com >=1 tomador de decisão completo
   // Listas pro drill-down
   demandasDeals: DealLite[];
   emAbertoDeals: DealLite[];
@@ -147,6 +149,8 @@ export type SquadStats = {
   tramitacoesCriadas: number;
   reunioesAgendadas: number;
   reunioesRealizadas: number;
+  carteiraTotal: number;
+  perfilCompleto: number;
   farmers: FarmerRow[];
 };
 
@@ -161,6 +165,8 @@ export type Totais = {
   tramitacoesCriadas: number;
   reunioesAgendadas: number;
   reunioesRealizadas: number;
+  carteiraTotal: number;
+  perfilCompleto: number;
 };
 
 export type DashboardData = {
@@ -263,6 +269,9 @@ export function aggregate(input: {
   dealCompanyId?: Map<string, string>;
   /** dealId → nome da empresa associada (pro modal de empresas únicas). */
   dealCompanyName?: Map<string, string>;
+  /** ownerId → carteira (snapshot): total de empresas Carteirizada e quantas
+   *  têm tomador de decisão completo. Ignora o filtro de período. */
+  carteiraByOwner?: Map<string, { carteira: number; completo: number }>;
   /** dealstage id → rótulo legível (p/ o gráfico por etapa). */
   stageLabelById?: Map<string, string>;
   /** Rótulos das etapas B2B na ordem do funil. */
@@ -286,6 +295,7 @@ export function aggregate(input: {
     dealCompanyOwner,
     dealCompanyId,
     dealCompanyName,
+    carteiraByOwner,
     stageLabelById,
     stageOrder,
     b2bPipelineId,
@@ -322,6 +332,8 @@ export function aggregate(input: {
       tramitacoesCriadas: 0,
       reunioesAgendadas: 0,
       reunioesRealizadas: 0,
+      carteiraTotal: carteiraByOwner?.get(ownerId)?.carteira ?? 0,
+      perfilCompleto: carteiraByOwner?.get(ownerId)?.completo ?? 0,
       demandasDeals: [],
       emAbertoDeals: [],
       negociosDeals: [],
@@ -522,6 +534,8 @@ export function aggregate(input: {
       tramitacoesCriadas: members.reduce((sum, f) => sum + f.tramitacoesCriadas, 0),
       reunioesAgendadas: members.reduce((sum, f) => sum + f.reunioesAgendadas, 0),
       reunioesRealizadas: members.reduce((sum, f) => sum + f.reunioesRealizadas, 0),
+      carteiraTotal: members.reduce((sum, f) => sum + f.carteiraTotal, 0),
+      perfilCompleto: members.reduce((sum, f) => sum + f.perfilCompleto, 0),
     };
   });
 
@@ -536,6 +550,8 @@ export function aggregate(input: {
     tramitacoesCriadas: farmers.reduce((s, f) => s + f.tramitacoesCriadas, 0),
     reunioesAgendadas: farmers.reduce((s, f) => s + f.reunioesAgendadas, 0),
     reunioesRealizadas: farmers.reduce((s, f) => s + f.reunioesRealizadas, 0),
+    carteiraTotal: farmers.reduce((s, f) => s + f.carteiraTotal, 0),
+    perfilCompleto: farmers.reduce((s, f) => s + f.perfilCompleto, 0),
   };
 
   return {

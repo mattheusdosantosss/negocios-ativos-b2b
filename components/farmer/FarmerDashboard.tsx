@@ -28,6 +28,8 @@ type View = {
   tramitacoesCriadas: number;
   reunioesAgendadas: number;
   reunioesRealizadas: number;
+  carteiraTotal: number;
+  perfilCompleto: number;
   farmers: FarmerRow[];
   leader?: string;
 };
@@ -55,6 +57,8 @@ function computeView(data: DashboardData | null, tab: TabValue): View | null {
     tramitacoesCriadas: squad.tramitacoesCriadas,
     reunioesAgendadas: squad.reunioesAgendadas,
     reunioesRealizadas: squad.reunioesRealizadas,
+    carteiraTotal: squad.carteiraTotal,
+    perfilCompleto: squad.perfilCompleto,
     farmers: squad.farmers,
     leader: squad.leader,
   };
@@ -107,6 +111,13 @@ const RULES = {
     "Comparativo sempre sobre empresas únicas: “X de N empresas”",
     "% do card = empresas com reunião realizada ÷ empresas únicas",
     "Demanda sem empresa vinculada (inclui B2C) conta 1",
+  ],
+  perfilCompleto: [
+    "Carteira = empresas com Proprietário = farmer e Status da empresa = “Carteirizada”",
+    "Snapshot ao vivo — não respeita o filtro de período (é sobre cadastro, não demanda)",
+    "Empresa conta como completa se tem ≥1 contato associado que é Tomador de Decisão (hs_buying_role) com Nome, Telefone, E-mail e LinkedIn preenchidos",
+    "% = empresas com perfil completo ÷ total de empresas da carteira",
+    "Atualiza a cada 6h (snapshot pesado)",
   ],
 };
 
@@ -200,11 +211,24 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Carteira (perfil completo do tomador de decisão) — snapshot pesado, carregado
+  // à parte pra não travar o painel. null = ainda carregando.
+  const [carteira, setCarteira] = useState<Record<string, { carteira: number; completo: number }> | null>(null);
 
   useEffect(() => {
     const k = new URLSearchParams(window.location.search).get("key") || "";
     setAccessKey(k);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCarteira(null);
+    fetch(`/api/farmer/carteira${accessKey ? `?key=${encodeURIComponent(accessKey)}` : ""}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setCarteira(j?.byOwner ?? {}); })
+      .catch(() => { if (!cancelled) setCarteira({}); });
+    return () => { cancelled = true; };
+  }, [accessKey]);
 
   const handlePeriodChange = (next: PeriodValue) => {
     if (next.preset !== period.preset && next.preset !== "custom") {
@@ -264,6 +288,16 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
     const semEmpresa = ds.filter((d) => !d.companyId).length;
     return sum + comp + semEmpresa;
   }, 0);
+  // Carteira do escopo atual (soma por farmer do map da carteira). null enquanto
+  // o snapshot ainda está carregando à parte.
+  const carteiraView = (view?.farmers ?? []).reduce(
+    (a, f) => {
+      const c = carteira?.[f.ownerId];
+      return { total: a.total + (c?.carteira ?? 0), completo: a.completo + (c?.completo ?? 0) };
+    },
+    { total: 0, completo: 0 }
+  );
+  const carteiraLoading = carteira === null;
   const demRatio = demMeta > 0 ? empresasUnicas / demMeta : 0;
   const demFalta = Math.max(0, demMeta - empresasUnicas);
   const demIsCurrentMonth = period.preset === "this_month";
@@ -631,8 +665,8 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
         </div>
       </div>
 
-      {/* KPIs — 5 cards (clicáveis: abrem a lista do escopo atual) */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* KPIs — 6 cards (clicáveis: abrem a lista do escopo atual) */}
+      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <KpiCard
           label="Negócios fechados"
           value={view ? num(view.negocios) : 0}
@@ -683,6 +717,20 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
           loading={loading}
           info={RULES.reunioes}
         />
+        <KpiCard
+          label="Perfil completo (tomador de decisão)"
+          value={carteiraLoading ? "…" : `${num(carteiraView.completo)} de ${num(carteiraView.total)}`}
+          accent="ink"
+          hint={
+            carteiraLoading
+              ? "Carregando carteira (snapshot)…"
+              : carteiraView.total > 0
+              ? `${Math.round((carteiraView.completo / carteiraView.total) * 100)}% da carteira · ${num(carteiraView.total)} empresas`
+              : "Empresas da carteira com tomador de decisão completo"
+          }
+          loading={loading}
+          info={RULES.perfilCompleto}
+        />
       </section>
 
       {/* Tabela por farmer (números clicáveis abrem a lista do farmer) */}
@@ -711,6 +759,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
           csAtivo={csAtivo}
           onDrillDown={(farmer, kind, stage) => setModal({ mode: "single", kind, farmer, stage })}
           stageOrder={data?.meta.stageOrder ?? []}
+          carteiraByOwner={carteira}
         />
       </section>
 

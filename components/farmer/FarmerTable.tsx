@@ -11,6 +11,8 @@ const nota2 = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 
 const notaColor = (n: number) =>
   n < 7 ? "#DC2626" : n < 8 ? "#f97316" : n < 9 ? "#fde047" : n < 11 ? "#4ADE80" : "#16A34A";
 
+type CarteiraMap = Record<string, { carteira: number; completo: number }> | null;
+
 type Props = {
   rows: FarmerRow[];
   loading?: boolean;
@@ -18,6 +20,8 @@ type Props = {
   onDrillDown?: (farmer: FarmerRow, kind: ModalKind, stage?: string) => void;
   /** Rótulos das etapas B2B na ordem do funil (gráfico por etapa no expander). */
   stageOrder?: string[];
+  /** Carteira (perfil completo) por ownerId. null = ainda carregando (snapshot à parte). */
+  carteiraByOwner?: CarteiraMap;
 };
 
 // Painel expandido: detalhe completo do farmer (demandas por origem, negócios,
@@ -26,10 +30,12 @@ function DetailPanel({
   f,
   stageOrder,
   onOpen,
+  carteiraByOwner,
 }: {
   f: FarmerRow;
   stageOrder: string[];
   onOpen?: (kind: ModalKind, stage?: string) => void;
+  carteiraByOwner?: CarteiraMap;
 }) {
   // Distribuição das demandas do farmer por etapa, segmentada por origem.
   type StageAgg = {
@@ -164,7 +170,7 @@ function DetailPanel({
         </div>
       </div>
     )}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
       <div className={groupCls}>
         <div className={titleCls}>Demandas levantadas</div>
         <div className="flex justify-between gap-2 pb-1 mb-1 border-b border-psa-line/60">
@@ -212,6 +218,19 @@ function DetailPanel({
         {item("Realizadas", num(f.reunioesRealizadas), onOpen && f.reunioesRealizadas > 0 ? () => onOpen("reunioes_realizadas") : undefined)}
         {item("Agendadas", num(f.reunioesAgendadas), onOpen && f.reunioesAgendadas > 0 ? () => onOpen("reunioes_agendadas") : undefined)}
       </div>
+      <div className={groupCls}>
+        <div className={titleCls}>Carteira</div>
+        {(() => {
+          const c = carteiraByOwner?.[f.ownerId];
+          if (carteiraByOwner == null) return item("Perfil completo", "…");
+          return (
+            <>
+              {item("Perfil completo", `${num(c?.completo ?? 0)} de ${num(c?.carteira ?? 0)}`)}
+              {item("% da carteira", c && c.carteira > 0 ? `${Math.round((c.completo / c.carteira) * 100)}%` : "—")}
+            </>
+          );
+        })()}
+      </div>
     </div>
     </div>
   );
@@ -249,7 +268,7 @@ function Cell({
   );
 }
 
-export default function FarmerTable({ rows, loading = false, csAtivo = true, onDrillDown, stageOrder = [] }: Props) {
+export default function FarmerTable({ rows, loading = false, csAtivo = true, onDrillDown, stageOrder = [], carteiraByOwner }: Props) {
   // Ordenação: null = ordem padrão que vem da API (por receita, maior primeiro).
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
   // Linhas expandidas (detalhe completo do farmer).
@@ -436,6 +455,7 @@ export default function FarmerTable({ rows, loading = false, csAtivo = true, onD
                     f={f}
                     stageOrder={stageOrder}
                     onOpen={onDrillDown ? (kind, stage) => onDrillDown(f, kind, stage) : undefined}
+                    carteiraByOwner={carteiraByOwner}
                   />
                 </td>
               </tr>

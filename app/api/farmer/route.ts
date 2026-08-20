@@ -122,6 +122,7 @@ export async function GET(req: NextRequest) {
       if (nm) dealCompanyName.set(dealId, nm);
     }
 
+
     // Etapas (dealstage) pra rotular e ordenar o gráfico por etapa. Degrada
     // silenciosamente se falhar (gráfico usa os ids crus / sem ordem).
     let stageLabelById = new Map<string, string>();

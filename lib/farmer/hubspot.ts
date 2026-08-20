@@ -607,6 +607,91 @@ export async function fetchCompanyNames(companyIds: string[]): Promise<Map<strin
   return out;
 }
 
+// ============================================================
+// Perfil completo do tomador de decisão (carteira dos farmers)
+// ============================================================
+//
+// Carteira = empresas com status_da_empresa "Carteirizada" cujo Proprietário
+// (hubspot_owner_id) é um farmer do painel. Uma empresa conta como "perfil
+// completo" quando tem >=1 contato associado que é Tomador de Decisão com
+// Nome, Telefone, E-mail e LinkedIn preenchidos.
+//
+// Estratégia (a carteira do time é grande, ~6k empresas): buscamos os contatos
+// "tomador de decisão completos" e usamos o associatedcompanyid (empresa
+// primária) pra montar o conjunto de empresas com perfil; depois cruzamos com
+// a carteira do time. Retorna objeto simples (serializável p/ unstable_cache).
+export type CarteiraPerfil = Record<string, { carteira: number; completo: number }>;
+
+// Carteira Carteirizada de UM farmer + quantas têm tomador de decisão completo.
+// 1) ids das empresas do owner; 2) por lotes de 100 ids, busca contatos DM
+// completos com associatedcompanyid IN lote → marca a empresa como completa.
+async function carteiraDeUmOwner(ownerId: string): Promise<{ carteira: number; completo: number }> {
+  const companyIds: string[] = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters: [
+        { propertyName: "status_da_empresa", operator: "EQ", value: "Carteirizada" },
+        { propertyName: "hubspot_owner_id", operator: "EQ", value: ownerId },
+      ] }],
+      properties: ["hubspot_owner_id"],
+      limit: 100,
+    };
+    if (after) body.after = after;
+    const data: SearchResponse<{ id: string }> = await hsFetch(`/crm/v3/objects/companies/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    for (const c of data.results) companyIds.push(String(c.id));
+    after = data.paging?.next?.after;
+    if (after) await sleep(50);
+  } while (after);
+  if (companyIds.length === 0) return { carteira: 0, completo: 0 };
+
+  const completas = new Set<string>();
+  for (const ids of chunk(companyIds, 100)) {
+    let a: string | undefined;
+    do {
+      const body: Record<string, unknown> = {
+        filterGroups: [{ filters: [
+          { propertyName: "hs_buying_role", operator: "EQ", value: "DECISION_MAKER" },
+          { propertyName: "firstname", operator: "HAS_PROPERTY" },
+          { propertyName: "phone", operator: "HAS_PROPERTY" },
+          { propertyName: "email", operator: "HAS_PROPERTY" },
+          { propertyName: "linkedin", operator: "HAS_PROPERTY" },
+          { propertyName: "associatedcompanyid", operator: "IN", values: ids },
+        ] }],
+        properties: ["associatedcompanyid"],
+        limit: 100,
+      };
+      if (a) body.after = a;
+      const data: SearchResponse<{ id: string; properties: { associatedcompanyid?: string } }> = await hsFetch(
+        `/crm/v3/objects/contacts/search`,
+        { method: "POST", body: JSON.stringify(body) }
+      );
+      for (const ct of data.results) {
+        const cid = ct.properties?.associatedcompanyid;
+        if (cid) completas.add(String(cid));
+      }
+      a = data.paging?.next?.after;
+      if (a) await sleep(50);
+    } while (a);
+  }
+  return { carteira: companyIds.length, completo: completas.size };
+}
+
+export async function fetchCarteiraPerfilCompleto(ownerIds: string[]): Promise<CarteiraPerfil> {
+  const out: CarteiraPerfil = {};
+  for (const id of ownerIds) out[id] = { carteira: 0, completo: 0 };
+  const CONC = 5; // endpoint isolado (nao compete com o painel) — mais rapido sem 429
+  for (let i = 0; i < ownerIds.length; i += CONC) {
+    const batch = ownerIds.slice(i, i + CONC);
+    const results = await Promise.all(batch.map((oid) => carteiraDeUmOwner(oid)));
+    batch.forEach((oid, j) => { out[oid] = results[j]; });
+  }
+  return out;
+}
+
 export async function fetchCompanyOwnersForDeals(dealIds: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (dealIds.length === 0) return result;
