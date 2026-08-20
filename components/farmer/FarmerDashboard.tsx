@@ -207,6 +207,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [alertExpanded, setAlertExpanded] = useState(false);
   const [showMetaRules, setShowMetaRules] = useState(false);
+  const [showCarteiraRules, setShowCarteiraRules] = useState(false);
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -665,8 +666,71 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
         </div>
       </div>
 
-      {/* KPIs — 6 cards (clicáveis: abrem a lista do escopo atual) */}
-      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Perfil completo do tomador de decisão (carteira) — contador com barra,
+          no estilo da meta. Snapshot: não segue o filtro de período. */}
+      <div className="relative rounded-xl border-2 border-psa-blue/40 bg-gradient-to-br from-psa-blue/[0.07] to-transparent p-5">
+        <button
+          type="button"
+          onClick={() => setShowCarteiraRules((v) => !v)}
+          className={`absolute top-3 right-3 w-5 h-5 inline-flex items-center justify-center rounded-full border text-[11px] font-bold transition-colors ${
+            showCarteiraRules ? "border-psa-blue text-psa-blue" : "border-psa-line text-psa-ink-soft hover:border-psa-blue hover:text-psa-blue"
+          }`}
+          title="Ver regras de Perfil completo"
+          aria-label="Regras de Perfil completo"
+        >
+          i
+        </button>
+        {showCarteiraRules && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowCarteiraRules(false)} />
+            <div className="absolute z-50 top-10 right-3 w-72 rounded-xl border border-psa-line bg-psa-surface shadow-card-hover p-3 text-left">
+              <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft mb-2">
+                Regras de “Perfil completo”
+              </div>
+              <ul className="space-y-1.5">
+                {RULES.perfilCompleto.map((line, i) => (
+                  <li key={i} className="flex gap-1.5 text-xs text-psa-ink leading-snug">
+                    <span className="text-psa-blue mt-0.5 leading-none">•</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-blue pr-6">
+              Perfil completo · tomador de decisão {tab === "all" ? "(carteira do time)" : `· ${tabLabel(tab)}`}
+            </div>
+            <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+              <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">
+                {carteiraLoading ? "…" : num(carteiraView.completo)}
+              </span>
+              <span className="text-sm text-psa-ink-soft">
+                de {carteiraLoading ? "…" : num(carteiraView.total)} empresas da carteira
+              </span>
+            </div>
+            <div className="mt-1 text-[11px] text-psa-ink-soft">
+              Empresas com ≥1 contato Tomador de Decisão completo (Nome, Telefone, E-mail e LinkedIn)
+            </div>
+          </div>
+          <div className="font-display text-3xl font-extrabold text-psa-blue tabular-nums">
+            {carteiraLoading || carteiraView.total === 0
+              ? "…"
+              : `${Math.round((carteiraView.completo / carteiraView.total) * 100)}%`}
+          </div>
+        </div>
+        <div className="mt-3 h-3 rounded-full bg-psa-canvas overflow-hidden">
+          <div
+            className="h-full rounded-full bg-psa-blue transition-all"
+            style={{ width: carteiraLoading || carteiraView.total === 0 ? "0%" : `${Math.min(100, (carteiraView.completo / carteiraView.total) * 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* KPIs — 5 cards (clicáveis: abrem a lista do escopo atual) */}
+      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <KpiCard
           label="Negócios fechados"
           value={view ? num(view.negocios) : 0}
@@ -716,20 +780,6 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
           }
           loading={loading}
           info={RULES.reunioes}
-        />
-        <KpiCard
-          label="Perfil completo (tomador de decisão)"
-          value={carteiraLoading ? "…" : `${num(carteiraView.completo)} de ${num(carteiraView.total)}`}
-          accent="ink"
-          hint={
-            carteiraLoading
-              ? "Carregando carteira (snapshot)…"
-              : carteiraView.total > 0
-              ? `${Math.round((carteiraView.completo / carteiraView.total) * 100)}% da carteira · ${num(carteiraView.total)} empresas`
-              : "Empresas da carteira com tomador de decisão completo"
-          }
-          loading={loading}
-          info={RULES.perfilCompleto}
         />
       </section>
 
