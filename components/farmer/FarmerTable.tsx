@@ -170,7 +170,37 @@ function DetailPanel({
         </div>
       </div>
     )}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+    {/* Perfil completo do tomador de decisão (carteira) — barra de destaque */}
+    {(() => {
+      const c = carteiraByOwner?.[f.ownerId];
+      const total = c?.carteira ?? 0;
+      const comp = c?.completo ?? 0;
+      const pct = total > 0 ? (comp / total) * 100 : 0;
+      const loading = carteiraByOwner == null;
+      return (
+        <div className="rounded-lg border-2 border-psa-blue/40 bg-gradient-to-br from-psa-blue/[0.07] to-transparent p-4">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-blue">
+              Perfil completo · tomador de decisão (carteira)
+            </div>
+            <div className="text-sm text-psa-ink-soft">
+              {loading ? "carregando…" : (
+                <><b className="text-psa-ink tabular-nums">{num(comp)}</b> de <b className="text-psa-ink tabular-nums">{num(total)}</b> empresas</>
+              )}
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <div className="flex-1 h-3 rounded-full bg-psa-canvas overflow-hidden">
+              <div className="h-full rounded-full bg-psa-blue transition-all" style={{ width: loading ? "0%" : `${Math.min(100, pct)}%` }} />
+            </div>
+            <span className="font-display text-2xl font-extrabold text-psa-blue tabular-nums whitespace-nowrap">
+              {loading || total === 0 ? "…" : `${Math.round(pct)}%`}
+            </span>
+          </div>
+        </div>
+      );
+    })()}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
       <div className={groupCls}>
         <div className={titleCls}>Demandas levantadas</div>
         <div className="flex justify-between gap-2 pb-1 mb-1 border-b border-psa-line/60">
@@ -217,19 +247,6 @@ function DetailPanel({
         <div className={titleCls}>Reuniões</div>
         {item("Realizadas", num(f.reunioesRealizadas), onOpen && f.reunioesRealizadas > 0 ? () => onOpen("reunioes_realizadas") : undefined)}
         {item("Agendadas", num(f.reunioesAgendadas), onOpen && f.reunioesAgendadas > 0 ? () => onOpen("reunioes_agendadas") : undefined)}
-      </div>
-      <div className={groupCls}>
-        <div className={titleCls}>Carteira</div>
-        {(() => {
-          const c = carteiraByOwner?.[f.ownerId];
-          if (carteiraByOwner == null) return item("Perfil completo", "…");
-          return (
-            <>
-              {item("Perfil completo", `${num(c?.completo ?? 0)} de ${num(c?.carteira ?? 0)}`)}
-              {item("% da carteira", c && c.carteira > 0 ? `${Math.round((c.completo / c.carteira) * 100)}%` : "—")}
-            </>
-          );
-        })()}
       </div>
     </div>
     </div>
