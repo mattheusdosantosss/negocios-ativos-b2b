@@ -3,6 +3,8 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import type { FarmerRow } from "@/lib/farmer/aggregate";
 import type { ModalKind } from "@/components/farmer/DrillModal";
+import type { CarteiraEmpresa } from "@/lib/farmer/hubspot";
+import CarteiraModal from "@/components/farmer/CarteiraModal";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -37,6 +39,21 @@ function DetailPanel({
   onOpen?: (kind: ModalKind, stage?: string) => void;
   carteiraByOwner?: CarteiraMap;
 }) {
+  // Drill-down da carteira (empresas + o que falta) — carregado sob demanda ao
+  // clicar num dos pills. Cacheado no state do painel após a 1ª busca.
+  const [carteiraModal, setCarteiraModal] = useState<"completos" | "pendentes" | null>(null);
+  const [carteiraDetalhe, setCarteiraDetalhe] = useState<CarteiraEmpresa[] | null>(null);
+  const openCarteira = (filtro: "completos" | "pendentes") => {
+    setCarteiraModal(filtro);
+    if (carteiraDetalhe === null) {
+      const key = new URLSearchParams(window.location.search).get("key") || "";
+      fetch(`/api/farmer/carteira/detalhe?owner=${encodeURIComponent(f.ownerId)}${key ? `&key=${encodeURIComponent(key)}` : ""}`)
+        .then((r) => r.json())
+        .then((j) => setCarteiraDetalhe(j?.companies ?? []))
+        .catch(() => setCarteiraDetalhe([]));
+    }
+  };
+
   // Distribuição das demandas do farmer por etapa, segmentada por origem.
   type StageAgg = {
     carteira: number;
@@ -250,14 +267,26 @@ function DetailPanel({
               <span className="text-sm text-psa-ink-soft">de {loading ? "…" : num(total)} empresas com perfil completo</span>
             </div>
             <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-blue/10 text-psa-blue font-semibold">
+              <button
+                type="button"
+                onClick={loading || comp === 0 ? undefined : () => openCarteira("completos")}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-blue/10 text-psa-blue font-semibold enabled:hover:bg-psa-blue/20 transition-colors"
+                disabled={loading || comp === 0}
+                title="Ver empresas com perfil completo"
+              >
                 <span className="w-2 h-2 rounded-full bg-gradient-to-br from-sky-400 to-blue-600" />
                 {loading ? "…" : num(comp)} completos
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-canvas text-psa-ink-soft">
+              </button>
+              <button
+                type="button"
+                onClick={loading || faltam === 0 ? undefined : () => openCarteira("pendentes")}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-psa-canvas text-psa-ink-soft enabled:hover:bg-psa-line/40 transition-colors"
+                disabled={loading || faltam === 0}
+                title="Ver empresas com perfil pendente (e o que falta)"
+              >
                 <span className="w-2 h-2 rounded-full bg-psa-line" />
                 {loading ? "…" : num(faltam)} a completar
-              </span>
+              </button>
             </div>
           </div>
         </div>
@@ -277,7 +306,8 @@ function DetailPanel({
           >
             {num(empresasUnicas)} empresas únicas ↗
           </button>,
-          "blue"
+          "blue",
+          onOpen && f.demandas > 0 ? () => onOpen("demandas") : undefined
         )}
         <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
           {origens.filter((o) => o.count > 0).length === 0 ? (
@@ -294,13 +324,25 @@ function DetailPanel({
           )}
         </div>
         <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-psa-canvas text-[11px] text-psa-ink-soft">
+          <button
+            type="button"
+            onClick={onOpen && f.emAberto > 0 ? () => onOpen("aberto") : undefined}
+            disabled={!onOpen || f.emAberto === 0}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-psa-canvas text-[11px] text-psa-ink-soft enabled:hover:bg-psa-line/40 transition-colors"
+            title="Ver negócios em aberto"
+          >
             Em aberto <b className="text-psa-ink tabular-nums">{num(f.emAberto)}</b>
-          </span>
+          </button>
           {foraMoaTotal > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-[11px] text-red-600">
+            <button
+              type="button"
+              onClick={onOpen ? () => onOpen("fora_moa") : undefined}
+              disabled={!onOpen}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-[11px] text-red-600 enabled:hover:bg-red-100 transition-colors"
+              title="Ver negócios Fora do MOA"
+            >
               Fora do MOA <b className="tabular-nums">{num(foraMoaTotal)}</b>
-            </span>
+            </button>
           )}
         </div>
       </div>
@@ -333,6 +375,13 @@ function DetailPanel({
         </div>
       </div>
     </div>
+    <CarteiraModal
+      open={carteiraModal !== null}
+      onClose={() => setCarteiraModal(null)}
+      scopeLabel={f.nome}
+      filter={carteiraModal ?? "pendentes"}
+      companies={carteiraDetalhe}
+    />
     </div>
   );
 }

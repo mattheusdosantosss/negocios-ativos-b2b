@@ -133,6 +133,7 @@ type ModalState =
 // Lista de deals de um farmer pra uma métrica (receita reusa negócios).
 function dealsOf(f: FarmerRow, kind: ModalKind): DealLite[] {
   if (kind === "demandas") return f.demandasDeals;
+  if (kind === "fora_moa") return f.demandasDeals.filter((d) => d.foraMoa);
   if (kind === "empresas_unicas") {
     // 1 linha por empresa única: dedupa por companyId; demanda sem empresa
     // (inclui B2C) entra como linha própria. Fora do MOA não conta.

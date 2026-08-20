@@ -761,6 +761,86 @@ export async function fetchCarteiraPerfilCompleto(ownerIds: string[]): Promise<C
   return out;
 }
 
+// ------------------------------------------------------------
+// Detalhe da carteira de UM farmer (sob demanda, ao clicar no card).
+// Lista as empresas Carteirizada + status do perfil do tomador de decisão e,
+// quando incompleto, QUAIS campos faltam. Escopo de 1 farmer (~300 empresas) →
+// leve o bastante pra rodar on-demand. Cacheado por owner no route.
+// ------------------------------------------------------------
+export type CarteiraEmpresa = { name: string; completo: boolean; missing: string[] };
+
+export async function fetchCarteiraDetalheOwner(ownerId: string): Promise<CarteiraEmpresa[]> {
+  // 1) empresas da carteira + nomes
+  const empresas: Array<{ id: string; name: string }> = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters: [
+        { propertyName: "status_da_empresa", operator: "EQ", value: "Carteirizada" },
+        { propertyName: "hubspot_owner_id", operator: "EQ", value: ownerId },
+      ] }],
+      properties: ["name"],
+      limit: 100,
+    };
+    if (after) body.after = after;
+    const data: SearchResponse<{ id: string; properties: { name?: string } }> = await hsSearchPaced(
+      `/crm/v3/objects/companies/search`,
+      body
+    );
+    for (const c of data.results) empresas.push({ id: String(c.id), name: c.properties?.name || "(sem nome)" });
+    after = data.paging?.next?.after;
+  } while (after);
+  if (empresas.length === 0) return [];
+
+  // 2) contatos associados (todas as associações) de cada empresa
+  const compToContacts = new Map<string, string[]>();
+  const allContacts = new Set<string>();
+  for (const ids of chunk(empresas.map((e) => e.id), 100)) {
+    const data = await hsFetch<{ results?: Array<{ from?: { id?: string }; to?: Array<{ toObjectId?: string | number }> }> }>(
+      `/crm/v4/associations/companies/contacts/batch/read`,
+      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })) }) }
+    );
+    for (const r of data.results ?? []) {
+      const from = String(r.from?.id ?? "");
+      if (!from) continue;
+      const to = (r.to ?? []).map((t) => String(t.toObjectId ?? "")).filter(Boolean);
+      compToContacts.set(from, to);
+      to.forEach((c) => allContacts.add(c));
+    }
+    await sleep(30);
+  }
+
+  // 3) campos dos contatos (batch-read, não-search)
+  const cprops = new Map<string, Record<string, string | undefined>>();
+  for (const ids of chunk([...allContacts], 100)) {
+    const data = await hsFetch<{ results?: Array<{ id: string; properties?: Record<string, string> }> }>(
+      `/crm/v3/objects/contacts/batch/read`,
+      { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["firstname", "phone", "email", "linkedin", "hs_buying_role"] }) }
+    );
+    for (const c of data.results ?? []) cprops.set(String(c.id), c.properties ?? {});
+    await sleep(30);
+  }
+
+  // 4) status por empresa: melhor contato Tomador de Decisão (menos campos
+  //    faltando); sem DM → "Tomador de Decisão" falta como um todo.
+  const FIELDS: Array<[string, string]> = [["firstname", "Nome"], ["phone", "Telefone"], ["email", "E-mail"], ["linkedin", "LinkedIn"]];
+  const has = (v?: string) => v != null && String(v).trim() !== "";
+  const out: CarteiraEmpresa[] = empresas.map((e) => {
+    const contatos = (compToContacts.get(e.id) ?? []).map((id) => cprops.get(id)).filter((p): p is Record<string, string | undefined> => !!p);
+    const dm = contatos.filter((p) => p.hs_buying_role === "DECISION_MAKER");
+    if (dm.length === 0) return { name: e.name, completo: false, missing: ["Tomador de Decisão"] };
+    let best: string[] | null = null;
+    for (const p of dm) {
+      const missing = FIELDS.filter(([k]) => !has(p[k])).map(([, label]) => label);
+      if (best === null || missing.length < best.length) best = missing;
+      if (missing.length === 0) break;
+    }
+    return { name: e.name, completo: (best ?? []).length === 0, missing: best ?? [] };
+  });
+  out.sort((a, b) => Number(a.completo) - Number(b.completo) || a.name.localeCompare(b.name, "pt-BR"));
+  return out;
+}
+
 export async function fetchCompanyOwnersForDeals(dealIds: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (dealIds.length === 0) return result;

@@ -30,6 +30,7 @@ const fmtDate = (iso?: string) => {
 export type ModalKind =
   | "demandas"
   | "empresas_unicas"
+  | "fora_moa"
   | "aberto"
   | "negocios"
   | "perdidos"
@@ -42,6 +43,7 @@ export type ModalKind =
 const TITLES: Record<ModalKind, { titulo: string; sing: string; plural: string }> = {
   demandas: { titulo: "Demandas levantadas", sing: "demanda", plural: "demandas" },
   empresas_unicas: { titulo: "Empresas únicas", sing: "empresa", plural: "empresas" },
+  fora_moa: { titulo: "Fora do MOA (não conta)", sing: "negócio", plural: "negócios" },
   aberto: { titulo: "Negócios em aberto", sing: "negócio em aberto", plural: "negócios em aberto" },
   negocios: { titulo: "Negócios fechados", sing: "negócio fechado", plural: "negócios fechados" },
   perdidos: { titulo: "Negócios perdidos", sing: "negócio perdido", plural: "negócios perdidos" },
