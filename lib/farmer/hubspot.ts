@@ -616,78 +616,126 @@ export async function fetchCompanyNames(companyIds: string[]): Promise<Map<strin
 // completo" quando tem >=1 contato associado que é Tomador de Decisão com
 // Nome, Telefone, E-mail e LinkedIn preenchidos.
 //
-// Estratégia (a carteira do time é grande, ~6k empresas): buscamos os contatos
-// "tomador de decisão completos" e usamos o associatedcompanyid (empresa
-// primária) pra montar o conjunto de empresas com perfil; depois cruzamos com
-// a carteira do time. Retorna objeto simples (serializável p/ unstable_cache).
+// Estratégia (carteira do time ~6k empresas): 1) monta o conjunto GLOBAL de
+// contatos "tomador de decisão completos" (ids); 2) por owner (em paralelo),
+// enumera a carteira e, via associação COMPLETA empresa→contatos (v4, todas as
+// associações, não só a primária), marca a empresa como completa se algum
+// contato associado está no conjunto. Objeto simples (serializável p/ cache).
 export type CarteiraPerfil = Record<string, { carteira: number; completo: number }>;
 
-// Carteira Carteirizada de UM farmer + quantas têm tomador de decisão completo.
-// 1) ids das empresas do owner; 2) por lotes de 100 ids, busca contatos DM
-// completos com associatedcompanyid IN lote → marca a empresa como completa.
-async function carteiraDeUmOwner(ownerId: string): Promise<{ carteira: number; completo: number }> {
-  const companyIds: string[] = [];
+// A Search API do HubSpot tem limite de ~4 req/s. Espaçamos as BUSCAS em 260ms
+// (sequenciais) pra respeitar isso proativamente — mais rápido do que disparar
+// em paralelo e apanhar 429 (que faz backoff de 1–4s por chamada).
+const SEARCH_GAP_MS = 260;
+
+// Todos os contatos que são Tomador de Decisão COMPLETOS (Nome, Telefone,
+// E-mail e LinkedIn preenchidos). Retorna o Set de ids.
+async function fetchContatosDmCompletos(): Promise<Set<string>> {
+  const ids = new Set<string>();
   let after: string | undefined;
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters: [
-        { propertyName: "status_da_empresa", operator: "EQ", value: "Carteirizada" },
-        { propertyName: "hubspot_owner_id", operator: "EQ", value: ownerId },
+        { propertyName: "hs_buying_role", operator: "EQ", value: "DECISION_MAKER" },
+        { propertyName: "firstname", operator: "HAS_PROPERTY" },
+        { propertyName: "phone", operator: "HAS_PROPERTY" },
+        { propertyName: "email", operator: "HAS_PROPERTY" },
+        { propertyName: "linkedin", operator: "HAS_PROPERTY" },
       ] }],
-      properties: ["hubspot_owner_id"],
+      properties: ["hs_object_id"],
       limit: 100,
     };
     if (after) body.after = after;
-    const data: SearchResponse<{ id: string }> = await hsFetch(`/crm/v3/objects/companies/search`, {
+    const data: SearchResponse<{ id: string }> = await hsFetch(`/crm/v3/objects/contacts/search`, {
       method: "POST",
       body: JSON.stringify(body),
     });
-    for (const c of data.results) companyIds.push(String(c.id));
+    for (const c of data.results) ids.add(String(c.id));
     after = data.paging?.next?.after;
-    if (after) await sleep(50);
+    if (after) await sleep(SEARCH_GAP_MS);
   } while (after);
-  if (companyIds.length === 0) return { carteira: 0, completo: 0 };
-
-  const completas = new Set<string>();
-  for (const ids of chunk(companyIds, 100)) {
-    let a: string | undefined;
-    do {
-      const body: Record<string, unknown> = {
-        filterGroups: [{ filters: [
-          { propertyName: "hs_buying_role", operator: "EQ", value: "DECISION_MAKER" },
-          { propertyName: "firstname", operator: "HAS_PROPERTY" },
-          { propertyName: "phone", operator: "HAS_PROPERTY" },
-          { propertyName: "email", operator: "HAS_PROPERTY" },
-          { propertyName: "linkedin", operator: "HAS_PROPERTY" },
-          { propertyName: "associatedcompanyid", operator: "IN", values: ids },
-        ] }],
-        properties: ["associatedcompanyid"],
-        limit: 100,
-      };
-      if (a) body.after = a;
-      const data: SearchResponse<{ id: string; properties: { associatedcompanyid?: string } }> = await hsFetch(
-        `/crm/v3/objects/contacts/search`,
-        { method: "POST", body: JSON.stringify(body) }
-      );
-      for (const ct of data.results) {
-        const cid = ct.properties?.associatedcompanyid;
-        if (cid) completas.add(String(cid));
-      }
-      a = data.paging?.next?.after;
-      if (a) await sleep(50);
-    } while (a);
-  }
-  return { carteira: companyIds.length, completo: completas.size };
+  return ids;
 }
 
+// Empresas associadas aos contatos DM completos (TODAS as associações, via v4
+// contacts→companies). Payloads pequenos (contato tem 1–3 empresas) → rápido.
+async function fetchEmpresasComDmCompleto(contatoIds: string[]): Promise<Set<string>> {
+  const empresas = new Set<string>();
+  const lotes = chunk(contatoIds, 100);
+  const CONC = 5;
+  for (let i = 0; i < lotes.length; i += CONC) {
+    await Promise.all(
+      lotes.slice(i, i + CONC).map(async (ids) => {
+        const data = await hsFetch<{ results?: Array<{ to?: Array<{ toObjectId?: string | number }> }> }>(
+          `/crm/v4/associations/contacts/companies/batch/read`,
+          { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })) }) }
+        );
+        for (const r of data.results ?? []) {
+          for (const t of r.to ?? []) if (t.toObjectId != null) empresas.add(String(t.toObjectId));
+        }
+      })
+    );
+    await sleep(30);
+  }
+  return empresas;
+}
+
+// Total da carteira de UM farmer (só a contagem — 1 busca, lê o `total`).
+async function carteiraTotalDoOwner(ownerId: string): Promise<number> {
+  const body = {
+    filterGroups: [{ filters: [
+      { propertyName: "status_da_empresa", operator: "EQ", value: "Carteirizada" },
+      { propertyName: "hubspot_owner_id", operator: "EQ", value: ownerId },
+    ] }],
+    properties: ["hubspot_owner_id"],
+    limit: 1,
+  };
+  const data: SearchResponse<{ id: string }> = await hsFetch(`/crm/v3/objects/companies/search`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data.total ?? 0;
+}
+
+// Perfil completo por farmer. Minimiza chamadas à Search API (limite ~4/s):
+//  - carteiraTotal: 1 busca de contagem por owner.
+//  - completo: das empresas que têm contato DM completo (empresasComDm), lê
+//    dono+status via batch-read (NÃO é search → mais rápido) e credita ao owner
+//    quando a empresa é Carteirizada e o dono é do time.
 export async function fetchCarteiraPerfilCompleto(ownerIds: string[]): Promise<CarteiraPerfil> {
   const out: CarteiraPerfil = {};
   for (const id of ownerIds) out[id] = { carteira: 0, completo: 0 };
-  const CONC = 5; // endpoint isolado (nao compete com o painel) — mais rapido sem 429
-  for (let i = 0; i < ownerIds.length; i += CONC) {
-    const batch = ownerIds.slice(i, i + CONC);
-    const results = await Promise.all(batch.map((oid) => carteiraDeUmOwner(oid)));
-    batch.forEach((oid, j) => { out[oid] = results[j]; });
+  if (ownerIds.length === 0) return out;
+
+  const dmCompletos = await fetchContatosDmCompletos();
+  const empresasComDm = await fetchEmpresasComDmCompleto([...dmCompletos]);
+
+  // carteiraTotal — buscas de contagem, sequenciais e espaçadas (search 4/s).
+  for (const oid of ownerIds) {
+    out[oid].carteira = await carteiraTotalDoOwner(oid);
+    await sleep(SEARCH_GAP_MS);
+  }
+
+  // completo — batch-read (não-search) das empresas com DM completo.
+  const teamSet = new Set(ownerIds);
+  const lotes = chunk([...empresasComDm], 100);
+  const CONC_READ = 5;
+  for (let i = 0; i < lotes.length; i += CONC_READ) {
+    await Promise.all(
+      lotes.slice(i, i + CONC_READ).map(async (ids) => {
+        const data = await hsFetch<{ results?: Array<{ id: string; properties?: { hubspot_owner_id?: string; status_da_empresa?: string } }> }>(
+          `/crm/v3/objects/companies/batch/read`,
+          { method: "POST", body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["hubspot_owner_id", "status_da_empresa"] }) }
+        );
+        for (const co of data.results ?? []) {
+          const oid = co.properties?.hubspot_owner_id;
+          if (co.properties?.status_da_empresa === "Carteirizada" && oid && teamSet.has(oid)) {
+            out[oid].completo += 1;
+          }
+        }
+      })
+    );
+    await sleep(30);
   }
   return out;
 }

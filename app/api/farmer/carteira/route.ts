@@ -15,7 +15,7 @@ const ACCESS_KEY = process.env.DASHBOARD_ACCESS_KEY;
 const getCarteiraCached = (ownerIds: string[]) =>
   unstable_cache(
     () => fetchCarteiraPerfilCompleto(ownerIds),
-    ["carteira-perfil-v1", [...ownerIds].sort().join(",")],
+    ["carteira-perfil-v3", [...ownerIds].sort().join(",")],
     { revalidate: 21600 }
   )();
 
