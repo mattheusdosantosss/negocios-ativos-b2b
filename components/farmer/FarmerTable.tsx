@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import type { FarmerRow } from "@/lib/farmer/aggregate";
 import type { ModalKind } from "@/components/farmer/DrillModal";
 
@@ -81,31 +81,57 @@ function DetailPanel({
     { key: "qualif_farmer" as const, label: "Qualif. Farmer", cls: "bg-psa-muted" },
   ];
 
-  const item = (label: string, value: string, onClick?: () => void) => (
-    <div className="flex justify-between gap-2">
+  const tileCls = "rounded-xl border border-psa-line bg-psa-surface p-4 flex flex-col hover:shadow-card transition-shadow";
+  const accentText: Record<string, string> = { blue: "text-psa-blue", orange: "text-psa-orange", emerald: "text-emerald-600", slate: "text-slate-600", cyan: "text-cyan-600" };
+  const accentDot: Record<string, string> = { blue: "bg-psa-blue", orange: "bg-psa-orange", emerald: "bg-emerald-500", slate: "bg-slate-500", cyan: "bg-cyan-500" };
+  // Cabeçalho do tile: dot colorido + label (padrão único p/ todos os cards).
+  const head = (label: string, accent: string) => (
+    <div className="flex items-center gap-1.5 mb-2.5">
+      <span className={`w-1.5 h-1.5 rounded-full ${accentDot[accent]}`} />
+      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">{label}</span>
+    </div>
+  );
+  // Número herói do tile (clicável abre a lista quando onClick é passado).
+  const hero = (value: string, sub: ReactNode, accent: string, onClick?: () => void) => (
+    <div className="flex items-baseline gap-2 flex-wrap">
+      {onClick ? (
+        <button type="button" onClick={onClick} className={`font-display text-3xl font-extrabold tabular-nums ${accentText[accent]} hover:opacity-75 transition-opacity`} title="Ver lista">
+          {value}
+        </button>
+      ) : (
+        <span className={`font-display text-3xl font-extrabold tabular-nums ${accentText[accent]}`}>{value}</span>
+      )}
+      {sub && <span className="text-[11px] text-psa-ink-soft">{sub}</span>}
+    </div>
+  );
+  // Linha de apoio label : valor (com afordância de clique).
+  const row = (label: string, value: string, onClick?: () => void) => (
+    <div className="flex items-center justify-between gap-2 py-0.5 text-[11px]">
       <span className="text-psa-ink-soft">{label}</span>
       {onClick ? (
-        <button
-          type="button"
-          onClick={onClick}
-          className="font-semibold tabular-nums text-psa-ink hover:text-psa-orange hover:underline underline-offset-2"
-          title="Ver lista"
-        >
+        <button type="button" onClick={onClick} className="group inline-flex items-center gap-1 font-semibold tabular-nums text-psa-ink hover:text-psa-orange" title="Ver lista">
           {value}
+          <span className="opacity-0 group-hover:opacity-100 text-psa-orange text-[9px]">↗</span>
         </button>
       ) : (
         <span className="font-semibold tabular-nums text-psa-ink">{value}</span>
       )}
     </div>
   );
-  const groupCls = "rounded-lg border border-psa-line bg-psa-surface p-3 space-y-1";
-  const titleCls = "text-[10px] font-bold uppercase tracking-[0.08em] text-psa-orange mb-1";
+  const origens = [
+    { label: "Carteira", count: f.demandasCarteira, cls: "bg-psa-blue" },
+    { label: "Ação de CRM", count: f.demandasAcaoCrm, cls: "bg-psa-orange" },
+    { label: "Ação de CRM (Carteira)", count: f.demandasAcaoCrmCarteira, cls: "bg-cyan-500" },
+    { label: "Indicação", count: f.demandasIndicacao, cls: "bg-emerald-500" },
+    { label: "Palestrante", count: f.demandasPalestrante, cls: "bg-violet-500" },
+    { label: "Qualif. Farmer", count: f.demandasQualifFarmer, cls: "bg-psa-muted" },
+  ];
   return (
     <div className="space-y-3">
     {stages.length > 0 && (
       <div className="rounded-lg border border-psa-line bg-psa-surface p-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className={titleCls}>Negócios por etapa (demandas)</div>
+          {head("Negócios por etapa (demandas)", "orange")}
           <div className="flex items-center gap-3 text-[10px] text-psa-ink-soft">
             {SEG.map((s) => (
               <span key={s.key} className="inline-flex items-center gap-1">
@@ -200,53 +226,74 @@ function DetailPanel({
         </div>
       );
     })()}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-      <div className={groupCls}>
-        <div className={titleCls}>Demandas levantadas</div>
-        <div className="flex justify-between gap-2 pb-1 mb-1 border-b border-psa-line/60">
-          <span className="text-psa-ink-soft">Empresas únicas</span>
-          {onOpen && empresasUnicas > 0 ? (
-            <button
-              type="button"
-              onClick={() => onOpen("empresas_unicas")}
-              className="font-bold tabular-nums text-psa-ink hover:text-psa-orange hover:underline underline-offset-2"
-              title="Ver empresas únicas (negócios da mesma empresa contam 1; sem empresa conta 1)"
-            >
-              {num(empresasUnicas)}
-            </button>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Demandas levantadas */}
+      <div className={tileCls}>
+        {head("Demandas levantadas", "blue")}
+        {hero(
+          num(f.demandas),
+          <button
+            type="button"
+            onClick={onOpen && empresasUnicas > 0 ? () => onOpen("empresas_unicas") : undefined}
+            className="hover:text-psa-orange"
+            title="Ver empresas únicas"
+          >
+            {num(empresasUnicas)} empresas únicas ↗
+          </button>,
+          "blue"
+        )}
+        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
+          {origens.filter((o) => o.count > 0).length === 0 ? (
+            <span className="text-[11px] text-psa-ink-soft">Sem demandas no período</span>
           ) : (
-            <span className="font-bold tabular-nums text-psa-ink" title="Negócios da mesma empresa contam 1; sem empresa (inclui B2C) conta 1">{num(empresasUnicas)}</span>
+            origens
+              .filter((o) => o.count > 0)
+              .map((o) => (
+                <span key={o.label} className="inline-flex items-center gap-1 text-[11px] text-psa-ink-soft">
+                  <span className={`w-2 h-2 rounded-sm ${o.cls}`} />
+                  {o.label} <b className="text-psa-ink tabular-nums">{num(o.count)}</b>
+                </span>
+              ))
           )}
         </div>
-        {item("Carteira", num(f.demandasCarteira))}
-        {item("Ação de CRM", num(f.demandasAcaoCrm))}
-        {item("Ação de CRM (Carteira)", num(f.demandasAcaoCrmCarteira))}
-        {item("Indicação", num(f.demandasIndicacao))}
-        {item("Palestrante", num(f.demandasPalestrante))}
-        {item("Qualificação Farmer", num(f.demandasQualifFarmer))}
-        {item("Em aberto", num(f.emAberto))}
-        {foraMoaTotal > 0 && (
-          <div className="flex justify-between gap-2 pt-1 mt-1 border-t border-psa-line/60">
-            <span className="text-red-600">Fora do MOA (não conta)</span>
-            <span className="font-semibold tabular-nums text-red-600">{num(foraMoaTotal)}</span>
-          </div>
-        )}
+        <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-psa-canvas text-[11px] text-psa-ink-soft">
+            Em aberto <b className="text-psa-ink tabular-nums">{num(f.emAberto)}</b>
+          </span>
+          {foraMoaTotal > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-[11px] text-red-600">
+              Fora do MOA <b className="tabular-nums">{num(foraMoaTotal)}</b>
+            </span>
+          )}
+        </div>
       </div>
-      <div className={groupCls}>
-        <div className={titleCls}>Negócios fechados</div>
-        {item("Fechados (ganhos)", num(f.negocios), onOpen && f.negocios > 0 ? () => onOpen("negocios") : undefined)}
-        {item("Perdidos", num(f.perdidos), onOpen && f.perdidos > 0 ? () => onOpen("perdidos") : undefined)}
-        {item("Receita", brl(f.receita), onOpen && f.negocios > 0 ? () => onOpen("receita") : undefined)}
+
+      {/* Negócios fechados */}
+      <div className={tileCls}>
+        {head("Negócios fechados", "orange")}
+        {hero(num(f.negocios), "ganhos", "orange", onOpen && f.negocios > 0 ? () => onOpen("negocios") : undefined)}
+        <div className="mt-auto pt-3 space-y-0.5">
+          {row("Receita", brl(f.receita), onOpen && f.negocios > 0 ? () => onOpen("receita") : undefined)}
+          {row("Perdidos", num(f.perdidos), onOpen && f.perdidos > 0 ? () => onOpen("perdidos") : undefined)}
+        </div>
       </div>
-      <div className={groupCls}>
-        <div className={titleCls}>Tramitações</div>
-        {item("Em andamento", num(f.tramitacoes), onOpen && f.tramitacoes > 0 ? () => onOpen("tramitacoes") : undefined)}
-        {item("Criadas no mês", num(f.tramitacoesCriadas), onOpen && f.tramitacoesCriadas > 0 ? () => onOpen("tramitacoes_criadas") : undefined)}
+
+      {/* Tramitações */}
+      <div className={tileCls}>
+        {head("Tramitações", "slate")}
+        {hero(num(f.tramitacoes), "em andamento", "slate", onOpen && f.tramitacoes > 0 ? () => onOpen("tramitacoes") : undefined)}
+        <div className="mt-auto pt-3">
+          {row("Criadas no mês", num(f.tramitacoesCriadas), onOpen && f.tramitacoesCriadas > 0 ? () => onOpen("tramitacoes_criadas") : undefined)}
+        </div>
       </div>
-      <div className={groupCls}>
-        <div className={titleCls}>Reuniões</div>
-        {item("Realizadas", num(f.reunioesRealizadas), onOpen && f.reunioesRealizadas > 0 ? () => onOpen("reunioes_realizadas") : undefined)}
-        {item("Agendadas", num(f.reunioesAgendadas), onOpen && f.reunioesAgendadas > 0 ? () => onOpen("reunioes_agendadas") : undefined)}
+
+      {/* Reuniões */}
+      <div className={tileCls}>
+        {head("Reuniões", "cyan")}
+        {hero(num(f.reunioesRealizadas), "realizadas", "cyan", onOpen && f.reunioesRealizadas > 0 ? () => onOpen("reunioes_realizadas") : undefined)}
+        <div className="mt-auto pt-3">
+          {row("Agendadas", num(f.reunioesAgendadas), onOpen && f.reunioesAgendadas > 0 ? () => onOpen("reunioes_agendadas") : undefined)}
+        </div>
       </div>
     </div>
     </div>
