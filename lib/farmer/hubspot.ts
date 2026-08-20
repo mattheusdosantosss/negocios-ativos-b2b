@@ -158,7 +158,7 @@ let _nextSearchSlot = 0;
 async function hsSearchPaced<T>(path: string, body: unknown): Promise<T> {
   const now = Date.now();
   const start = Math.max(now, _nextSearchSlot);
-  _nextSearchSlot = start + 250;
+  _nextSearchSlot = start + 300; // ~3.3/s — folga sob o limite ~4/s da Search API
   const wait = start - now;
   if (wait > 0) await sleep(wait);
   return hsFetch<T>(path, { method: "POST", body: JSON.stringify(body) });
