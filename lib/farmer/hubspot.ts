@@ -172,14 +172,19 @@ type OwnersResponse = { results: Owner[]; paging?: { next?: { after: string } } 
 
 export async function fetchAllOwners(): Promise<Map<string, Owner>> {
   const map = new Map<string, Owner>();
-  let after: string | undefined;
-  do {
-    const qs = new URLSearchParams({ limit: "100" });
-    if (after) qs.set("after", after);
-    const data: OwnersResponse = await hsFetch(`/crm/v3/owners?${qs}`);
-    for (const o of data.results) map.set(o.id, o);
-    after = data.paging?.next?.after;
-  } while (after);
+  // Inclui ATIVOS e ARQUIVADOS: farmers cujo usuário foi excluído do HubSpot
+  // ficam arquivados, mas os negócios deles continuam apontando pro ownerId —
+  // sem isso, as demandas somem do painel (ex.: Priscila Dornelles Dias).
+  for (const archived of ["false", "true"]) {
+    let after: string | undefined;
+    do {
+      const qs = new URLSearchParams({ limit: "100", archived });
+      if (after) qs.set("after", after);
+      const data: OwnersResponse = await hsFetch(`/crm/v3/owners?${qs}`);
+      for (const o of data.results) if (!map.has(o.id)) map.set(o.id, o);
+      after = data.paging?.next?.after;
+    } while (after);
+  }
   return map;
 }
 
