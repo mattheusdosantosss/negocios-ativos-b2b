@@ -133,7 +133,7 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
                       {r.com > 0 && (
                         <button
                           type="button"
-                          onClick={() => setOpen({ name: `${r.name} · com proposta`, deals: r.dealsCom })}
+                          onClick={() => setOpen({ name: r.name, deals: r.deals })}
                           title={`${num(r.com)} com proposta anexada — clique pra listar`}
                           style={{ width: `${(r.com / r.count) * 100}%`, background: COM_FILL }}
                           className="h-full hover:opacity-80"
@@ -142,7 +142,7 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
                       {r.sem > 0 && (
                         <button
                           type="button"
-                          onClick={() => setOpen({ name: `${r.name} · sem proposta`, deals: r.dealsSem })}
+                          onClick={() => setOpen({ name: r.name, deals: r.deals })}
                           title={`${num(r.sem)} sem proposta anexada — clique pra listar`}
                           style={{ width: `${(r.sem / r.count) * 100}%`, background: SEM_FILL }}
                           className="h-full hover:opacity-80"
@@ -156,7 +156,7 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
                     {r.com > 0 ? (
                       <button
                         type="button"
-                        onClick={() => setOpen({ name: `${r.name} · com proposta`, deals: r.dealsCom })}
+                        onClick={() => setOpen({ name: r.name, deals: r.deals })}
                         title="Listar com proposta anexada"
                         className="font-semibold hover:underline"
                         style={{ color: COM_FILL }}
@@ -170,7 +170,7 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
                     {r.sem > 0 ? (
                       <button
                         type="button"
-                        onClick={() => setOpen({ name: `${r.name} · sem proposta`, deals: r.dealsSem })}
+                        onClick={() => setOpen({ name: r.name, deals: r.deals })}
                         title="Listar sem proposta anexada"
                         className="font-semibold hover:underline"
                         style={{ color: SEM_FILL }}
@@ -188,14 +188,14 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
         </div>
       )}
 
-      {open && <MotivosModal title={open.name} deals={open.deals} onClose={() => setOpen(null)} />}
+      {open && <MotivosModal title={open.name} deals={open.deals} segmentar={!!showProposta} onClose={() => setOpen(null)} />}
     </div>
   );
 }
 
 type SortKey = "closer" | "negocio";
 
-function MotivosModal({ title, deals, onClose }: { title: string; deals: MotivosItem[]; onClose: () => void }) {
+function MotivosModal({ title, deals, segmentar, onClose }: { title: string; deals: MotivosItem[]; segmentar: boolean; onClose: () => void }) {
   const [sort, setSort] = useState<SortKey>("closer");
   useEffect(() => {
     const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -213,6 +213,30 @@ function MotivosModal({ title, deals, onClose }: { title: string; deals: Motivos
       ? (a.closer || "").localeCompare(b.closer || "", "pt-BR") || a.dealname.localeCompare(b.dealname, "pt-BR")
       : a.dealname.localeCompare(b.dealname, "pt-BR")
   );
+
+  // Um negócio da lista.
+  const dealLi = (d: MotivosItem, i: number) => (
+    <li key={i} className="text-[11px]">
+      <a href={d.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2" title="Abrir negócio no HubSpot">
+        <span className="flex-1 min-w-0 truncate text-white/75 group-hover:text-psa-orange group-hover:underline">{d.dealname}</span>
+        <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
+      </a>
+    </li>
+  );
+  // Sub-bloco "Com proposta" / "Sem proposta" dentro da seção do closer.
+  const sub = (label: string, color: string, items: MotivosItem[]) =>
+    items.length === 0 ? null : (
+      <div>
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-white/55">
+          <span className="inline-block w-2 h-2 rounded-[2px]" style={{ background: color }} />
+          {label}
+          <span className="text-white/35 font-normal normal-case">· {items.length}</span>
+        </div>
+        <ul className="mt-1 pl-3 border-l-2 space-y-1" style={{ borderColor: `${color}55` }}>
+          {items.map(dealLi)}
+        </ul>
+      </div>
+    );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
@@ -256,26 +280,30 @@ function MotivosModal({ title, deals, onClose }: { title: string; deals: Motivos
                 }
                 return [...groups.entries()]
                   .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "pt-BR"))
-                  .map(([name, ds]) => (
-                    <div key={name} className="px-6 py-3">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-sm font-semibold text-white/90 truncate">{name}</span>
-                        <span className="text-[11px] text-white/60 whitespace-nowrap">
-                          {ds.length} {ds.length === 1 ? "negócio" : "negócios"}
-                        </span>
+                  .map(([name, ds]) => {
+                    const com = ds.filter((d) => d.comProposta);
+                    const sem = ds.filter((d) => !d.comProposta);
+                    return (
+                      <div key={name} className="px-6 py-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-sm font-semibold text-white/90 truncate">{name}</span>
+                          <span className="text-[11px] text-white/60 whitespace-nowrap">
+                            {ds.length} {ds.length === 1 ? "negócio" : "negócios"}
+                          </span>
+                        </div>
+                        {segmentar ? (
+                          <div className="mt-2 space-y-2.5">
+                            {sub("Com proposta", COM_FILL, com)}
+                            {sub("Sem proposta", SEM_FILL, sem)}
+                          </div>
+                        ) : (
+                          <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1">
+                            {ds.map(dealLi)}
+                          </ul>
+                        )}
                       </div>
-                      <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1">
-                        {ds.map((d, i) => (
-                          <li key={i} className="text-[11px]">
-                            <a href={d.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2" title="Abrir negócio no HubSpot">
-                              <span className="flex-1 min-w-0 truncate text-white/75 group-hover:text-psa-orange group-hover:underline">{d.dealname}</span>
-                              <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ));
+                    );
+                  });
               })()}
             </div>
           ) : (

@@ -154,7 +154,7 @@ const getLostReasonsCached = (config: SegmentConfig, origemId: string, origem: s
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar motivos de perda" };
       }
     },
-    ["lost-reasons-v9", config.id, origemId, owner || "all"],
+    ["lost-reasons-v10", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 

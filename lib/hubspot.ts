@@ -630,7 +630,7 @@ export async function fetchSalesByCloser(
   return { sold, count: deals.length, byCloser };
 }
 
-export type MotivosItem = { dealname: string; url: string; closer: string };
+export type MotivosItem = { dealname: string; url: string; closer: string; comProposta: boolean };
 export type MotivosReason = {
   name: string;
   count: number;
@@ -718,7 +718,7 @@ export async function fetchLostReasons(
     const hasProp = p.tem_proposta_anexada === "true";
     const oid = p.hubspot_owner_id || "";
     const closer = teamName.get(oid) || ownerDisplayName(owners?.get(oid));
-    const item: MotivosItem = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), closer };
+    const item: MotivosItem = { dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), closer, comProposta: hasProp };
     push(geral, reason, item, hasProp);
     const k = monthKey(d.properties.closedate);
     if (k === "sem-data") continue;
