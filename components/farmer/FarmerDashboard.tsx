@@ -225,10 +225,28 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   useEffect(() => {
     let cancelled = false;
     setCarteira(null);
-    fetch(`/api/farmer/carteira${accessKey ? `?key=${encodeURIComponent(accessKey)}` : ""}`)
-      .then((r) => r.json())
-      .then((j) => { if (!cancelled) setCarteira(j?.byOwner ?? {}); })
-      .catch(() => { if (!cancelled) setCarteira({}); });
+    // A carteira é um snapshot pesado (~30s no cold, cacheado 6h). Se a 1ª
+    // chamada pega o cold e estoura/vazia, tenta de novo (mantendo "carregando")
+    // — a recomputação server-side termina e as próximas pegam do cache.
+    let attempt = 0;
+    const load = () => {
+      fetch(`/api/farmer/carteira${accessKey ? `?key=${encodeURIComponent(accessKey)}` : ""}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((j) => {
+          const bo = j?.byOwner as Record<string, { carteira: number; completo: number }> | undefined;
+          if (bo && Object.keys(bo).length > 0) {
+            if (!cancelled) setCarteira(bo);
+          } else {
+            throw new Error("vazio");
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (attempt++ < 5) setTimeout(load, 4000);
+          else setCarteira({}); // desiste após ~20s de tentativas
+        });
+    };
+    load();
     return () => { cancelled = true; };
   }, [accessKey]);
 

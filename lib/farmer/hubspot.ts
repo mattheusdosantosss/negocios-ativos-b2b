@@ -720,24 +720,26 @@ async function carteiraTotalDoOwner(ownerId: string): Promise<number> {
   return data.total ?? 0;
 }
 
-// Perfil completo por farmer. Todas as buscas passam pelo limitador global de
-// 4/s (hsSearchPaced), com concorrência pra esconder a latência:
-//  - carteiraTotal: 1 busca de contagem por owner (todas concorrentes).
-//  - completo: das empresas com contato DM completo, lê dono+status via
-//    batch-read (NÃO é search → rápido) e credita quando Carteirizada + do time.
-// As empresas-com-DM (v4) e as contagens rodam em paralelo (buckets distintos).
-export async function fetchCarteiraPerfilCompleto(ownerIds: string[]): Promise<CarteiraPerfil> {
+// Conjunto GLOBAL de empresas que têm ≥1 contato Tomador de Decisão completo.
+// É a parte pesada (varredura dos ~6k contatos DM completos + associações) e
+// muda devagar → cacheada à parte no route (12h) e reutilizada pelas contagens.
+export async function fetchEmpresasComDm(): Promise<string[]> {
+  const dmCompletos = await fetchContatosDmCompletos();
+  const empresas = await fetchEmpresasComDmCompleto([...dmCompletos]);
+  return [...empresas];
+}
+
+// Contagens da carteira por farmer, dado o conjunto de empresas com DM completo:
+//  - carteiraTotal: 1 busca de contagem por owner (concorrentes, limitador 4/s).
+//  - completo: batch-read (não-search) das empresas com DM → credita quando
+//    Carteirizada + dono do time.
+export async function fetchCarteiraCounts(ownerIds: string[], empresasComDm: Set<string>): Promise<CarteiraPerfil> {
   const out: CarteiraPerfil = {};
   for (const id of ownerIds) out[id] = { carteira: 0, completo: 0 };
   if (ownerIds.length === 0) return out;
 
-  const dmCompletos = await fetchContatosDmCompletos();
-  const [empresasComDm] = await Promise.all([
-    fetchEmpresasComDmCompleto([...dmCompletos]),
-    Promise.all(ownerIds.map(async (oid) => { out[oid].carteira = await carteiraTotalDoOwner(oid); })),
-  ]);
+  await Promise.all(ownerIds.map(async (oid) => { out[oid].carteira = await carteiraTotalDoOwner(oid); }));
 
-  // completo — batch-read (não-search) das empresas com DM completo.
   const teamSet = new Set(ownerIds);
   const lotes = chunk([...empresasComDm], 100);
   const CONC_READ = 5;

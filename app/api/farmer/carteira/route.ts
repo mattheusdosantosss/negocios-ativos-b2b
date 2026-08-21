@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { fetchAllOwners, fetchCarteiraPerfilCompleto, type CarteiraPerfil } from "@/lib/farmer/hubspot";
+import { fetchAllOwners, fetchEmpresasComDm, fetchCarteiraCounts, type CarteiraPerfil } from "@/lib/farmer/hubspot";
 import { resolveFarmers, type FarmerOverride } from "@/lib/farmer/teams";
 
 export const runtime = "nodejs";
@@ -9,13 +9,18 @@ export const maxDuration = 60; // snapshot pesado (~6k empresas) — só recompu
 
 const ACCESS_KEY = process.env.DASHBOARD_ACCESS_KEY;
 
-// Carteira (perfil completo do tomador de decisão) é um snapshot que muda
-// devagar → cacheia 6h por conjunto de owners. Roda separado do painel pra não
-// travar o carregamento (é lento e some no rate limit do HubSpot).
+// Parte pesada e GLOBAL (empresas com contato DM completo) — muda devagar, então
+// cacheia 12h e é reaproveitada pelas contagens, deixando o recomputo da
+// carteira bem mais rápido.
+const getEmpresasComDmCached = () =>
+  unstable_cache(() => fetchEmpresasComDm(), ["empresas-com-dm-v1"], { revalidate: 43200 })();
+
+// Contagens por owner (carteira + completo). Cacheia 6h por conjunto de owners,
+// reusando o conjunto de empresas-com-DM já cacheado.
 const getCarteiraCached = (ownerIds: string[]) =>
   unstable_cache(
-    () => fetchCarteiraPerfilCompleto(ownerIds),
-    ["carteira-perfil-v3", [...ownerIds].sort().join(",")],
+    async () => fetchCarteiraCounts(ownerIds, new Set(await getEmpresasComDmCached())),
+    ["carteira-perfil-v4", [...ownerIds].sort().join(",")],
     { revalidate: 21600 }
   )();
 
