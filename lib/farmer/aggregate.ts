@@ -49,6 +49,11 @@ export type DealLite = {
   reuniaoRealizada?: boolean; // ≥1 dessas reuniões com outcome COMPLETED
 };
 
+// Regra pontual: demandas do Leonardo Gomes só contam até 17/08/2026 (depois
+// disso foi atividade de outro setor — não entra no painel).
+const LEONARDO_DEMANDA_EMAIL = "leonardo.gomes@profissionaissa.com";
+const LEONARDO_DEMANDA_CUTOFF = "2026-08-17"; // inclusive (YYYY-MM-DD)
+
 /**
  * Reuniões por EMPRESA ÚNICA (mesma base do card de empresas únicas):
  *  - agendadas: empresas com ≥1 demanda que tem reunião associada ao negócio
@@ -379,6 +384,13 @@ export function aggregate(input: {
   for (const deal of dealsQualificados) {
     const row = resolveRow(deal);
     if (!row) continue;
+    // Regra pontual: as demandas do Leonardo Gomes só valem ATÉ 17/08/2026. As
+    // qualificadas depois disso foram atividade vinculada a outro setor e não
+    // devem aparecer no painel (nem na contagem, nem na lista).
+    if (row.email === LEONARDO_DEMANDA_EMAIL) {
+      const qd = (deal.properties.pipedrive___data_de_qualificacao || "").slice(0, 10);
+      if (qd && qd > LEONARDO_DEMANDA_CUTOFF) continue;
+    }
     // Bucket por origem (prioridade lead → qualificação; cada deal em 1 bucket):
     //  Carteira: lead "Carteira do Farmer" · Ação CRM: lead "Ação de CRM" ·
     //  Qualif. Farmer: qualificação "Farmer" quando o lead não é nenhum dos dois.
