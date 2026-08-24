@@ -827,11 +827,12 @@ export async function fetchTempoQualifProposta(
   for (const ids of ((): string[][] => { const o: string[][] = []; for (let i = 0; i < candDeals.length; i += 100) o.push(candDeals.slice(i, i + 100)); return o; })()) {
     const data = await hsFetch<{ results?: Array<{ id: string; properties?: Record<string, string> }> }>(`/crm/v3/objects/deals/batch/read`, {
       method: "POST",
-      body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["pipeline", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealname", "origem_do_lead"] }),
+      body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["pipeline", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealname", "origem_do_lead", "tem_proposta_anexada"] }),
     });
     for (const d of data.results ?? []) {
       const p = d.properties ?? {};
       if (p.pipeline !== pipe) continue;
+      if (p.tem_proposta_anexada !== "true") continue; // só negócios com proposta anexada
       const owner = p.hubspot_owner_id || "";
       if (!closerSet.has(owner)) continue;
       if (opts?.owner && owner !== opts.owner) continue;
