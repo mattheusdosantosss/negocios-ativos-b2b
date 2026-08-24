@@ -745,6 +745,130 @@ export async function fetchLostReasons(
   return { geral: toScope(geral), months };
 }
 
+// ============================================================
+// Reuniões por perfil (B2C) — validação de agendadas/realizadas/canceladas/no-show
+// ============================================================
+export type ReunioesPerfilRow = {
+  id: string;
+  label: string;
+  agendada: number;
+  realizada: number;
+  cancelada: number;
+  noshow: number;
+  total: number;
+};
+export type ReunioesPerfilData = { total: number; porPerfil: ReunioesPerfilRow[] };
+
+const REUNIOES_PERFIS: Array<{ id: string; label: string; raw: string | null }> = [
+  { id: "escala", label: "Escala", raw: "Escala" },
+  { id: "profissionalize", label: "Profissionalize-se", raw: "Profissionalize-se" },
+  { id: "iniciante", label: "Iniciante", raw: "Iniciante" },
+  { id: "sem_perfil", label: "Sem perfil", raw: null },
+];
+const perfilBucket = (raw?: string): string => {
+  const v = (raw || "").trim();
+  return REUNIOES_PERFIS.find((p) => p.raw && p.raw === v)?.id ?? "sem_perfil";
+};
+// vazio/SCHEDULED/RESCHEDULED = agendada; COMPLETED = realizada; CANCELED =
+// cancelada; NO_SHOW = no-show.
+const outcomeBucket = (o?: string): "agendada" | "realizada" | "cancelada" | "noshow" => {
+  const v = (o || "").toUpperCase();
+  if (v === "COMPLETED") return "realizada";
+  if (v === "CANCELED") return "cancelada";
+  if (v === "NO_SHOW") return "noshow";
+  return "agendada";
+};
+
+/**
+ * Reuniões (por data da reunião) associadas a negócios da pipeline do segmento
+ * cujo dono é um closer do time, contadas por Perfil do negócio × status. Segue
+ * o período do topo (hs_meeting_start_time); sem período, usa ~6 meses.
+ */
+export async function fetchReunioesPerfil(
+  config: SegmentConfig,
+  opts?: { from?: string; to?: string; owner?: string; origem?: string[] }
+): Promise<ReunioesPerfilData> {
+  const zero = () =>
+    REUNIOES_PERFIS.map((p) => ({ id: p.id, label: p.label, agendada: 0, realizada: 0, cancelada: 0, noshow: 0, total: 0 }));
+  const startMs = opts?.from ? brStartOfDayMs(opts.from) : Date.now() - 183 * 86_400_000;
+  const endMs = opts?.to ? brEndOfDayMs(opts.to) : Date.now();
+
+  // 1) reuniões no período (por data de início)
+  const meetings: Array<{ id: string; outcome?: string }> = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters: [
+        { propertyName: "hs_meeting_start_time", operator: "GTE", value: String(startMs) },
+        { propertyName: "hs_meeting_start_time", operator: "LTE", value: String(endMs) },
+      ] }],
+      properties: ["hs_meeting_outcome"],
+      limit: 100,
+    };
+    if (after) body.after = after;
+    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string } }> = await hsFetch(
+      `/crm/v3/objects/meetings/search`,
+      { method: "POST", body: JSON.stringify(body) }
+    );
+    for (const m of data.results) meetings.push({ id: String(m.id), outcome: m.properties?.hs_meeting_outcome });
+    after = data.paging?.next?.after;
+    if (after) await sleep(120);
+  } while (after);
+  if (meetings.length === 0) return { total: 0, porPerfil: zero() };
+
+  // 2) reunião → negócios
+  const meetingToDeals = await fetchAssocIds("meetings", "deals", meetings.map((m) => m.id));
+  const allDealIds = [...new Set([...meetingToDeals.values()].flat())];
+  if (allDealIds.length === 0) return { total: 0, porPerfil: zero() };
+
+  // 3) dados dos negócios (pipeline, dono, perfil, origem)
+  const dealChunks: string[][] = [];
+  for (let i = 0; i < allDealIds.length; i += 100) dealChunks.push(allDealIds.slice(i, i + 100));
+  const dealInfo = new Map<string, { pipeline?: string; owner?: string; perfil?: string; origem?: string }>();
+  const responses = await mapLimit(dealChunks, 6, (c) =>
+    hsFetch<{ results?: Array<{ id: string; properties?: Record<string, string> }> }>(`/crm/v3/objects/deals/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({ inputs: c.map((id) => ({ id })), properties: ["pipeline", "hubspot_owner_id", "perfil", "origem_do_lead"] }),
+    })
+  );
+  for (const data of responses) {
+    for (const d of data.results ?? []) {
+      const p = d.properties ?? {};
+      dealInfo.set(String(d.id), { pipeline: p.pipeline, owner: p.hubspot_owner_id, perfil: p.perfil, origem: p.origem_do_lead });
+    }
+  }
+
+  // 4) matriz Perfil × status (1ª associação que qualifica: pipeline + closer)
+  const pipe = pipelineIdFor(config);
+  const closerSet = new Set(config.team.map((m) => m.ownerId));
+  const origemSet = opts?.origem && opts.origem.length ? new Set(opts.origem) : null;
+  const acc: Record<string, { agendada: number; realizada: number; cancelada: number; noshow: number }> = {};
+  for (const p of REUNIOES_PERFIS) acc[p.id] = { agendada: 0, realizada: 0, cancelada: 0, noshow: 0 };
+  let total = 0;
+  for (const m of meetings) {
+    let perfilRaw: string | undefined;
+    let ok = false;
+    for (const did of meetingToDeals.get(m.id) ?? []) {
+      const info = dealInfo.get(did);
+      if (!info || info.pipeline !== pipe) continue;
+      if (!info.owner || !closerSet.has(info.owner)) continue;
+      if (opts?.owner && info.owner !== opts.owner) continue;
+      if (origemSet && !(info.origem && origemSet.has(info.origem))) continue;
+      perfilRaw = info.perfil;
+      ok = true;
+      break;
+    }
+    if (!ok) continue;
+    acc[perfilBucket(perfilRaw)][outcomeBucket(m.outcome)] += 1;
+    total += 1;
+  }
+  const porPerfil = REUNIOES_PERFIS.map((p) => {
+    const a = acc[p.id];
+    return { id: p.id, label: p.label, ...a, total: a.agendada + a.realizada + a.cancelada + a.noshow };
+  });
+  return { total, porPerfil };
+}
+
 export type PropostaMeetingItem = {
   dealname: string;
   url: string;

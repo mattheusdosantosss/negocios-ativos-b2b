@@ -8,6 +8,7 @@ import CloseTimeChart from "@/components/CloseTimeChart";
 import MacroTemaConversion from "@/components/MacroTemaConversion";
 import ConversionCard from "@/components/ConversionCard";
 import PropostaMeetingCard from "@/components/PropostaMeetingCard";
+import ReunioesPerfilCard from "@/components/ReunioesPerfilCard";
 import SectionCard from "@/components/SectionCard";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
@@ -438,6 +439,11 @@ export default function Page() {
           forcedMonth={period.preset === "all" ? null : period.to.slice(0, 7)}
           showProposta={cfg.hasPropostaMeeting}
         />
+      )}
+
+      {/* Reuniões por perfil — só B2C */}
+      {data && cfg.hasReunioesPerfil && data.reunioesPerfil && data.reunioesPerfil.total > 0 && (
+        <ReunioesPerfilCard data={data.reunioesPerfil} />
       )}
 
       {/* Checkout — só nos segmentos com fase de pagamento (ex.: B2C) */}

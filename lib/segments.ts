@@ -53,6 +53,9 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Motivos de perda" (distribuição dos motivos dos
    *  perdidos)? */
   hasLostReasons: boolean;
+  /** O segmento exibe o card "Reuniões por perfil" (agendada/realizada/
+   *  cancelada/no-show por perfil do negócio)? Só B2C. */
+  hasReunioesPerfil: boolean;
   /** Propriedades onde mora o motivo da perda, em ordem de prioridade (o 1º
    *  preenchido vence). B2B usa closed_lost_reason + motivo_de_sinalizacao_de_perda. */
   lostReasonProps: string[];
@@ -107,6 +110,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasMacroTema: true,
     hasPropostaMeeting: true,
     hasLostReasons: true,
+    hasReunioesPerfil: false,
     lostReasonProps: ["closed_lost_reason", "motivo_de_sinalizacao_de_perda"],
     conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
     conversionDenomAnyOf: null,
@@ -143,6 +147,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasMacroTema: false,
     hasPropostaMeeting: false,
     hasLostReasons: true,
+    hasReunioesPerfil: true,
     lostReasonProps: ["closed_lost_reason"],
     // Conversão 100%: ganhos ÷ (ganhos + perdidos), todos os fechados. Os motivos
     // de perda (card "Motivos de perda") explicam o porquê das perdas.
