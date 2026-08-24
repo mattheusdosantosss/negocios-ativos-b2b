@@ -746,6 +746,102 @@ export async function fetchLostReasons(
 }
 
 // ============================================================
+// Tempo até formalizar proposta (B2B) — qualificação → 1ª entrada em "Proposta"
+// ============================================================
+export type TempoPropostaFaixa = {
+  id: string;
+  label: string;
+  count: number;
+  deals: Array<{ dealname: string; url: string; dias: number; closer: string }>;
+};
+export type TempoPropostaData = {
+  total: number;
+  medianaDias: number;
+  mediaDias: number;
+  faixas: TempoPropostaFaixa[];
+};
+
+const TEMPO_PROP_FAIXAS: Array<{ id: string; label: string; max: number }> = [
+  { id: "0_3", label: "0–3 dias", max: 3 },
+  { id: "4_7", label: "4–7 dias", max: 7 },
+  { id: "8_15", label: "8–15 dias", max: 15 },
+  { id: "16_", label: "16+ dias", max: Infinity },
+];
+
+/**
+ * Tempo (dias) da Data de qualificação até a 1ª entrada na etapa "Proposta
+ * enviada" (hs_v2_date_entered_<propostaStageId>), pros negócios do segmento
+ * cujo dono é closer. Segue o período pela DATA DA PROPOSTA (cohort de propostas
+ * formalizadas no período). Mediana/média + distribuição em faixas.
+ */
+export async function fetchTempoQualifProposta(
+  config: SegmentConfig,
+  opts?: { from?: string; to?: string; owner?: string; origem?: string[] }
+): Promise<TempoPropostaData> {
+  const propDateProp = `hs_v2_date_entered_${config.propostaStageId}`;
+  const startMs = opts?.from ? brStartOfDayMs(opts.from) : Date.now() - 183 * 86_400_000;
+  const endMs = opts?.to ? brEndOfDayMs(opts.to) : Date.now();
+  const closerIds = config.team.map((m) => m.ownerId);
+
+  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: propDateProp, operator: "GTE", value: String(startMs) },
+    { propertyName: propDateProp, operator: "LTE", value: String(endMs) },
+    opts?.owner
+      ? { propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner }
+      : { propertyName: "hubspot_owner_id", operator: "IN", values: closerIds.slice(0, 100) },
+  ];
+  if (opts?.origem && opts.origem.length > 0) {
+    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
+  }
+
+  const teamName = new Map(config.team.map((m) => [m.ownerId, m.nome]));
+  type Row = { dealname: string; url: string; dias: number; closer: string };
+  const rows: Row[] = [];
+  let after: string | undefined;
+  do {
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters }],
+      properties: ["dealname", "pipedrive___data_de_qualificacao", propDateProp, "hubspot_owner_id"],
+      limit: 100,
+    };
+    if (after) body.after = after;
+    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    for (const d of data.results) {
+      const p = d.properties as Record<string, string | undefined>;
+      const qualif = p.pipedrive___data_de_qualificacao;
+      const prop = p[propDateProp];
+      if (!qualif || !prop) continue;
+      const dias = Math.round((new Date(prop).getTime() - new Date(qualif).getTime()) / 86_400_000);
+      if (!Number.isFinite(dias)) continue;
+      const oid = p.hubspot_owner_id || "";
+      rows.push({
+        dealname: d.properties.dealname || `Negócio ${d.id}`,
+        url: dealUrl(d.id),
+        dias: Math.max(0, dias), // proposta antes da qualificação (quirk) → 0
+        closer: teamName.get(oid) || `Owner ${oid}`,
+      });
+    }
+    after = data.paging?.next?.after;
+    if (after) await sleep(120);
+  } while (after);
+
+  const faixas: TempoPropostaFaixa[] = TEMPO_PROP_FAIXAS.map((f) => ({ id: f.id, label: f.label, count: 0, deals: [] }));
+  for (const r of rows) {
+    const idx = TEMPO_PROP_FAIXAS.findIndex((f) => r.dias <= f.max);
+    faixas[idx].count += 1;
+    faixas[idx].deals.push(r);
+  }
+  const ds = rows.map((r) => r.dias).sort((a, b) => a - b);
+  const mediana = ds.length ? (ds.length % 2 ? ds[(ds.length - 1) / 2] : Math.round((ds[ds.length / 2 - 1] + ds[ds.length / 2]) / 2)) : 0;
+  const media = ds.length ? Math.round(ds.reduce((s, d) => s + d, 0) / ds.length) : 0;
+  return { total: rows.length, medianaDias: mediana, mediaDias: media, faixas };
+}
+
+// ============================================================
 // Reuniões por perfil (B2C) — validação de agendadas/realizadas/canceladas/no-show
 // ============================================================
 export type ReunioesPerfilRow = {

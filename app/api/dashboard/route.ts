@@ -12,6 +12,7 @@ import {
   fetchPropostaMeetingStats,
   fetchLostReasons,
   fetchReunioesPerfil,
+  fetchTempoQualifProposta,
   fetchSalesByCloser,
 } from "@/lib/hubspot";
 import {
@@ -182,6 +183,28 @@ const getReunioesPerfilCached = (
     { revalidate: 3600 }
   )();
 
+// "Tempo até proposta" (B2B): dias da qualificação até a 1ª entrada em Proposta.
+// Segue o período (cohort de propostas do período) → chave inclui from/to.
+const getTempoPropostaCached = (
+  config: SegmentConfig,
+  origemId: string,
+  origem: string[],
+  owner: string | undefined,
+  from: string | undefined,
+  to: string | undefined
+) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["tempoProposta"]; warning?: string }> => {
+      try {
+        return { data: await fetchTempoQualifProposta(config, { from, to, owner, origem }), warning: undefined };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar tempo até proposta" };
+      }
+    },
+    ["tempo-proposta-v1", config.id, origemId, owner || "all", from || "all", to || "all"],
+    { revalidate: 3600 }
+  )();
+
 // "Meta do mês": vendas GANHAS da pipeline por data de fechamento no período
 // (sem período → mês corrente) vs a meta mensal fixa. Segue o filtro de Closer
 // (um closer → só as vendas dele). Cacheia 10 min por segmento + datas + closer.
@@ -220,7 +243,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw, tempoPropRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to, owner }),
@@ -232,6 +255,7 @@ export async function GET(req: NextRequest) {
       config.hasLostReasons ? getLostReasonsCached(config, origemId, origem, owner) : Promise.resolve(null),
       config.monthGoal != null ? getMonthGoalCached(config, from, to, owner) : Promise.resolve(null),
       config.hasReunioesPerfil ? getReunioesPerfilCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
+      config.hasTempoProposta ? getTempoPropostaCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -284,6 +308,7 @@ export async function GET(req: NextRequest) {
       propostaMeeting: propMeetRaw?.data,
       motivos: motivosRaw?.data,
       reunioesPerfil: reunioesPerfilRaw?.data,
+      tempoProposta: tempoPropRaw?.data,
       monthGoal: goalRaw?.data,
     };
 

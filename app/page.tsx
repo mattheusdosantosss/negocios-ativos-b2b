@@ -9,6 +9,7 @@ import MacroTemaConversion from "@/components/MacroTemaConversion";
 import ConversionCard from "@/components/ConversionCard";
 import PropostaMeetingCard from "@/components/PropostaMeetingCard";
 import ReunioesPerfilCard from "@/components/ReunioesPerfilCard";
+import TempoPropostaCard from "@/components/TempoPropostaCard";
 import SectionCard from "@/components/SectionCard";
 import DealListModal from "@/components/DealListModal";
 import CloserSummaryModal from "@/components/CloserSummaryModal";
@@ -566,6 +567,11 @@ export default function Page() {
         >
           <PropostaMeetingCard data={data.propostaMeeting} />
         </SectionCard>
+      )}
+
+      {/* Tempo até a proposta (B2B) — dias da qualificação até entrar em Proposta */}
+      {data && cfg.hasTempoProposta && data.tempoProposta && data.tempoProposta.total > 0 && (
+        <TempoPropostaCard data={data.tempoProposta} />
       )}
 
       {/* Negócios ativos por temperatura (leitura do curador) */}

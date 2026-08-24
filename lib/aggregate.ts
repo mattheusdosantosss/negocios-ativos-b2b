@@ -1,4 +1,4 @@
-import { ownerDisplayName, dealUrl, type Deal, type Owner, type PropostaMeetingData, type MotivosData, type MonthGoalData, type ReunioesPerfilData } from "./hubspot";
+import { ownerDisplayName, dealUrl, type Deal, type Owner, type PropostaMeetingData, type MotivosData, type MonthGoalData, type ReunioesPerfilData, type TempoPropostaData } from "./hubspot";
 import type { SegmentConfig, SegmentId, StageDef } from "./segments";
 import { tempStagesOf } from "./segments";
 
@@ -254,6 +254,8 @@ export type DashboardData = {
   motivos?: MotivosData;
   /** B2C: reuniões por perfil (agendada/realizada/cancelada/no-show). */
   reunioesPerfil?: ReunioesPerfilData;
+  /** B2B: tempo (dias) da qualificação até a 1ª entrada na etapa de Proposta. */
+  tempoProposta?: TempoPropostaData;
   /** B2B: progresso da meta do mês (soma da lista RANKING DE VENDAS | MÊS). */
   monthGoal?: MonthGoalData;
 };
