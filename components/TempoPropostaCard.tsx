@@ -22,13 +22,13 @@ export default function TempoPropostaCard({ data }: Props) {
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Tempo até a proposta</div>
           <div className="mt-1 flex items-baseline gap-3 flex-wrap">
-            <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(data.medianaDias)}d</span>
+            <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(data.medianaHoras)}h</span>
             <span className="text-sm text-psa-ink-soft">
               tempo típico · <b className="text-psa-ink">{num(data.total)}</b> {data.total === 1 ? "negócio" : "negócios"}
             </span>
           </div>
           <div className="mt-1 text-[11px] text-psa-muted">
-            Da qualificação até a criação da 1ª proposta · metade dos negócios em até {num(data.medianaDias)} dia{data.medianaDias === 1 ? "" : "s"} · clique pra listar
+            Da qualificação até a criação da 1ª proposta · metade dos negócios em até {num(data.medianaHoras)} hora{data.medianaHoras === 1 ? "" : "s"} · clique pra listar
           </div>
         </div>
       </div>
@@ -112,7 +112,7 @@ function TempoModal({ faixa, onClose }: { faixa: TempoPropostaFaixa; onClose: ()
                   <li key={i} className="text-[11px]">
                     <a href={d.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2" title="Abrir negócio no HubSpot">
                       <span className="flex-1 min-w-0 truncate text-white/75 group-hover:text-psa-orange group-hover:underline">{d.dealname}</span>
-                      <span className="shrink-0 tabular-nums text-psa-orange font-semibold">{num(d.dias)}d</span>
+                      <span className="shrink-0 tabular-nums text-psa-orange font-semibold">{num(d.horas)}h</span>
                       <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
                     </a>
                   </li>

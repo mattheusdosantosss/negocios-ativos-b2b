@@ -201,7 +201,7 @@ const getTempoPropostaCached = (
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar tempo até proposta" };
       }
     },
-    ["tempo-proposta-v3", config.id, origemId, owner || "all", from || "all", to || "all"],
+    ["tempo-proposta-v4", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
   )();
 

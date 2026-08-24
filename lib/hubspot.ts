@@ -752,20 +752,20 @@ export type TempoPropostaFaixa = {
   id: string;
   label: string;
   count: number;
-  deals: Array<{ dealname: string; url: string; dias: number; closer: string }>;
+  deals: Array<{ dealname: string; url: string; horas: number; closer: string }>;
 };
 export type TempoPropostaData = {
   total: number;
-  medianaDias: number;
-  mediaDias: number;
+  medianaHoras: number;
+  mediaHoras: number;
   faixas: TempoPropostaFaixa[];
 };
 
 const TEMPO_PROP_FAIXAS: Array<{ id: string; label: string; max: number }> = [
-  { id: "0_3", label: "0–3 dias", max: 3 },
-  { id: "4_7", label: "4–7 dias", max: 7 },
-  { id: "8_15", label: "8–15 dias", max: 15 },
-  { id: "16_", label: "16+ dias", max: Infinity },
+  { id: "0_12", label: "Até 12h", max: 12 },
+  { id: "12_24", label: "Até 24h", max: 24 },
+  { id: "24_36", label: "24h a 36h", max: 36 },
+  { id: "36_", label: "Acima de 36h", max: Infinity },
 ];
 
 // Objeto customizado "Proposta" (createdate = envio da proposta).
@@ -786,8 +786,8 @@ export async function fetchTempoQualifProposta(
   const teamName = new Map(config.team.map((m) => [m.ownerId, m.nome]));
   const zero = (): TempoPropostaData => ({
     total: 0,
-    medianaDias: 0,
-    mediaDias: 0,
+    medianaHoras: 0,
+    mediaHoras: 0,
     faixas: TEMPO_PROP_FAIXAS.map((f) => ({ id: f.id, label: f.label, count: 0, deals: [] })),
   });
 
@@ -860,8 +860,10 @@ export async function fetchTempoQualifProposta(
     await sleep(60);
   }
 
-  // 5) por negócio: 1ª proposta = createdate mais antigo; conta se caiu no período
-  type Row = { dealname: string; url: string; dias: number; closer: string };
+  // 5) por negócio: 1ª proposta = createdate mais antigo; conta se caiu no
+  //    período. Horas desde a meia-noite (BRT) do dia da qualificação (o campo
+  //    de qualificação é só data) até a criação da 1ª proposta.
+  type Row = { dealname: string; url: string; horas: number; closer: string };
   const rows: Row[] = [];
   for (const did of qualifDeals) {
     const info = dealInfo.get(did)!;
@@ -872,21 +874,21 @@ export async function fetchTempoQualifProposta(
       if (ms != null && ms < firstMs) firstMs = ms;
     }
     if (!Number.isFinite(firstMs) || firstMs < startMs || firstMs > endMs) continue;
-    const dias = Math.round((firstMs - new Date(info.qualif).getTime()) / 86_400_000);
-    if (!Number.isFinite(dias)) continue;
-    rows.push({ dealname: info.dealname, url: dealUrl(did), dias: Math.max(0, dias), closer: teamName.get(info.owner) || `Owner ${info.owner}` });
+    const horas = Math.round((firstMs - brStartOfDayMs(info.qualif)) / 3_600_000);
+    if (!Number.isFinite(horas)) continue;
+    rows.push({ dealname: info.dealname, url: dealUrl(did), horas: Math.max(0, horas), closer: teamName.get(info.owner) || `Owner ${info.owner}` });
   }
 
   const faixas: TempoPropostaFaixa[] = TEMPO_PROP_FAIXAS.map((f) => ({ id: f.id, label: f.label, count: 0, deals: [] }));
   for (const r of rows) {
-    const idx = TEMPO_PROP_FAIXAS.findIndex((f) => r.dias <= f.max);
+    const idx = TEMPO_PROP_FAIXAS.findIndex((f) => r.horas <= f.max);
     faixas[idx].count += 1;
     faixas[idx].deals.push(r);
   }
-  const ds = rows.map((r) => r.dias).sort((a, b) => a - b);
-  const mediana = ds.length ? (ds.length % 2 ? ds[(ds.length - 1) / 2] : Math.round((ds[ds.length / 2 - 1] + ds[ds.length / 2]) / 2)) : 0;
-  const media = ds.length ? Math.round(ds.reduce((s, d) => s + d, 0) / ds.length) : 0;
-  return { total: rows.length, medianaDias: mediana, mediaDias: media, faixas };
+  const hs = rows.map((r) => r.horas).sort((a, b) => a - b);
+  const mediana = hs.length ? (hs.length % 2 ? hs[(hs.length - 1) / 2] : Math.round((hs[hs.length / 2 - 1] + hs[hs.length / 2]) / 2)) : 0;
+  const media = hs.length ? Math.round(hs.reduce((s, d) => s + d, 0) / hs.length) : 0;
+  return { total: rows.length, medianaHoras: mediana, mediaHoras: media, faixas };
 }
 
 // ============================================================
