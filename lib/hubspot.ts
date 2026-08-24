@@ -823,11 +823,20 @@ export async function fetchTempoQualifProposta(
   const closerSet = new Set(config.team.map((m) => m.ownerId));
   const origemSet = opts?.origem && opts.origem.length ? new Set(opts.origem) : null;
   const pipe = pipelineIdFor(config);
-  const dealInfo = new Map<string, { owner: string; qualif?: string; dealname: string }>();
-  for (const ids of ((): string[][] => { const o: string[][] = []; for (let i = 0; i < candDeals.length; i += 100) o.push(candDeals.slice(i, i + 100)); return o; })()) {
-    const data = await hsFetch<{ results?: Array<{ id: string; properties?: Record<string, string> }> }>(`/crm/v3/objects/deals/batch/read`, {
+  const dealInfo = new Map<string, { owner: string; qualifMs?: number; dealname: string }>();
+  // batch-read com propertiesWithHistory: limite de 50 inputs (não 100).
+  for (const ids of ((): string[][] => { const o: string[][] = []; for (let i = 0; i < candDeals.length; i += 50) o.push(candDeals.slice(i, i + 50)); return o; })()) {
+    const data = await hsFetch<{
+      results?: Array<{ id: string; properties?: Record<string, string>; propertiesWithHistory?: Record<string, Array<{ value: string; timestamp: string }>> }>;
+    }>(`/crm/v3/objects/deals/batch/read`, {
       method: "POST",
-      body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["pipeline", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealname", "origem_do_lead", "tem_proposta_anexada"] }),
+      body: JSON.stringify({
+        inputs: ids.map((id) => ({ id })),
+        properties: ["pipeline", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealname", "origem_do_lead", "tem_proposta_anexada"],
+        // Histórico da qualificação: o VALOR é só data, mas o timestamp da 1ª
+        // escrita dá a hora exata da qualificação (precisão hora-a-hora).
+        propertiesWithHistory: ["pipedrive___data_de_qualificacao"],
+      }),
     });
     for (const d of data.results ?? []) {
       const p = d.properties ?? {};
@@ -837,7 +846,13 @@ export async function fetchTempoQualifProposta(
       if (!closerSet.has(owner)) continue;
       if (opts?.owner && owner !== opts.owner) continue;
       if (origemSet && !(p.origem_do_lead && origemSet.has(p.origem_do_lead))) continue;
-      dealInfo.set(String(d.id), { owner, qualif: p.pipedrive___data_de_qualificacao, dealname: p.dealname || `Negócio ${d.id}` });
+      // 1ª vez que a qualificação foi preenchida (último item do histórico, que
+      // vem do mais recente ao mais antigo). Fallback: meia-noite BRT do valor.
+      const hist = d.propertiesWithHistory?.pipedrive___data_de_qualificacao;
+      const first = hist && hist.length ? hist[hist.length - 1] : undefined;
+      const qualifMs = first ? new Date(first.timestamp).getTime()
+        : p.pipedrive___data_de_qualificacao ? brStartOfDayMs(p.pipedrive___data_de_qualificacao) : undefined;
+      dealInfo.set(String(d.id), { owner, qualifMs, dealname: p.dealname || `Negócio ${d.id}` });
     }
     await sleep(60);
   }
@@ -861,20 +876,20 @@ export async function fetchTempoQualifProposta(
   }
 
   // 5) por negócio: 1ª proposta = createdate mais antigo; conta se caiu no
-  //    período. Horas desde a meia-noite (BRT) do dia da qualificação (o campo
-  //    de qualificação é só data) até a criação da 1ª proposta.
+  //    período. Horas do timestamp EXATO da qualificação (histórico da
+  //    propriedade) até a criação da 1ª proposta.
   type Row = { dealname: string; url: string; horas: number; closer: string };
   const rows: Row[] = [];
   for (const did of qualifDeals) {
     const info = dealInfo.get(did)!;
-    if (!info.qualif) continue;
+    if (info.qualifMs == null) continue;
     let firstMs = Infinity;
     for (const pid of deal2props.get(did) ?? []) {
       const ms = propCreate.get(pid);
       if (ms != null && ms < firstMs) firstMs = ms;
     }
     if (!Number.isFinite(firstMs) || firstMs < startMs || firstMs > endMs) continue;
-    const horas = Math.round((firstMs - brStartOfDayMs(info.qualif)) / 3_600_000);
+    const horas = Math.round((firstMs - info.qualifMs) / 3_600_000);
     if (!Number.isFinite(horas)) continue;
     rows.push({ dealname: info.dealname, url: dealUrl(did), horas: Math.max(0, horas), closer: teamName.get(info.owner) || `Owner ${info.owner}` });
   }

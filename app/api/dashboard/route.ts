@@ -198,10 +198,11 @@ const getTempoPropostaCached = (
       try {
         return { data: await fetchTempoQualifProposta(config, { from, to, owner, origem }), warning: undefined };
       } catch (e) {
+        console.error("[tempo-proposta]", e instanceof Error ? e.stack || e.message : e);
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar tempo até proposta" };
       }
     },
-    ["tempo-proposta-v4", config.id, origemId, owner || "all", from || "all", to || "all"],
+    ["tempo-proposta-v7", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
   )();
 
