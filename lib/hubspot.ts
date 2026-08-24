@@ -768,66 +768,113 @@ const TEMPO_PROP_FAIXAS: Array<{ id: string; label: string; max: number }> = [
   { id: "16_", label: "16+ dias", max: Infinity },
 ];
 
+// Objeto customizado "Proposta" (createdate = envio da proposta).
+const PROPOSTA_OBJ = process.env.HUBSPOT_PROPOSTA_OBJECT || "2-45617957";
+
 /**
- * Tempo (dias) da Data de qualificação até a 1ª entrada na etapa "Proposta
- * enviada" (hs_v2_date_entered_<propostaStageId>), pros negócios do segmento
- * cujo dono é closer. Segue o período pela DATA DA PROPOSTA (cohort de propostas
- * formalizadas no período). Mediana/média + distribuição em faixas.
+ * Tempo (dias) da Data de qualificação até a criação da 1ª PROPOSTA (objeto
+ * customizado Proposta associado ao negócio — o createdate da mais antiga).
+ * Pros negócios do segmento cujo dono é closer. Cohort = negócios cuja 1ª
+ * proposta foi criada no período. Mediana/média + distribuição em faixas.
  */
 export async function fetchTempoQualifProposta(
   config: SegmentConfig,
   opts?: { from?: string; to?: string; owner?: string; origem?: string[] }
 ): Promise<TempoPropostaData> {
-  const propDateProp = `hs_v2_date_entered_${config.propostaStageId}`;
   const startMs = opts?.from ? brStartOfDayMs(opts.from) : Date.now() - 183 * 86_400_000;
   const endMs = opts?.to ? brEndOfDayMs(opts.to) : Date.now();
-  const closerIds = config.team.map((m) => m.ownerId);
-
-  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
-    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
-    { propertyName: propDateProp, operator: "GTE", value: String(startMs) },
-    { propertyName: propDateProp, operator: "LTE", value: String(endMs) },
-    opts?.owner
-      ? { propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner }
-      : { propertyName: "hubspot_owner_id", operator: "IN", values: closerIds.slice(0, 100) },
-  ];
-  if (opts?.origem && opts.origem.length > 0) {
-    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
-  }
-
   const teamName = new Map(config.team.map((m) => [m.ownerId, m.nome]));
-  type Row = { dealname: string; url: string; dias: number; closer: string };
-  const rows: Row[] = [];
+  const zero = (): TempoPropostaData => ({
+    total: 0,
+    medianaDias: 0,
+    mediaDias: 0,
+    faixas: TEMPO_PROP_FAIXAS.map((f) => ({ id: f.id, label: f.label, count: 0, deals: [] })),
+  });
+
+  // 1) propostas criadas no período
+  const propIds: string[] = [];
   let after: string | undefined;
   do {
     const body: Record<string, unknown> = {
-      filterGroups: [{ filters }],
-      properties: ["dealname", "pipedrive___data_de_qualificacao", propDateProp, "hubspot_owner_id"],
+      filterGroups: [{ filters: [
+        { propertyName: "hs_createdate", operator: "GTE", value: String(startMs) },
+        { propertyName: "hs_createdate", operator: "LTE", value: String(endMs) },
+      ] }],
+      properties: ["hs_createdate"],
       limit: 100,
     };
     if (after) body.after = after;
-    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
+    const data: SearchResponse<{ id: string }> = await hsFetch(`/crm/v3/objects/${PROPOSTA_OBJ}/search`, {
       method: "POST",
       body: JSON.stringify(body),
     });
-    for (const d of data.results) {
-      const p = d.properties as Record<string, string | undefined>;
-      const qualif = p.pipedrive___data_de_qualificacao;
-      const prop = p[propDateProp];
-      if (!qualif || !prop) continue;
-      const dias = Math.round((new Date(prop).getTime() - new Date(qualif).getTime()) / 86_400_000);
-      if (!Number.isFinite(dias)) continue;
-      const oid = p.hubspot_owner_id || "";
-      rows.push({
-        dealname: d.properties.dealname || `Negócio ${d.id}`,
-        url: dealUrl(d.id),
-        dias: Math.max(0, dias), // proposta antes da qualificação (quirk) → 0
-        closer: teamName.get(oid) || `Owner ${oid}`,
-      });
-    }
+    for (const p of data.results) propIds.push(String(p.id));
     after = data.paging?.next?.after;
     if (after) await sleep(120);
   } while (after);
+  if (propIds.length === 0) return zero();
+
+  // 2) proposta → negócio → candidatos
+  const prop2deal = await fetchAssocIds(PROPOSTA_OBJ, "deals", propIds);
+  const candDeals = [...new Set([...prop2deal.values()].flat())];
+  if (candDeals.length === 0) return zero();
+
+  // 3) dados dos negócios candidatos — filtra pipeline + closer + owner + origem
+  const closerSet = new Set(config.team.map((m) => m.ownerId));
+  const origemSet = opts?.origem && opts.origem.length ? new Set(opts.origem) : null;
+  const pipe = pipelineIdFor(config);
+  const dealInfo = new Map<string, { owner: string; qualif?: string; dealname: string }>();
+  for (const ids of ((): string[][] => { const o: string[][] = []; for (let i = 0; i < candDeals.length; i += 100) o.push(candDeals.slice(i, i + 100)); return o; })()) {
+    const data = await hsFetch<{ results?: Array<{ id: string; properties?: Record<string, string> }> }>(`/crm/v3/objects/deals/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["pipeline", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealname", "origem_do_lead"] }),
+    });
+    for (const d of data.results ?? []) {
+      const p = d.properties ?? {};
+      if (p.pipeline !== pipe) continue;
+      const owner = p.hubspot_owner_id || "";
+      if (!closerSet.has(owner)) continue;
+      if (opts?.owner && owner !== opts.owner) continue;
+      if (origemSet && !(p.origem_do_lead && origemSet.has(p.origem_do_lead))) continue;
+      dealInfo.set(String(d.id), { owner, qualif: p.pipedrive___data_de_qualificacao, dealname: p.dealname || `Negócio ${d.id}` });
+    }
+    await sleep(60);
+  }
+  const qualifDeals = [...dealInfo.keys()];
+  if (qualifDeals.length === 0) return zero();
+
+  // 4) TODAS as propostas desses negócios → createdate da mais antiga
+  const deal2props = await fetchAssocIds("deals", PROPOSTA_OBJ, qualifDeals);
+  const allProps = [...new Set([...deal2props.values()].flat())];
+  const propCreate = new Map<string, number>();
+  for (const ids of ((): string[][] => { const o: string[][] = []; for (let i = 0; i < allProps.length; i += 100) o.push(allProps.slice(i, i + 100)); return o; })()) {
+    const data = await hsFetch<{ results?: Array<{ id: string; properties?: { hs_createdate?: string } }> }>(`/crm/v3/objects/${PROPOSTA_OBJ}/batch/read`, {
+      method: "POST",
+      body: JSON.stringify({ inputs: ids.map((id) => ({ id })), properties: ["hs_createdate"] }),
+    });
+    for (const p of data.results ?? []) {
+      const ms = p.properties?.hs_createdate ? new Date(p.properties.hs_createdate).getTime() : NaN;
+      if (Number.isFinite(ms)) propCreate.set(String(p.id), ms);
+    }
+    await sleep(60);
+  }
+
+  // 5) por negócio: 1ª proposta = createdate mais antigo; conta se caiu no período
+  type Row = { dealname: string; url: string; dias: number; closer: string };
+  const rows: Row[] = [];
+  for (const did of qualifDeals) {
+    const info = dealInfo.get(did)!;
+    if (!info.qualif) continue;
+    let firstMs = Infinity;
+    for (const pid of deal2props.get(did) ?? []) {
+      const ms = propCreate.get(pid);
+      if (ms != null && ms < firstMs) firstMs = ms;
+    }
+    if (!Number.isFinite(firstMs) || firstMs < startMs || firstMs > endMs) continue;
+    const dias = Math.round((firstMs - new Date(info.qualif).getTime()) / 86_400_000);
+    if (!Number.isFinite(dias)) continue;
+    rows.push({ dealname: info.dealname, url: dealUrl(did), dias: Math.max(0, dias), closer: teamName.get(info.owner) || `Owner ${info.owner}` });
+  }
 
   const faixas: TempoPropostaFaixa[] = TEMPO_PROP_FAIXAS.map((f) => ({ id: f.id, label: f.label, count: 0, deals: [] }));
   for (const r of rows) {

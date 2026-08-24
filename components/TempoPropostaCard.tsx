@@ -28,7 +28,7 @@ export default function TempoPropostaCard({ data }: Props) {
             </span>
           </div>
           <div className="mt-1 text-[11px] text-psa-muted">
-            Da qualificação até entrar em “Proposta enviada” · metade dos negócios em até {num(data.medianaDias)} dia{data.medianaDias === 1 ? "" : "s"} · clique pra listar
+            Da qualificação até a criação da 1ª proposta · metade dos negócios em até {num(data.medianaDias)} dia{data.medianaDias === 1 ? "" : "s"} · clique pra listar
           </div>
         </div>
       </div>
