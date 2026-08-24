@@ -954,7 +954,8 @@ export async function fetchReunioesPerfil(
   const startMs = opts?.from ? brStartOfDayMs(opts.from) : Date.now() - 183 * 86_400_000;
   const endMs = opts?.to ? brEndOfDayMs(opts.to) : Date.now();
 
-  // 1) reuniões no período (por data de início)
+  // 1) reuniões no período (por data de início) — cujo DONO é closer B2C
+  const closerSet = new Set(config.team.map((m) => m.ownerId));
   const meetings: Array<{ id: string; outcome?: string }> = [];
   let after: string | undefined;
   do {
@@ -963,15 +964,20 @@ export async function fetchReunioesPerfil(
         { propertyName: "hs_meeting_start_time", operator: "GTE", value: String(startMs) },
         { propertyName: "hs_meeting_start_time", operator: "LTE", value: String(endMs) },
       ] }],
-      properties: ["hs_meeting_outcome"],
+      properties: ["hs_meeting_outcome", "hubspot_owner_id"],
       limit: 100,
     };
     if (after) body.after = after;
-    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string } }> = await hsFetch(
+    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string; hubspot_owner_id?: string } }> = await hsFetch(
       `/crm/v3/objects/meetings/search`,
       { method: "POST", body: JSON.stringify(body) }
     );
-    for (const m of data.results) meetings.push({ id: String(m.id), outcome: m.properties?.hs_meeting_outcome });
+    for (const m of data.results) {
+      const mOwner = m.properties?.hubspot_owner_id;
+      if (!mOwner || !closerSet.has(mOwner)) continue; // só reuniões dos closers B2C
+      if (opts?.owner && mOwner !== opts.owner) continue;
+      meetings.push({ id: String(m.id), outcome: m.properties?.hs_meeting_outcome });
+    }
     after = data.paging?.next?.after;
     if (after) await sleep(120);
   } while (after);
@@ -999,9 +1005,8 @@ export async function fetchReunioesPerfil(
     }
   }
 
-  // 4) matriz Perfil × status (1ª associação que qualifica: pipeline + closer)
+  // 4) matriz Perfil × status (dono da reunião já é closer; negócio: pipeline + dono closer)
   const pipe = pipelineIdFor(config);
-  const closerSet = new Set(config.team.map((m) => m.ownerId));
   const origemSet = opts?.origem && opts.origem.length ? new Set(opts.origem) : null;
   const acc: Record<string, { agendada: number; realizada: number; cancelada: number; noshow: number }> = {};
   for (const p of REUNIOES_PERFIS) acc[p.id] = { agendada: 0, realizada: 0, cancelada: 0, noshow: 0 };
@@ -1013,7 +1018,6 @@ export async function fetchReunioesPerfil(
       const info = dealInfo.get(did);
       if (!info || info.pipeline !== pipe) continue;
       if (!info.owner || !closerSet.has(info.owner)) continue;
-      if (opts?.owner && info.owner !== opts.owner) continue;
       if (origemSet && !(info.origem && origemSet.has(info.origem))) continue;
       perfilRaw = info.perfil;
       ok = true;
