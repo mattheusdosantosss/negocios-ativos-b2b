@@ -24,12 +24,11 @@ export default function TempoPropostaCard({ data }: Props) {
           <div className="mt-1 flex items-baseline gap-3 flex-wrap">
             <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(data.medianaDias)}d</span>
             <span className="text-sm text-psa-ink-soft">
-              mediana · média <b className="text-psa-ink">{num(data.mediaDias)}d</b> ·{" "}
-              <b className="text-psa-ink">{num(data.total)}</b> {data.total === 1 ? "negócio" : "negócios"}
+              tempo típico · <b className="text-psa-ink">{num(data.total)}</b> {data.total === 1 ? "negócio" : "negócios"}
             </span>
           </div>
           <div className="mt-1 text-[11px] text-psa-muted">
-            Da Data de qualificação até entrar em “Proposta enviada” · negócios do closer · clique pra listar
+            Da qualificação até entrar em “Proposta enviada” · metade dos negócios em até {num(data.medianaDias)} dia{data.medianaDias === 1 ? "" : "s"} · clique pra listar
           </div>
         </div>
       </div>
