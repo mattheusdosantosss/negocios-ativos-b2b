@@ -123,9 +123,6 @@ export default function ReunioesPerfilCard({ data }: Props) {
             <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(teamTotal)}</span>
             <span className="text-sm text-psa-ink-soft">reuniões · por data da reunião no período</span>
           </div>
-          <div className="mt-1 text-[11px] text-psa-muted">
-            Reuniões dos closers B2C · clique no closer pra abrir o detalhe por perfil · clique numa barra pra listar os negócios
-          </div>
         </div>
 
         {/* Seletor de status do negócio */}
