@@ -84,31 +84,38 @@ export default function ReunioesPerfilCard({ data }: Props) {
       return next;
     });
 
-  // Barra empilhada no padrão do card de temperatura: bloco cheio, número
-  // dentro do segmento (quando cabe), segmentos encostados.
+  // Barra empilhada. No nível do closer é só um resumo → fina, sutil, sem
+  // número (o detalhe de verdade vem nas barras de perfil, essas cheias com
+  // número, no padrão do card de temperatura).
   const Bar = ({ closer, perfilId, perfilLabel }: { closer: ReunioesCloser; perfilId: string | null; perfilLabel: string | null }) => {
     const cs = counts(closer, perfilId);
     const total = cs.reduce((s, c) => s + c.n, 0);
+    const subtle = perfilId === null;
+    const seg = (o: (typeof OUTCOMES)[number], n: number) =>
+      n === 0 ? null : (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => setSel({ closer, perfilId, perfilLabel, outcome: o.id })}
+          title={`${closer.nome}${perfilLabel ? ` · ${perfilLabel}` : ""} · ${o.label}: ${num(n)} — clique pra listar`}
+          aria-label={`${o.label}: ${num(n)}`}
+          className={
+            subtle
+              ? "rounded-full transition-opacity hover:opacity-60"
+              : "flex items-center justify-center text-[11px] font-medium transition-opacity hover:opacity-85"
+          }
+          style={
+            subtle
+              ? { width: `${(n / total) * 100}%`, minWidth: 4, background: o.fill }
+              : { width: `${(n / total) * 100}%`, background: o.fill, color: o.text }
+          }
+        >
+          {subtle ? null : (n / total) * 100 >= 7 ? num(n) : ""}
+        </button>
+      );
     return (
-      <div className="flex rounded-md overflow-hidden" style={{ height: perfilId ? 22 : 26 }}>
-        {total === 0 ? (
-          <div className="w-full bg-psa-canvas" />
-        ) : (
-          cs.map(({ o, n }) =>
-            n === 0 ? null : (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setSel({ closer, perfilId, perfilLabel, outcome: o.id })}
-                title={`${closer.nome}${perfilLabel ? ` · ${perfilLabel}` : ""} · ${o.label}: ${num(n)} — clique pra listar`}
-                className="flex items-center justify-center text-[11px] font-medium transition-opacity hover:opacity-85"
-                style={{ width: `${(n / total) * 100}%`, background: o.fill, color: o.text }}
-              >
-                {(n / total) * 100 >= 7 ? num(n) : ""}
-              </button>
-            )
-          )
-        )}
+      <div className={subtle ? "flex gap-[2px]" : "flex rounded-md overflow-hidden"} style={{ height: subtle ? 7 : 24 }}>
+        {total === 0 ? <div className={`w-full bg-psa-canvas ${subtle ? "rounded-full" : ""}`} /> : cs.map(({ o, n }) => seg(o, n))}
       </div>
     );
   };
@@ -170,10 +177,16 @@ export default function ReunioesPerfilCard({ data }: Props) {
                 <button
                   type="button"
                   onClick={() => toggle(c.ownerId)}
-                  className="group text-left text-[13px] font-medium text-psa-ink inline-flex items-center gap-1.5"
+                  title={isOpen ? "Recolher detalhe por perfil" : "Abrir detalhe por perfil"}
+                  className="group text-left text-[13px] font-medium text-psa-ink inline-flex items-center gap-2"
                 >
-                  <span className="text-psa-muted text-[9px] w-2.5 group-hover:text-psa-orange transition-colors">{isOpen ? "▾" : "▸"}</span>
-                  {c.nome} <span className="text-psa-ink-soft font-normal">{num(total)} reuniões</span>
+                  <span
+                    className={`inline-flex items-center justify-center w-4 h-4 rounded bg-psa-orange/10 text-psa-orange text-[9px] leading-none transition-transform group-hover:bg-psa-orange/20 ${isOpen ? "rotate-0" : "-rotate-90"}`}
+                  >
+                    ▼
+                  </span>
+                  <span className="group-hover:underline underline-offset-2 decoration-psa-orange/50">{c.nome}</span>{" "}
+                  <span className="text-psa-ink-soft font-normal">{num(total)} reuniões</span>
                 </button>
                 <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
                   realizada <b className="text-psa-ink">{total > 0 ? ((realizada / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "0"}%</b>
@@ -189,8 +202,8 @@ export default function ReunioesPerfilCard({ data }: Props) {
                     return (
                       <div key={p.id}>
                         <div className="flex justify-between items-baseline mb-1 gap-2">
-                          <span className="text-[11px] text-psa-ink-soft">
-                            {p.label} <span className="text-psa-muted">{num(t)}</span>
+                          <span className="text-[12px] text-psa-ink">
+                            {p.label} <span className="text-psa-ink-soft font-normal">{num(t)}</span>
                           </span>
                         </div>
                         <Bar closer={c} perfilId={p.id} perfilLabel={p.label} />
