@@ -966,8 +966,11 @@ export async function fetchReunioesPerfil(
   const startMs = opts?.from ? brStartOfDayMs(opts.from) : Date.now() - 183 * 86_400_000;
   const endMs = opts?.to ? brEndOfDayMs(opts.to) : Date.now();
 
-  // 1) reuniões no período (por data de início) — cujo DONO é closer B2C
+  // 1) reuniões no período (por data de início) — cujo DONO é closer B2C.
+  //    Filtro de dono JÁ na busca (server-side): reduz de "todas as reuniões do
+  //    portal" pras dos closers, cortando páginas + associação + batch.
   const closerSet = new Set(config.team.map((m) => m.ownerId));
+  const ownerValues = opts?.owner ? [opts.owner] : [...closerSet];
   const meetings: Array<{ id: string; outcome?: string; owner: string; date?: string }> = [];
   let after: string | undefined;
   do {
@@ -975,6 +978,7 @@ export async function fetchReunioesPerfil(
       filterGroups: [{ filters: [
         { propertyName: "hs_meeting_start_time", operator: "GTE", value: String(startMs) },
         { propertyName: "hs_meeting_start_time", operator: "LTE", value: String(endMs) },
+        { propertyName: "hubspot_owner_id", operator: "IN", values: ownerValues },
       ] }],
       properties: ["hs_meeting_outcome", "hubspot_owner_id", "hs_meeting_start_time"],
       limit: 100,
