@@ -59,6 +59,9 @@ export type SegmentConfig = {
   /** O segmento exibe o card "Tempo até proposta" (dias da qualificação até a
    *  1ª entrada na etapa de Proposta)? Só B2B. */
   hasTempoProposta: boolean;
+  /** O segmento exibe os cards de ganhos B2C: ganhos por atributo, lead time
+   *  dos ganhos e conversão por closer? Só B2C. */
+  hasGanhoCards: boolean;
   /** Propriedades onde mora o motivo da perda, em ordem de prioridade (o 1º
    *  preenchido vence). B2B usa closed_lost_reason + motivo_de_sinalizacao_de_perda. */
   lostReasonProps: string[];
@@ -115,6 +118,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasLostReasons: true,
     hasReunioesPerfil: false,
     hasTempoProposta: true,
+    hasGanhoCards: false,
     lostReasonProps: ["closed_lost_reason", "motivo_de_sinalizacao_de_perda"],
     conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
     conversionDenomAnyOf: null,
@@ -153,6 +157,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasLostReasons: true,
     hasReunioesPerfil: true,
     hasTempoProposta: false,
+    hasGanhoCards: true,
     lostReasonProps: ["closed_lost_reason"],
     // Conversão 100%: ganhos ÷ (ganhos + perdidos), todos os fechados. Os motivos
     // de perda (card "Motivos de perda") explicam o porquê das perdas.

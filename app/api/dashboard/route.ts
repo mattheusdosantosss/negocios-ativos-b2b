@@ -15,6 +15,7 @@ import {
   fetchTempoQualifProposta,
   fetchSalesByCloser,
 } from "@/lib/hubspot";
+import { fetchGanhosAtributos, fetchLeadTimeGanhos } from "@/lib/b2cCards";
 import {
   aggregate,
   closeTimeMatrix,
@@ -206,6 +207,36 @@ const getTempoPropostaCached = (
     { revalidate: 3600 }
   )();
 
+// Cards B2C 7/8/9 — cacheados por segmento + filtros. Nome do closer vem do
+// roster (config.team). Não-fatais (falha vira warning, não derruba o painel).
+const nomeMap = (config: SegmentConfig) => new Map(config.team.map((m) => [m.ownerId, m.nome]));
+
+const getGanhosAtributosCached = (config: SegmentConfig, origemId: string, origem: string[], owner: string | undefined, from?: string, to?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["ganhosAtributos"]; warning?: string }> => {
+      try {
+        return { data: await fetchGanhosAtributos(config, { from, to, owner, origem }, nomeMap(config)) };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar ganhos por atributo" };
+      }
+    },
+    ["ganhos-atributos-v1", config.id, origemId, owner || "all", from || "all", to || "all"],
+    { revalidate: 3600 }
+  )();
+
+const getLeadTimeGanhosCached = (config: SegmentConfig, origemId: string, origem: string[], owner: string | undefined, from?: string, to?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["leadTimeGanhos"]; warning?: string }> => {
+      try {
+        return { data: await fetchLeadTimeGanhos(config, { from, to, owner, origem }, nomeMap(config)) };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar lead time dos ganhos" };
+      }
+    },
+    ["lead-time-ganhos-v1", config.id, origemId, owner || "all", from || "all", to || "all"],
+    { revalidate: 3600 }
+  )();
+
 // "Meta do mês": vendas GANHAS da pipeline por data de fechamento no período
 // (sem período → mês corrente) vs a meta mensal fixa. Segue o filtro de Closer
 // (um closer → só as vendas dele). Cacheia 10 min por segmento + datas + closer.
@@ -244,7 +275,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw, tempoPropRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to, owner }),
@@ -257,6 +288,8 @@ export async function GET(req: NextRequest) {
       config.monthGoal != null ? getMonthGoalCached(config, from, to, owner) : Promise.resolve(null),
       config.hasReunioesPerfil ? getReunioesPerfilCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasTempoProposta ? getTempoPropostaCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
+      config.hasGanhoCards ? getGanhosAtributosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
+      config.hasGanhoCards ? getLeadTimeGanhosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -310,6 +343,8 @@ export async function GET(req: NextRequest) {
       motivos: motivosRaw?.data,
       reunioesPerfil: reunioesPerfilRaw?.data,
       tempoProposta: tempoPropRaw?.data,
+      ganhosAtributos: ganhosAtribRaw?.data,
+      leadTimeGanhos: leadTimeRaw?.data,
       monthGoal: goalRaw?.data,
     };
 

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { ConversionData } from "@/lib/aggregate";
 import type { MotivosData, MotivosItem } from "@/lib/hubspot";
+import type { GanhosAtributosData } from "@/lib/b2cCards";
+import GanhosAtributosCard from "./GanhosAtributosCard";
 
 // Cores do split de proposta anexada (mesma paleta do gráfico de temperatura).
 const COM_FILL = "#1E9E62"; // com proposta
@@ -12,14 +14,14 @@ const pct = (x: number) => `${(x * 100).toLocaleString("pt-BR", { maximumFractio
 const pctND = (n: number, d: number) => (d > 0 ? pct(n / d) : "0%");
 const num = (n: number) => n.toLocaleString("pt-BR");
 
-type Props = { data: ConversionData; motivos?: MotivosData; forcedMonth?: string | null; showProposta?: boolean };
+type Props = { data: ConversionData; motivos?: MotivosData; forcedMonth?: string | null; showProposta?: boolean; ganhosAtributos?: GanhosAtributosData };
 
 /**
  * Taxa de conversão (ganho × perdido) + motivos de perda no mesmo card. Segue o
  * filtro de tempo do topo: quando `forcedMonth` (YYYY-MM) vem setado, trava o
  * card nesse mês e esconde o seletor; senão, seletor de mês próprio.
  */
-export default function ConversionCard({ data, motivos, forcedMonth, showProposta }: Props) {
+export default function ConversionCard({ data, motivos, forcedMonth, showProposta, ganhosAtributos }: Props) {
   const [monthState, setMonth] = useState<string>("all");
   const [open, setOpen] = useState<{ name: string; deals: MotivosItem[] } | null>(null);
 
@@ -73,6 +75,9 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
           )}
         </div>
       </div>
+
+      {/* Ganhos por atributo — detalha o lado dos ganhos (só B2C). */}
+      {ganhosAtributos && ganhosAtributos.total > 0 && <GanhosAtributosCard data={ganhosAtributos} />}
 
       {mScope && mScope.total > 0 && (
         <div className="mt-5 pt-4 border-t border-psa-line">
