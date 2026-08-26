@@ -423,7 +423,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
             </div>
 
             <div className="flex flex-col gap-3 w-full lg:w-auto lg:shrink-0">
-              <div className="flex items-start gap-2.5 flex-wrap">
+              <div className="flex items-stretch gap-2.5 flex-wrap">
               {/* Filtros agrupados numa caixa só */}
               <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-4 flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
@@ -468,13 +468,13 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 w-[200px]">
+              <div className="flex flex-col gap-1 w-[200px] rounded-xl bg-white/[0.06] border border-white/10 p-1">
               {segmentSelector}
               <button
                 type="button"
                 onClick={load}
                 disabled={loading}
-                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
+                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 rounded-lg bg-white/[0.05] text-[13px] font-semibold text-white/85 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
                 title="Rebuscar os dados no HubSpot agora"
               >
                 <svg

@@ -37,6 +37,7 @@ import {
 } from "@/lib/aggregate";
 import { SEGMENTS, type SegmentId } from "@/lib/segments";
 import FarmerDashboard from "@/components/farmer/FarmerDashboard";
+import ConversaoDashboard from "@/components/ConversaoDashboard";
 import { computePeriod, formatPeriodRange, type PeriodValue } from "@/lib/periods";
 import { type LeadSourceId } from "@/lib/leadSource";
 
@@ -51,6 +52,7 @@ export default function Page() {
   // FARMER é uma 3ª "aba" do topo: quando ativa, some o funil e mostra o painel
   // de Líderes Táticos · Farmers (segment segue "b2b"/"b2c" pros hooks do funil).
   const [farmerMode, setFarmerMode] = useState(false);
+  const [convMode, setConvMode] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -252,24 +254,34 @@ export default function Page() {
 
   // Seletor de segmento do topo — B2B | B2C | FARMER. Reusado no funil e no
   // painel de farmers (pra dar pra voltar).
-  const TOP_TABS: { id: "b2b" | "b2c" | "farmer"; label: string }[] = [
+  const TOP_TABS: { id: "b2b" | "b2c" | "farmer" | "conversao"; label: string }[] = [
     { id: "b2b", label: "B2B" },
     { id: "b2c", label: "B2C" },
     { id: "farmer", label: "FARMER" },
+    { id: "conversao", label: "CONVERSÃO" },
   ];
-  const activeTop = farmerMode ? "farmer" : segment;
-  const onTopTab = (id: "b2b" | "b2c" | "farmer") => {
+  const activeTop = convMode ? "conversao" : farmerMode ? "farmer" : segment;
+  const onTopTab = (id: "b2b" | "b2c" | "farmer" | "conversao") => {
+    if (id === "conversao") {
+      setConvMode(true);
+      setFarmerMode(false);
+      setModal(null);
+      setShowCloserSummary(false);
+      return;
+    }
     if (id === "farmer") {
       setFarmerMode(true);
+      setConvMode(false);
       setModal(null);
       setShowCloserSummary(false);
       return;
     }
     setFarmerMode(false);
+    setConvMode(false);
     handleSegmentChange(id);
   };
   const segmentSelector = (
-    <div className="flex rounded-xl bg-white/[0.06] border border-white/10 p-1">
+    <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1">
       {TOP_TABS.map((t) => {
         const active = t.id === activeTop;
         return (
@@ -278,7 +290,7 @@ export default function Page() {
             type="button"
             onClick={() => onTopTab(t.id)}
             aria-pressed={active}
-            className={`flex-1 text-center px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
+            className={`text-center px-1.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-normal whitespace-nowrap transition-all ${
               active ? "bg-psa-orange text-white shadow" : "text-white/60 hover:text-white hover:bg-white/[0.06]"
             }`}
           >
@@ -288,6 +300,9 @@ export default function Page() {
       })}
     </div>
   );
+
+  // CONVERSÃO selecionado → aba de funis de conversão no lugar do funil.
+  if (convMode) return <ConversaoDashboard segmentSelector={segmentSelector} />;
 
   // FARMER selecionado → painel de Líderes Táticos · Farmers no lugar do funil.
   if (farmerMode) return <FarmerDashboard segmentSelector={segmentSelector} />;
@@ -326,7 +341,7 @@ export default function Page() {
               </p>
             </div>
 
-            <div className="flex items-end gap-2.5 shrink-0">
+            <div className="flex items-stretch gap-2.5 shrink-0">
               {/* Filtro de período */}
               <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-3 flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
@@ -336,14 +351,14 @@ export default function Page() {
 
               {/* Coluna direita: abas B2B|B2C|FARMER logo acima do Atualizar.
                   Largura fixa (mesma no funil e no farmer). */}
-              <div className="flex flex-col gap-2.5 w-[200px]">
+              <div className="flex flex-col gap-1 w-[200px] rounded-xl bg-white/[0.06] border border-white/10 p-1">
                 {segmentSelector}
 
                 <button
                   type="button"
                   onClick={load}
                   disabled={loading}
-                  className="inline-flex items-center justify-center gap-2 w-full whitespace-nowrap px-4 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-sm font-semibold text-white/90 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
+                  className="inline-flex items-center justify-center gap-2 w-full whitespace-nowrap px-4 py-2 rounded-lg bg-white/[0.05] text-[13px] font-semibold text-white/85 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
                   title="Rebuscar os dados no HubSpot agora"
                 >
                   <svg

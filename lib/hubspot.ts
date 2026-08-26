@@ -80,7 +80,7 @@ function assertToken() {
   }
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Roda `fn` sobre os itens em grupos de no máx `lim` em paralelo, com uma pausa
 // curta entre as ondas — segura o limite por segundo do HubSpot.
@@ -93,7 +93,7 @@ async function mapLimit<T, R>(items: T[], lim: number, fn: (item: T) => Promise<
   return out;
 }
 
-async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
+export async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
   assertToken();
   const res = await fetch(`${HUBSPOT_API}${path}`, {
     ...init,
