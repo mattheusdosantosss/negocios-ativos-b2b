@@ -157,13 +157,13 @@ export default function ReunioesPerfilCard({ data }: Props) {
 
       {/* Barras por closer — cada um num card com borda (estilo do "Histórico de
           vendas" da Meta do mês), pra separar bem os closers. */}
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 space-y-4">
         {data.closers.map((c) => {
           const total = totalOf(c, null);
           const realizada = counts(c, null).find((x) => x.o.id === "realizada")?.n ?? 0;
           const isOpen = open.has(c.ownerId);
           return (
-            <div key={c.ownerId} className="rounded-xl border border-psa-line bg-psa-surface/60 p-3">
+            <div key={c.ownerId} className="rounded-xl border border-psa-line bg-psa-canvas/50 p-4 shadow-sm">
               <div className="flex justify-between items-baseline mb-1.5 gap-2">
                 <button
                   type="button"
