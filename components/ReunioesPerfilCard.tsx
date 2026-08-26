@@ -1,62 +1,117 @@
 "use client";
 
-import { useState } from "react";
-import type { ReunioesCell, ReunioesCloser, ReunioesPerfilData, ReunioesStatusId } from "@/lib/hubspot";
+import { useEffect, useState } from "react";
+import type {
+  ReunioesCloser,
+  ReunioesMeetingItem,
+  ReunioesOutcomeId,
+  ReunioesPerfilData,
+  ReunioesStatusId,
+} from "@/lib/hubspot";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
+const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtDate = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+};
 
-// Colunas (resultado da reunião) — mesma paleta dos outros cards.
-const COLS = [
-  { key: "agendada", label: "Agendada", color: "#2563eb" },
-  { key: "realizada", label: "Realizada", color: "#1E9E62" },
-  { key: "cancelada", label: "Cancelada", color: "#C0432F" },
-  { key: "noshow", label: "No-show", color: "#E8A317" },
-] as const;
+// Resultado da reunião — padrão semáforo: Realizada verde, Agendada amarelo,
+// Cancelada vermelho, No-show cinza escuro.
+const OUTCOMES: { id: ReunioesOutcomeId; label: string; fill: string; text: string }[] = [
+  { id: "realizada", label: "Realizada", fill: "#1E9E62", text: "#fff" },
+  { id: "agendada", label: "Agendada", fill: "#E8A317", text: "#3A2A00" },
+  { id: "cancelada", label: "Cancelada", fill: "#C0432F", text: "#fff" },
+  { id: "noshow", label: "No-show", fill: "#4A4A4A", text: "#fff" },
+];
 
-// Filtro de status do negócio associado.
 const STATUS: { id: ReunioesStatusId | "todos"; label: string }[] = [
   { id: "todos", label: "Todos" },
   { id: "ativo", label: "Ativo" },
   { id: "ganho", label: "Ganho" },
   { id: "perdido", label: "Perdido" },
 ];
-
 const ALL_STATUS: ReunioesStatusId[] = ["ativo", "ganho", "perdido"];
-const zero = (): ReunioesCell => ({ agendada: 0, realizada: 0, cancelada: 0, noshow: 0 });
-const add = (a: ReunioesCell, b?: ReunioesCell): ReunioesCell =>
-  b ? { agendada: a.agendada + b.agendada, realizada: a.realizada + b.realizada, cancelada: a.cancelada + b.cancelada, noshow: a.noshow + b.noshow } : a;
-const cellTotal = (c: ReunioesCell) => c.agendada + c.realizada + c.cancelada + c.noshow;
 
-// Célula de um perfil pra um closer no status selecionado ("todos" = soma dos 3).
-function perfilCell(closer: ReunioesCloser, status: ReunioesStatusId | "todos", perfilId: string): ReunioesCell {
-  if (status !== "todos") return closer.cube[status][perfilId] ?? zero();
-  return ALL_STATUS.reduce((acc, st) => add(acc, closer.cube[st][perfilId]), zero());
+// Reuniões de um closer num status (todos = 3), perfil (null = todos) e resultado.
+function collect(
+  closer: ReunioesCloser,
+  status: ReunioesStatusId | "todos",
+  perfilId: string | null,
+  perfilIds: string[],
+  outcome: ReunioesOutcomeId
+): ReunioesMeetingItem[] {
+  const sts = status === "todos" ? ALL_STATUS : [status];
+  const pids = perfilId ? [perfilId] : perfilIds;
+  const out: ReunioesMeetingItem[] = [];
+  for (const st of sts) for (const pid of pids) {
+    const cell = closer.cube[st][pid];
+    if (cell) out.push(...cell[outcome]);
+  }
+  return out;
 }
+
+type Sel = { closer: ReunioesCloser; perfilId: string | null; perfilLabel: string | null; outcome: ReunioesOutcomeId } | null;
 
 type Props = { data: ReunioesPerfilData };
 
 /**
- * Reuniões dos closers B2C (dono da reunião) por Closer × Perfil × status do
- * negócio (Ativo/Ganho/Perdido) × resultado (Agendada/Realizada/Cancelada/
- * No-show). Linha por closer, expansível pro detalhe de perfil. Segue período,
- * origem e closer do topo.
+ * Reuniões dos closers B2C (dono da reunião) em barras empilhadas por resultado
+ * (Agendada/Realizada/Cancelada/No-show), no padrão do painel. Uma barra por
+ * closer, expansível pro detalhe por perfil; seletor de status do negócio
+ * (Todos/Ativo/Ganho/Perdido). Cada segmento abre o popup com os negócios.
  */
 export default function ReunioesPerfilCard({ data }: Props) {
   const [status, setStatus] = useState<ReunioesStatusId | "todos">("todos");
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  // Detalhe por perfil aberto por padrão (é a característica principal do card);
+  // rastreamos só os recolhidos, então closer novo já entra aberto.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [sel, setSel] = useState<Sel>(null);
+  const perfilIds = data.perfis.map((p) => p.id);
 
-  // Linha somada (todos os perfis) de um closer, no status selecionado.
-  const rowOf = (c: ReunioesCloser) => data.perfis.reduce((acc, p) => add(acc, perfilCell(c, status, p.id)), zero());
-  // Rodapé (time): soma dos closers.
-  const footer = data.closers.reduce((acc, c) => add(acc, rowOf(c)), zero());
-  const totalFooter = cellTotal(footer);
+  const counts = (closer: ReunioesCloser, perfilId: string | null) =>
+    OUTCOMES.map((o) => ({ o, n: collect(closer, status, perfilId, perfilIds, o.id).length }));
+  const totalOf = (closer: ReunioesCloser, perfilId: string | null) =>
+    counts(closer, perfilId).reduce((s, c) => s + c.n, 0);
+
+  const teamTotal = data.closers.reduce((s, c) => s + totalOf(c, null), 0);
 
   const toggle = (id: string) =>
-    setOpen((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+
+  // Barra empilhada no padrão do card de temperatura: bloco cheio, número
+  // dentro do segmento (quando cabe), segmentos encostados.
+  const Bar = ({ closer, perfilId, perfilLabel }: { closer: ReunioesCloser; perfilId: string | null; perfilLabel: string | null }) => {
+    const cs = counts(closer, perfilId);
+    const total = cs.reduce((s, c) => s + c.n, 0);
+    return (
+      <div className="flex rounded-md overflow-hidden" style={{ height: perfilId ? 22 : 26 }}>
+        {total === 0 ? (
+          <div className="w-full bg-psa-canvas" />
+        ) : (
+          cs.map(({ o, n }) =>
+            n === 0 ? null : (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setSel({ closer, perfilId, perfilLabel, outcome: o.id })}
+                title={`${closer.nome}${perfilLabel ? ` · ${perfilLabel}` : ""} · ${o.label}: ${num(n)} — clique pra listar`}
+                className="flex items-center justify-center text-[11px] font-medium transition-opacity hover:opacity-85"
+                style={{ width: `${(n / total) * 100}%`, background: o.fill, color: o.text }}
+              >
+                {(n / total) * 100 >= 7 ? num(n) : ""}
+              </button>
+            )
+          )
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
@@ -64,11 +119,11 @@ export default function ReunioesPerfilCard({ data }: Props) {
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Reuniões por closer</div>
           <div className="mt-1 flex items-baseline gap-3 flex-wrap">
-            <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(totalFooter)}</span>
+            <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(teamTotal)}</span>
             <span className="text-sm text-psa-ink-soft">reuniões · por data da reunião no período</span>
           </div>
           <div className="mt-1 text-[11px] text-psa-muted">
-            Reuniões dos closers B2C · clique no closer pra abrir o detalhe por perfil
+            Reuniões dos closers B2C · clique no closer pra abrir o detalhe por perfil · clique numa barra pra listar os negócios
           </div>
         </div>
 
@@ -93,109 +148,138 @@ export default function ReunioesPerfilCard({ data }: Props) {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[560px] text-sm border-collapse">
-          <thead>
-            <tr className="text-[11px] font-semibold uppercase tracking-[0.06em] text-psa-ink-soft border-b border-psa-line">
-              <th className="text-left py-2 pr-3">Closer</th>
-              {COLS.map((c) => (
-                <th key={c.key} className="text-right py-2 px-3">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block w-2 h-2 rounded-[2px]" style={{ background: c.color }} />
-                    {c.label}
-                  </span>
-                </th>
-              ))}
-              <th className="text-right py-2 pl-3">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.closers.map((c) => {
-              const row = rowOf(c);
-              const rowTot = cellTotal(row);
-              const isOpen = open.has(c.ownerId);
-              return (
-                <FragmentRow
-                  key={c.ownerId}
-                  closer={c}
-                  row={row}
-                  rowTot={rowTot}
-                  isOpen={isOpen}
-                  perfis={data.perfis}
-                  status={status}
-                  onToggle={() => toggle(c.ownerId)}
-                />
-              );
-            })}
-            <tr className="border-t-2 border-psa-line font-semibold">
-              <td className="py-2.5 pr-3 text-psa-ink uppercase text-[11px] tracking-[0.06em]">Total do time</td>
-              {COLS.map((col) => (
-                <td key={col.key} className="py-2.5 px-3 text-right tabular-nums font-bold" style={{ color: col.color }}>
-                  {num(footer[col.key])}
-                </td>
-              ))}
-              <td className="py-2.5 pl-3 text-right font-extrabold tabular-nums text-psa-ink">{num(totalFooter)}</td>
-            </tr>
-          </tbody>
-        </table>
+      {/* Legenda */}
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
+        {OUTCOMES.map((o) => (
+          <span key={o.id} className="inline-flex items-center gap-1.5 text-[10px] text-psa-ink-soft">
+            <span className="inline-block w-2.5 h-2.5 rounded-[3px]" style={{ background: o.fill }} />
+            {o.label}
+          </span>
+        ))}
       </div>
+
+      {/* Barras por closer */}
+      <div className="mt-4 space-y-4">
+        {data.closers.map((c) => {
+          const total = totalOf(c, null);
+          const realizada = counts(c, null).find((x) => x.o.id === "realizada")?.n ?? 0;
+          const isOpen = !collapsed.has(c.ownerId);
+          return (
+            <div key={c.ownerId}>
+              <div className="flex justify-between items-baseline mb-1.5 gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggle(c.ownerId)}
+                  className="group text-left text-[13px] font-medium text-psa-ink inline-flex items-center gap-1.5"
+                >
+                  <span className="text-psa-muted text-[9px] w-2.5 group-hover:text-psa-orange transition-colors">{isOpen ? "▾" : "▸"}</span>
+                  {c.nome} <span className="text-psa-ink-soft font-normal">{num(total)} reuniões</span>
+                </button>
+                <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
+                  realizada <b className="text-psa-ink">{total > 0 ? ((realizada / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "0"}%</b>
+                </span>
+              </div>
+              <Bar closer={c} perfilId={null} perfilLabel={null} />
+
+              {isOpen && (
+                <div className="mt-3 pl-4 space-y-3">
+                  {data.perfis.map((p) => {
+                    const t = totalOf(c, p.id);
+                    if (t === 0) return null;
+                    return (
+                      <div key={p.id}>
+                        <div className="flex justify-between items-baseline mb-1 gap-2">
+                          <span className="text-[11px] text-psa-ink-soft">
+                            {p.label} <span className="text-psa-muted">{num(t)}</span>
+                          </span>
+                        </div>
+                        <Bar closer={c} perfilId={p.id} perfilLabel={p.label} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {sel && (
+        <ReunioesModal
+          items={collect(sel.closer, status, sel.perfilId, perfilIds, sel.outcome)}
+          title={`${sel.closer.nome}${sel.perfilLabel ? ` · ${sel.perfilLabel}` : ""} · ${OUTCOMES.find((o) => o.id === sel.outcome)!.label}`}
+          statusLabel={STATUS.find((s) => s.id === status)!.label}
+          onClose={() => setSel(null)}
+        />
+      )}
     </div>
   );
 }
 
-function FragmentRow({
-  closer,
-  row,
-  rowTot,
-  isOpen,
-  perfis,
-  status,
-  onToggle,
-}: {
-  closer: ReunioesCloser;
-  row: ReunioesCell;
-  rowTot: number;
-  isOpen: boolean;
-  perfis: ReunioesPerfilData["perfis"];
-  status: ReunioesStatusId | "todos";
-  onToggle: () => void;
-}) {
+function ReunioesModal({ items, title, statusLabel, onClose }: { items: ReunioesMeetingItem[]; title: string; statusLabel: string; onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", h);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", h);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  // Uma reunião por linha, agrupada por negócio (um negócio pode ter várias).
+  const byDeal = new Map<string, { dealname: string; url: string; amount: number; dates: string[] }>();
+  for (const it of items) {
+    const g = byDeal.get(it.dealId) ?? { dealname: it.dealname, url: it.url, amount: it.amount, dates: [] };
+    if (it.date) g.dates.push(it.date);
+    byDeal.set(it.dealId, g);
+  }
+  const groups = [...byDeal.values()].sort((a, b) => b.amount - a.amount);
+  const valorTotal = groups.reduce((s, g) => s + g.amount, 0);
+
   return (
-    <>
-      <tr
-        className="border-b border-psa-line/60 hover:bg-psa-canvas/40 transition-colors cursor-pointer"
-        onClick={onToggle}
-      >
-        <td className="py-2.5 pr-3 font-medium text-psa-ink">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="text-psa-orange text-[10px] w-3">{isOpen ? "▼" : "▶"}</span>
-            {closer.nome}
-          </span>
-        </td>
-        {COLS.map((col) => (
-          <td key={col.key} className="py-2.5 px-3 text-right tabular-nums" style={{ color: row[col.key] > 0 ? col.color : undefined }}>
-            {row[col.key] > 0 ? num(row[col.key]) : <span className="text-psa-muted">0</span>}
-          </td>
-        ))}
-        <td className="py-2.5 pl-3 text-right font-bold tabular-nums text-psa-ink">{num(rowTot)}</td>
-      </tr>
-      {isOpen &&
-        perfis.map((p) => {
-          const cell = perfilCell(closer, status, p.id);
-          const t = cellTotal(cell);
-          if (t === 0) return null;
-          return (
-            <tr key={p.id} className="bg-psa-canvas/30 text-[13px]">
-              <td className="py-1.5 pr-3 pl-6 text-psa-ink-soft">{p.label}</td>
-              {COLS.map((col) => (
-                <td key={col.key} className="py-1.5 px-3 text-right tabular-nums" style={{ color: cell[col.key] > 0 ? col.color : undefined }}>
-                  {cell[col.key] > 0 ? num(cell[col.key]) : <span className="text-psa-muted">0</span>}
-                </td>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl max-h-[85vh] bg-psa-ink text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-display text-xl font-bold truncate">{title}</h3>
+            <div className="mt-1 text-xs text-psa-orange font-semibold uppercase tracking-wider">
+              {num(items.length)} {items.length === 1 ? "reunião" : "reuniões"} · {num(groups.length)}{" "}
+              {groups.length === 1 ? "negócio" : "negócios"} · status {statusLabel}
+            </div>
+            <div className="mt-1 text-[11px] text-white/50">
+              Valor dos negócios (bruto): <span className="text-white/75 font-medium">{brl(valorTotal)}</span>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2 -mt-1" aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {groups.length === 0 ? (
+            <div className="p-12 text-center text-sm text-white/60">Nenhuma reunião encontrada.</div>
+          ) : (
+            <ul className="divide-y divide-white/10">
+              {groups.map((g, i) => (
+                <li key={i} className="px-6 py-2.5">
+                  <a href={g.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-3 text-[12px]" title="Abrir negócio no HubSpot">
+                    <span className="flex-1 min-w-0 truncate text-white/80 group-hover:text-psa-orange group-hover:underline">
+                      {g.dealname}
+                      {g.dates.length > 1 && <span className="text-white/40"> · {g.dates.length} reuniões</span>}
+                    </span>
+                    <span className="shrink-0 flex items-center gap-3">
+                      <span className="text-white/45 tabular-nums" title="Data da reunião">{fmtDate(g.dates.sort().at(-1))}</span>
+                      <span className="text-psa-orange tabular-nums whitespace-nowrap">{brl(g.amount)}</span>
+                    </span>
+                  </a>
+                </li>
               ))}
-              <td className="py-1.5 pl-3 text-right font-semibold tabular-nums text-psa-ink-soft">{num(t)}</td>
-            </tr>
-          );
-        })}
-    </>
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

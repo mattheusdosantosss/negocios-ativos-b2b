@@ -909,13 +909,17 @@ export async function fetchTempoQualifProposta(
 // ============================================================
 // Reuniões por perfil (B2C) — validação de agendadas/realizadas/canceladas/no-show
 // ============================================================
-export type ReunioesCell = { agendada: number; realizada: number; cancelada: number; noshow: number };
+/** Negócio por trás de uma reunião — pro popup de listagem. */
+export type ReunioesMeetingItem = { dealId: string; dealname: string; url: string; amount: number; date?: string };
+export type ReunioesOutcomeId = "agendada" | "realizada" | "cancelada" | "noshow";
+/** Cada resultado guarda a lista de reuniões (uma entrada por reunião). */
+export type ReunioesCell = Record<ReunioesOutcomeId, ReunioesMeetingItem[]>;
 export type ReunioesStatusId = "ativo" | "ganho" | "perdido";
 export type ReunioesPerfilDef = { id: string; label: string };
 export type ReunioesCloser = {
   ownerId: string;
   nome: string;
-  /** cube[status][perfilId] = contagens por resultado da reunião. */
+  /** cube[status][perfilId] = reuniões por resultado. */
   cube: Record<ReunioesStatusId, Record<string, ReunioesCell>>;
 };
 export type ReunioesPerfilData = {
@@ -926,7 +930,7 @@ export type ReunioesPerfilData = {
   closers: ReunioesCloser[];
 };
 
-const emptyCell = (): ReunioesCell => ({ agendada: 0, realizada: 0, cancelada: 0, noshow: 0 });
+const emptyCell = (): ReunioesCell => ({ agendada: [], realizada: [], cancelada: [], noshow: [] });
 
 const REUNIOES_PERFIS: Array<{ id: string; label: string; raw: string | null }> = [
   { id: "escala", label: "Escala", raw: "Escala" },
@@ -964,7 +968,7 @@ export async function fetchReunioesPerfil(
 
   // 1) reuniões no período (por data de início) — cujo DONO é closer B2C
   const closerSet = new Set(config.team.map((m) => m.ownerId));
-  const meetings: Array<{ id: string; outcome?: string; owner: string }> = [];
+  const meetings: Array<{ id: string; outcome?: string; owner: string; date?: string }> = [];
   let after: string | undefined;
   do {
     const body: Record<string, unknown> = {
@@ -972,11 +976,11 @@ export async function fetchReunioesPerfil(
         { propertyName: "hs_meeting_start_time", operator: "GTE", value: String(startMs) },
         { propertyName: "hs_meeting_start_time", operator: "LTE", value: String(endMs) },
       ] }],
-      properties: ["hs_meeting_outcome", "hubspot_owner_id"],
+      properties: ["hs_meeting_outcome", "hubspot_owner_id", "hs_meeting_start_time"],
       limit: 100,
     };
     if (after) body.after = after;
-    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string; hubspot_owner_id?: string } }> = await hsFetch(
+    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string; hubspot_owner_id?: string; hs_meeting_start_time?: string } }> = await hsFetch(
       `/crm/v3/objects/meetings/search`,
       { method: "POST", body: JSON.stringify(body) }
     );
@@ -984,7 +988,7 @@ export async function fetchReunioesPerfil(
       const mOwner = m.properties?.hubspot_owner_id;
       if (!mOwner || !closerSet.has(mOwner)) continue; // só reuniões dos closers B2C
       if (opts?.owner && mOwner !== opts.owner) continue;
-      meetings.push({ id: String(m.id), outcome: m.properties?.hs_meeting_outcome, owner: mOwner });
+      meetings.push({ id: String(m.id), outcome: m.properties?.hs_meeting_outcome, owner: mOwner, date: m.properties?.hs_meeting_start_time });
     }
     after = data.paging?.next?.after;
     if (after) await sleep(120);
@@ -999,17 +1003,17 @@ export async function fetchReunioesPerfil(
   // 3) dados dos negócios (pipeline, dono, perfil, origem, etapa → status)
   const dealChunks: string[][] = [];
   for (let i = 0; i < allDealIds.length; i += 100) dealChunks.push(allDealIds.slice(i, i + 100));
-  const dealInfo = new Map<string, { pipeline?: string; owner?: string; perfil?: string; origem?: string; stage?: string }>();
+  const dealInfo = new Map<string, { pipeline?: string; owner?: string; perfil?: string; origem?: string; stage?: string; dealname?: string; amount: number }>();
   const responses = await mapLimit(dealChunks, 6, (c) =>
     hsFetch<{ results?: Array<{ id: string; properties?: Record<string, string> }> }>(`/crm/v3/objects/deals/batch/read`, {
       method: "POST",
-      body: JSON.stringify({ inputs: c.map((id) => ({ id })), properties: ["pipeline", "hubspot_owner_id", "perfil", "origem_do_lead", "dealstage"] }),
+      body: JSON.stringify({ inputs: c.map((id) => ({ id })), properties: ["pipeline", "hubspot_owner_id", "perfil", "origem_do_lead", "dealstage", "dealname", "amount"] }),
     })
   );
   for (const data of responses) {
     for (const d of data.results ?? []) {
       const p = d.properties ?? {};
-      dealInfo.set(String(d.id), { pipeline: p.pipeline, owner: p.hubspot_owner_id, perfil: p.perfil, origem: p.origem_do_lead, stage: p.dealstage });
+      dealInfo.set(String(d.id), { pipeline: p.pipeline, owner: p.hubspot_owner_id, perfil: p.perfil, origem: p.origem_do_lead, stage: p.dealstage, dealname: p.dealname, amount: Number(p.amount) || 0 });
     }
   }
 
@@ -1035,29 +1039,35 @@ export async function fetchReunioesPerfil(
 
   let total = 0;
   for (const m of meetings) {
-    let info: { perfil?: string; stage?: string } | undefined;
-    for (const did of meetingToDeals.get(m.id) ?? []) {
-      const d = dealInfo.get(did);
+    let did: string | undefined;
+    let info: { perfil?: string; stage?: string; dealname?: string; amount: number } | undefined;
+    for (const cand of meetingToDeals.get(m.id) ?? []) {
+      const d = dealInfo.get(cand);
       if (!d || d.pipeline !== pipe) continue;
       if (!d.owner || !closerSet.has(d.owner)) continue;
       if (origemSet && !(d.origem && origemSet.has(d.origem))) continue;
+      did = cand;
       info = d;
       break;
     }
-    if (!info) continue;
+    if (!info || !did) continue;
     const c = cubeFor(m.owner);
     const perfilId = perfilBucket(info.perfil);
     const cell = (c.cube[statusOf(info.stage)][perfilId] ??= emptyCell());
-    cell[outcomeBucket(m.outcome)] += 1;
+    cell[outcomeBucket(m.outcome)].push({
+      dealId: did,
+      dealname: info.dealname || `Negócio ${did}`,
+      url: dealUrl(did),
+      amount: info.amount,
+      date: m.date,
+    });
     total += 1;
   }
 
+  const cellCount = (c: ReunioesCell) => c.agendada.length + c.realizada.length + c.cancelada.length + c.noshow.length;
   const closers = [...cubes.values()].sort((a, b) => {
     const sum = (x: ReunioesCloser) =>
-      (["ativo", "ganho", "perdido"] as const).reduce(
-        (s, st) => s + Object.values(x.cube[st]).reduce((t, c) => t + c.agendada + c.realizada + c.cancelada + c.noshow, 0),
-        0
-      );
+      (["ativo", "ganho", "perdido"] as const).reduce((s, st) => s + Object.values(x.cube[st]).reduce((t, c) => t + cellCount(c), 0), 0);
     return sum(b) - sum(a) || a.nome.localeCompare(b.nome, "pt-BR");
   });
   return { total, perfis, closers };
