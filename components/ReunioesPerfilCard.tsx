@@ -198,7 +198,7 @@ export default function ReunioesPerfilCard({ data }: Props) {
                     return (
                       <div key={p.id}>
                         <div className="flex justify-between items-baseline mb-1 gap-2">
-                          <span className="text-[12px] text-psa-ink">
+                          <span className="text-[13px] font-medium text-psa-ink">
                             {p.label} <span className="text-psa-ink-soft font-normal">{num(t)}</span>
                           </span>
                         </div>
