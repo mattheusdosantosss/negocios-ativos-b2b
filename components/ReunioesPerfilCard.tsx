@@ -180,11 +180,7 @@ export default function ReunioesPerfilCard({ data }: Props) {
                   title={isOpen ? "Recolher detalhe por perfil" : "Abrir detalhe por perfil"}
                   className="group text-left text-[13px] font-medium text-psa-ink inline-flex items-center gap-2"
                 >
-                  <span
-                    className={`inline-flex items-center justify-center w-4 h-4 rounded bg-psa-orange/10 text-psa-orange text-[9px] leading-none transition-transform group-hover:bg-psa-orange/20 ${isOpen ? "rotate-0" : "-rotate-90"}`}
-                  >
-                    ▼
-                  </span>
+                  <span className={`text-psa-orange text-[10px] leading-none transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}>▼</span>
                   <span className="group-hover:underline underline-offset-2 decoration-psa-orange/50">{c.nome}</span>{" "}
                   <span className="text-psa-ink-soft font-normal">{num(total)} reuniões</span>
                 </button>
@@ -192,7 +188,7 @@ export default function ReunioesPerfilCard({ data }: Props) {
                   realizada <b className="text-psa-ink">{total > 0 ? ((realizada / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "0"}%</b>
                 </span>
               </div>
-              <Bar closer={c} perfilId={null} perfilLabel={null} />
+              {isOpen && <Bar closer={c} perfilId={null} perfilLabel={null} />}
 
               {isOpen && (
                 <div className="mt-3 pl-4 space-y-3">
