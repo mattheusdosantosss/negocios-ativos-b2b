@@ -30,7 +30,13 @@ export default function ConversaoDashboard({ segmentSelector }: { segmentSelecto
     setError(null);
     try {
       const res = await fetch("/api/conversao");
-      const json = await res.json();
+      const text = await res.text();
+      let json: ConversaoData & { error?: string };
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error("O cálculo dos funis está demorando (varre ~5 mil negócios no 1º acesso). Clique em Atualizar de novo em alguns segundos.");
+      }
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
       setData(json as ConversaoData);
     } catch (e) {

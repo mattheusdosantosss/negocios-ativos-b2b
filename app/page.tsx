@@ -115,7 +115,14 @@ export default function Page() {
     setError(null);
     try {
       const res = await fetch(`/api/dashboard?${queryString}`);
-      const json = await res.json();
+      const text = await res.text();
+      let json: DashboardData & { error?: string };
+      try {
+        json = JSON.parse(text);
+      } catch {
+        // Resposta não-JSON = função da Vercel devolveu texto (timeout/cold start).
+        throw new Error("O servidor está recalculando (pode levar alguns segundos). Clique em Atualizar de novo.");
+      }
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
       setData(json as DashboardData);
     } catch (e) {
