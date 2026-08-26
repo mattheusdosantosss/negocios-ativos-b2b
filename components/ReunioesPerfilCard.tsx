@@ -64,9 +64,8 @@ type Props = { data: ReunioesPerfilData };
  */
 export default function ReunioesPerfilCard({ data }: Props) {
   const [status, setStatus] = useState<ReunioesStatusId | "todos">("todos");
-  // Detalhe por perfil aberto por padrão (é a característica principal do card);
-  // rastreamos só os recolhidos, então closer novo já entra aberto.
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Todos os closers começam fechados (dropdown); rastreamos os abertos.
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const [sel, setSel] = useState<Sel>(null);
   const perfilIds = data.perfis.map((p) => p.id);
 
@@ -78,7 +77,7 @@ export default function ReunioesPerfilCard({ data }: Props) {
   const teamTotal = data.closers.reduce((s, c) => s + totalOf(c, null), 0);
 
   const toggle = (id: string) =>
-    setCollapsed((prev) => {
+    setOpen((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -156,14 +155,15 @@ export default function ReunioesPerfilCard({ data }: Props) {
         ))}
       </div>
 
-      {/* Barras por closer */}
-      <div className="mt-4 space-y-4">
+      {/* Barras por closer — cada um num card com borda (estilo do "Histórico de
+          vendas" da Meta do mês), pra separar bem os closers. */}
+      <div className="mt-4 space-y-3">
         {data.closers.map((c) => {
           const total = totalOf(c, null);
           const realizada = counts(c, null).find((x) => x.o.id === "realizada")?.n ?? 0;
-          const isOpen = !collapsed.has(c.ownerId);
+          const isOpen = open.has(c.ownerId);
           return (
-            <div key={c.ownerId}>
+            <div key={c.ownerId} className="rounded-xl border border-psa-line bg-psa-surface/60 p-3">
               <div className="flex justify-between items-baseline mb-1.5 gap-2">
                 <button
                   type="button"
