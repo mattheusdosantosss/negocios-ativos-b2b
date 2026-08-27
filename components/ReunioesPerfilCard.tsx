@@ -27,26 +27,20 @@ const OUTCOMES: { id: ReunioesOutcomeId; label: string; fill: string; text: stri
   { id: "noshow", label: "No-show", fill: "#4A4A4A", text: "#fff" },
 ];
 
-const STATUS: { id: ReunioesStatusId | "todos"; label: string }[] = [
-  { id: "todos", label: "Todos" },
-  { id: "ativo", label: "Ativo" },
-  { id: "ganho", label: "Ganho" },
-  { id: "perdido", label: "Perdido" },
-];
 const ALL_STATUS: ReunioesStatusId[] = ["ativo", "ganho", "perdido"];
 
-// Reuniões de um closer num status (todos = 3), perfil (null = todos) e resultado.
+// Reuniões de um closer (todos os status do negócio somados), perfil (null =
+// todos) e resultado. Sem recorte de status — é um card de reuniões, não de
+// vendas (ganhos por perfil já vivem no card de Conversão).
 function collect(
   closer: ReunioesCloser,
-  status: ReunioesStatusId | "todos",
   perfilId: string | null,
   perfilIds: string[],
   outcome: ReunioesOutcomeId
 ): ReunioesMeetingItem[] {
-  const sts = status === "todos" ? ALL_STATUS : [status];
   const pids = perfilId ? [perfilId] : perfilIds;
   const out: ReunioesMeetingItem[] = [];
-  for (const st of sts) for (const pid of pids) {
+  for (const st of ALL_STATUS) for (const pid of pids) {
     const cell = closer.cube[st][pid];
     if (cell) out.push(...cell[outcome]);
   }
@@ -59,19 +53,18 @@ type Props = { data: ReunioesPerfilData };
 
 /**
  * Reuniões dos closers B2C (dono da reunião) em barras empilhadas por resultado
- * (Agendada/Realizada/Cancelada/No-show), no padrão do painel. Uma barra por
- * closer, expansível pro detalhe por perfil; seletor de status do negócio
- * (Todos/Ativo/Ganho/Perdido). Cada segmento abre o popup com os negócios.
+ * (Realizada/Agendada/Reprogramada/Cancelada/No-show), no padrão do painel. Uma
+ * barra por closer, expansível pro detalhe por perfil. Sem recorte por status do
+ * negócio — é um card de reuniões, não de vendas. Cada segmento abre o popup.
  */
 export default function ReunioesPerfilCard({ data }: Props) {
-  const [status, setStatus] = useState<ReunioesStatusId | "todos">("todos");
   // Todos os closers começam fechados (dropdown); rastreamos os abertos.
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [sel, setSel] = useState<Sel>(null);
   const perfilIds = data.perfis.map((p) => p.id);
 
   const counts = (closer: ReunioesCloser, perfilId: string | null) =>
-    OUTCOMES.map((o) => ({ o, n: collect(closer, status, perfilId, perfilIds, o.id).length }));
+    OUTCOMES.map((o) => ({ o, n: collect(closer, perfilId, perfilIds, o.id).length }));
   const totalOf = (closer: ReunioesCloser, perfilId: string | null) =>
     counts(closer, perfilId).reduce((s, c) => s + c.n, 0);
 
@@ -125,24 +118,14 @@ export default function ReunioesPerfilCard({ data }: Props) {
           </div>
         </div>
 
-        {/* Seletor de status do negócio */}
-        <div className="flex rounded-xl bg-psa-canvas border border-psa-line p-1">
-          {STATUS.map((s) => {
-            const active = s.id === status;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setStatus(s.id)}
-                aria-pressed={active}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all ${
-                  active ? "bg-psa-orange text-white shadow" : "text-psa-ink-soft hover:text-psa-ink"
-                }`}
-              >
-                {s.label}
-              </button>
-            );
-          })}
+        {/* Legenda dos resultados */}
+        <div className="flex flex-wrap gap-x-3 gap-y-1.5 max-w-[320px] justify-end">
+          {OUTCOMES.map((o) => (
+            <span key={o.id} className="inline-flex items-center gap-1.5 text-[10px] text-psa-ink-soft">
+              <span className="inline-block w-2.5 h-2.5 rounded-[3px]" style={{ background: o.fill }} />
+              {o.label}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -208,9 +191,8 @@ export default function ReunioesPerfilCard({ data }: Props) {
 
       {sel && (
         <ReunioesModal
-          items={collect(sel.closer, status, sel.perfilId, perfilIds, sel.outcome)}
+          items={collect(sel.closer, sel.perfilId, perfilIds, sel.outcome)}
           title={`${sel.closer.nome}${sel.perfilLabel ? ` · ${sel.perfilLabel}` : ""} · ${OUTCOMES.find((o) => o.id === sel.outcome)!.label}`}
-          statusLabel={STATUS.find((s) => s.id === status)!.label}
           onClose={() => setSel(null)}
         />
       )}
@@ -218,7 +200,7 @@ export default function ReunioesPerfilCard({ data }: Props) {
   );
 }
 
-function ReunioesModal({ items, title, statusLabel, onClose }: { items: ReunioesMeetingItem[]; title: string; statusLabel: string; onClose: () => void }) {
+function ReunioesModal({ items, title, onClose }: { items: ReunioesMeetingItem[]; title: string; onClose: () => void }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
@@ -249,7 +231,7 @@ function ReunioesModal({ items, title, statusLabel, onClose }: { items: Reunioes
             <h3 className="font-display text-xl font-bold truncate">{title}</h3>
             <div className="mt-1 text-xs text-psa-orange font-semibold uppercase tracking-wider">
               {num(items.length)} {items.length === 1 ? "reunião" : "reuniões"} · {num(groups.length)}{" "}
-              {groups.length === 1 ? "negócio" : "negócios"} · status {statusLabel}
+              {groups.length === 1 ? "negócio" : "negócios"}
             </div>
             <div className="mt-1 text-[11px] text-white/50">
               Valor dos negócios (bruto): <span className="text-white/75 font-medium">{brl(valorTotal)}</span>
