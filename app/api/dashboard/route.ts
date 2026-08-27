@@ -16,16 +16,14 @@ import {
   fetchSalesByCloser,
 } from "@/lib/hubspot";
 import { fetchGanhosAtributos, fetchLeadTimeGanhos } from "@/lib/b2cCards";
+import { fetchVendasDoDia } from "@/lib/vendasDia";
 import {
   aggregate,
   closeTimeMatrix,
-  macroTemaByOwner,
-  macroTemaFromByOwner,
   taskMatrix,
   conversionFromCounts,
   type DashboardData,
   type CloseTimeData,
-  type MacroTemaByOwner,
   type ConversionData,
 } from "@/lib/aggregate";
 import { getSegment, tempStagesOf, type SegmentConfig } from "@/lib/segments";
@@ -76,26 +74,6 @@ const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: str
     // Dado histórico (fechados) — muda devagar; cacheia 1h. Chave inclui a
     // origem e o closer selecionados. A maioria das visitas pega do cache.
     ["close-time-v5", config.id, origemId, owner || "all"],
-    { revalidate: 21600 }
-  )();
-
-// "Conversão por macro tema" (B2B): win rate Ganho ÷ fechados por macro_tema,
-// sobre os fechados dos closers. Reusa a mesma varredura de fechados (terminais
-// → cacheável 1h). Respeita origem e closer selecionados na chave.
-const getMacroTemaCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
-  unstable_cache(
-    async (): Promise<{ data: MacroTemaByOwner | undefined; warning?: string }> => {
-      try {
-        const closed = await fetchClosedCloserDeals(config, origem, owner);
-        // Guarda a contagem POR DONO (mapa pequeno, cacheável) — o recorte de
-        // "só closers com pipeline ativo" é aplicado fora do cache, porque
-        // depende dos negócios ativos (que variam com período/filtros).
-        return { data: macroTemaByOwner(closed, config.wonStageIds), warning: undefined };
-      } catch (e) {
-        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar macro tema" };
-      }
-    },
-    ["macro-tema-v2", config.id, origemId, owner || "all"],
     { revalidate: 21600 }
   )();
 
@@ -237,6 +215,22 @@ const getLeadTimeGanhosCached = (config: SegmentConfig, origemId: string, origem
     { revalidate: 3600 }
   )();
 
+// "Vendas do Dia": feed de ganhos das DUAS pipelines (B2B+B2C) agrupado por dia.
+// Cross-pipeline (mesmo nas duas abas) → chave só por período. Cacheia 10 min.
+const getVendasDoDiaCached = (from?: string, to?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["vendasDoDia"]; warning?: string }> => {
+      try {
+        const owners = await fetchAllOwners();
+        return { data: await fetchVendasDoDia({ from, to }, owners) };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar vendas do dia" };
+      }
+    },
+    ["vendas-dia-v1", from || "cur", to || "cur"],
+    { revalidate: 600 }
+  )();
+
 // "Meta do mês": vendas GANHAS da pipeline por data de fechamento no período
 // (sem período → mês corrente) vs a meta mensal fixa. Segue o filtro de Closer
 // (um closer → só as vendas dele). Cacheia 10 min por segmento + datas + closer.
@@ -275,13 +269,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw, macroRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, vendasDiaRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw] = await Promise.all([
       fetchAllOwners(),
       fetchActiveDeals(config, { from, to, origem, owner }),
       fetchCheckoutDeals(config, { from, to, owner }),
       getWonAggregateCached(config, origemId, origem, owner),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
-      config.hasMacroTema ? getMacroTemaCached(config, origemId, origem, owner) : Promise.resolve(null),
+      getVendasDoDiaCached(from, to),
       getConversionCached(config, origemId, origem, owner),
       config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasLostReasons ? getLostReasonsCached(config, origemId, origem, owner) : Promise.resolve(null),
@@ -300,13 +294,6 @@ export async function GET(req: NextRequest) {
     );
 
     const closeTime = closeRaw?.data;
-    // "Conversão por macro tema": conta só os closers com pipeline ativo (os que
-    // aparecem no painel). Quando um closer específico está selecionado no filtro,
-    // mostra ele mesmo (a busca já veio escopada), sem restringir por "ativo".
-    const activeOwners = new Set(closers.filter((c) => c.inTeam).map((c) => c.ownerId));
-    const macroTema = macroRaw?.data
-      ? macroTemaFromByOwner(macroRaw.data, owner ? undefined : activeOwners)
-      : undefined;
 
     // Tarefas por etapa dos negócios ativos (não cacheado — muda toda hora; a
     // leitura de tarefas do escopo ativo é rápida). Se falhar, guarda o aviso.
@@ -327,7 +314,7 @@ export async function GET(req: NextRequest) {
         label: config.label,
         eyebrow: config.eyebrow,
         pipelineName: config.pipelineName,
-        closeTimeWarning: closeRaw?.warning || macroRaw?.warning || convRaw?.warning || goalRaw?.warning,
+        closeTimeWarning: closeRaw?.warning || vendasDiaRaw?.warning || convRaw?.warning || goalRaw?.warning,
         taskWarning,
       },
       stages,
@@ -336,7 +323,7 @@ export async function GET(req: NextRequest) {
       closers,
       checkout,
       closeTime,
-      macroTema,
+      vendasDoDia: vendasDiaRaw?.data,
       tasks,
       conversion: convRaw?.data,
       propostaMeeting: propMeetRaw?.data,
