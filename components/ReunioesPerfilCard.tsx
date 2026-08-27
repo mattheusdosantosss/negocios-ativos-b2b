@@ -117,16 +117,6 @@ export default function ReunioesPerfilCard({ data }: Props) {
             <span className="text-sm text-psa-ink-soft">reuniões · por data da reunião no período</span>
           </div>
         </div>
-
-        {/* Legenda dos resultados */}
-        <div className="flex flex-wrap gap-x-3 gap-y-1.5 max-w-[320px] justify-end">
-          {OUTCOMES.map((o) => (
-            <span key={o.id} className="inline-flex items-center gap-1.5 text-[10px] text-psa-ink-soft">
-              <span className="inline-block w-2.5 h-2.5 rounded-[3px]" style={{ background: o.fill }} />
-              {o.label}
-            </span>
-          ))}
-        </div>
       </div>
 
       {/* Legenda */}
