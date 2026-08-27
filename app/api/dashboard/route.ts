@@ -180,7 +180,7 @@ const getReunioesPerfilCached = (
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar reuniões por perfil" };
       }
     },
-    ["reunioes-perfil-v4", config.id, origemId, owner || "all", from || "all", to || "all"],
+    ["reunioes-perfil-v5", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
   )();
 

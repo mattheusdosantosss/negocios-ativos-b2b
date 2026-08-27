@@ -911,7 +911,7 @@ export async function fetchTempoQualifProposta(
 // ============================================================
 /** Negócio por trás de uma reunião — pro popup de listagem. */
 export type ReunioesMeetingItem = { dealId: string; dealname: string; url: string; amount: number; date?: string };
-export type ReunioesOutcomeId = "agendada" | "realizada" | "cancelada" | "noshow";
+export type ReunioesOutcomeId = "agendada" | "reprogramada" | "realizada" | "cancelada" | "noshow";
 /** Cada resultado guarda a lista de reuniões (uma entrada por reunião). */
 export type ReunioesCell = Record<ReunioesOutcomeId, ReunioesMeetingItem[]>;
 export type ReunioesStatusId = "ativo" | "ganho" | "perdido";
@@ -930,7 +930,7 @@ export type ReunioesPerfilData = {
   closers: ReunioesCloser[];
 };
 
-const emptyCell = (): ReunioesCell => ({ agendada: [], realizada: [], cancelada: [], noshow: [] });
+const emptyCell = (): ReunioesCell => ({ agendada: [], reprogramada: [], realizada: [], cancelada: [], noshow: [] });
 
 const REUNIOES_PERFIS: Array<{ id: string; label: string; raw: string | null }> = [
   { id: "escala", label: "Escala", raw: "Escala" },
@@ -942,11 +942,12 @@ const perfilBucket = (raw?: string): string => {
   const v = (raw || "").trim();
   return REUNIOES_PERFIS.find((p) => p.raw && p.raw === v)?.id ?? "sem_perfil";
 };
-// vazio/SCHEDULED/RESCHEDULED = agendada; COMPLETED = realizada; CANCELED =
-// cancelada; NO_SHOW = no-show.
-const outcomeBucket = (o?: string): "agendada" | "realizada" | "cancelada" | "noshow" => {
+// COMPLETED = realizada; RESCHEDULED = reprogramada; CANCELED = cancelada;
+// NO_SHOW = no-show; vazio/SCHEDULED/demais = agendada.
+const outcomeBucket = (o?: string): ReunioesOutcomeId => {
   const v = (o || "").toUpperCase();
   if (v === "COMPLETED") return "realizada";
+  if (v === "RESCHEDULED") return "reprogramada";
   if (v === "CANCELED") return "cancelada";
   if (v === "NO_SHOW") return "noshow";
   return "agendada";
@@ -1068,7 +1069,7 @@ export async function fetchReunioesPerfil(
     total += 1;
   }
 
-  const cellCount = (c: ReunioesCell) => c.agendada.length + c.realizada.length + c.cancelada.length + c.noshow.length;
+  const cellCount = (c: ReunioesCell) => c.agendada.length + c.reprogramada.length + c.realizada.length + c.cancelada.length + c.noshow.length;
   const closers = [...cubes.values()].sort((a, b) => {
     const sum = (x: ReunioesCloser) =>
       (["ativo", "ganho", "perdido"] as const).reduce((s, st) => s + Object.values(x.cube[st]).reduce((t, c) => t + cellCount(c), 0), 0);

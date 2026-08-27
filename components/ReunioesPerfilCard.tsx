@@ -22,6 +22,7 @@ const fmtDate = (iso?: string) => {
 const OUTCOMES: { id: ReunioesOutcomeId; label: string; fill: string; text: string }[] = [
   { id: "realizada", label: "Realizada", fill: "#1E9E62", text: "#fff" },
   { id: "agendada", label: "Agendada", fill: "#E8A317", text: "#3A2A00" },
+  { id: "reprogramada", label: "Reprogramada", fill: "#2563EB", text: "#fff" },
   { id: "cancelada", label: "Cancelada", fill: "#C0432F", text: "#fff" },
   { id: "noshow", label: "No-show", fill: "#4A4A4A", text: "#fff" },
 ];
