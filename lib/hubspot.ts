@@ -932,6 +932,20 @@ export type ReunioesPerfilData = {
 
 const emptyCell = (): ReunioesCell => ({ agendada: [], reprogramada: [], realizada: [], cancelada: [], noshow: [] });
 
+// Tipos de reunião (hs_activity_type) que contam como VENDA B2C. Só venda —
+// fora: Relacionamento, Mentoria, Partner, Patrocínio, CRM, B2B, Reprogramada
+// (tipo), Whatsapp/Instagram. Onboarding é filtrado à parte, pelo título.
+const REUNIOES_TIPOS_VENDA = new Set([
+  "B2C | Reunião de Venda (marcada pelo SDR)",
+  "B2C | Reunião de Venda (marcada pelo Closer)",
+  "B2C | Reunião de Venda (marcada por Farmer)",
+  "B2C | Reunião de FollowUp",
+  "B2C | Reunião SDR",
+  "B2C | Marcação IA",
+  "B2C | Marcação Merlin",
+  "B2C | Remarcação IA (No-show)",
+]);
+
 const REUNIOES_PERFIS: Array<{ id: string; label: string; raw: string | null }> = [
   { id: "escala", label: "Escala", raw: "Escala" },
   { id: "profissionalize", label: "Profissionalize-se", raw: "Profissionalize-se" },
@@ -981,11 +995,11 @@ export async function fetchReunioesPerfil(
         { propertyName: "hs_meeting_start_time", operator: "LTE", value: String(endMs) },
         { propertyName: "hubspot_owner_id", operator: "IN", values: ownerValues },
       ] }],
-      properties: ["hs_meeting_outcome", "hubspot_owner_id", "hs_meeting_start_time", "hs_meeting_title"],
+      properties: ["hs_meeting_outcome", "hubspot_owner_id", "hs_meeting_start_time", "hs_meeting_title", "hs_activity_type"],
       limit: 100,
     };
     if (after) body.after = after;
-    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string; hubspot_owner_id?: string; hs_meeting_start_time?: string; hs_meeting_title?: string } }> = await hsFetch(
+    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string; hubspot_owner_id?: string; hs_meeting_start_time?: string; hs_meeting_title?: string; hs_activity_type?: string } }> = await hsFetch(
       `/crm/v3/objects/meetings/search`,
       { method: "POST", body: JSON.stringify(body) }
     );
@@ -993,6 +1007,8 @@ export async function fetchReunioesPerfil(
       const mOwner = m.properties?.hubspot_owner_id;
       if (!mOwner || !closerSet.has(mOwner)) continue; // só reuniões dos closers B2C
       if (opts?.owner && mOwner !== opts.owner) continue;
+      // Só reuniões de VENDA B2C (por tipo). Fora: relacionamento, mentoria, B2B…
+      if (!REUNIOES_TIPOS_VENDA.has((m.properties?.hs_activity_type || "").trim())) continue;
       // Onboarding é pós-venda — fora de um painel de vendas. Identificado pelo
       // título (não tem tipo próprio no HubSpot): "Onboarding" em qualquer forma.
       if (/onboarding/i.test(m.properties?.hs_meeting_title || "")) continue;
