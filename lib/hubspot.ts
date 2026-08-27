@@ -981,11 +981,11 @@ export async function fetchReunioesPerfil(
         { propertyName: "hs_meeting_start_time", operator: "LTE", value: String(endMs) },
         { propertyName: "hubspot_owner_id", operator: "IN", values: ownerValues },
       ] }],
-      properties: ["hs_meeting_outcome", "hubspot_owner_id", "hs_meeting_start_time"],
+      properties: ["hs_meeting_outcome", "hubspot_owner_id", "hs_meeting_start_time", "hs_meeting_title"],
       limit: 100,
     };
     if (after) body.after = after;
-    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string; hubspot_owner_id?: string; hs_meeting_start_time?: string } }> = await hsFetch(
+    const data: SearchResponse<{ id: string; properties: { hs_meeting_outcome?: string; hubspot_owner_id?: string; hs_meeting_start_time?: string; hs_meeting_title?: string } }> = await hsFetch(
       `/crm/v3/objects/meetings/search`,
       { method: "POST", body: JSON.stringify(body) }
     );
@@ -993,6 +993,9 @@ export async function fetchReunioesPerfil(
       const mOwner = m.properties?.hubspot_owner_id;
       if (!mOwner || !closerSet.has(mOwner)) continue; // só reuniões dos closers B2C
       if (opts?.owner && mOwner !== opts.owner) continue;
+      // Onboarding é pós-venda — fora de um painel de vendas. Identificado pelo
+      // título (não tem tipo próprio no HubSpot): "Onboarding" em qualquer forma.
+      if (/onboarding/i.test(m.properties?.hs_meeting_title || "")) continue;
       meetings.push({ id: String(m.id), outcome: m.properties?.hs_meeting_outcome, owner: mOwner, date: m.properties?.hs_meeting_start_time });
     }
     after = data.paging?.next?.after;
