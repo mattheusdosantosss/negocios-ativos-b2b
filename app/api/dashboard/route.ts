@@ -82,21 +82,18 @@ const getCloseTimeCached = (config: SegmentConfig, origemId: string, origem: str
 // mês é aplicado no cliente (sem refetch). Respeita origem e closer.
 const getConversionCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
   unstable_cache(
+    // SEM try/catch interno de propósito: se o fetch falhar (ex.: 429), a
+    // exceção propaga e o unstable_cache NÃO cacheia — o próximo request
+    // recomputa em vez de ficar 6h com a conversão vazia. O .catch fica no
+    // chamador (Promise.all), pra não derrubar o painel.
     async (): Promise<{ data: ConversionData | undefined; warning?: string }> => {
-      try {
-        // Denominador = negócios com proposta anexada (B2B) ou criados (B2C);
-        // Numerador = ganhos. Recortado por data de criação.
-        const counts = await fetchConversionCounts(config, { origem, owner });
-        const monthFilterLabel = config.conversionDateProp === "closedate" ? "Mês de fechamento" : "Mês de criação";
-        return {
-          data: conversionFromCounts(counts, config.conversionDenomLabel, monthFilterLabel),
-          warning: undefined,
-        };
-      } catch (e) {
-        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" };
-      }
+      // Denominador = negócios com proposta anexada (B2B) ou criados (B2C);
+      // Numerador = ganhos. Recortado por data de criação.
+      const counts = await fetchConversionCounts(config, { origem, owner });
+      const monthFilterLabel = config.conversionDateProp === "closedate" ? "Mês de fechamento" : "Mês de criação";
+      return { data: conversionFromCounts(counts, config.conversionDenomLabel, monthFilterLabel), warning: undefined };
     },
-    ["conversion-v15", config.id, origemId, owner || "all"],
+    ["conversion-v16", config.id, origemId, owner || "all"],
     { revalidate: 21600 }
   )();
 
@@ -276,7 +273,9 @@ export async function GET(req: NextRequest) {
       getWonAggregateCached(config, origemId, origem, owner),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
       getVendasDoDiaCached(from, to),
-      getConversionCached(config, origemId, origem, owner),
+      getConversionCached(config, origemId, origem, owner).catch(
+        (e): { data: ConversionData | undefined; warning?: string } => ({ data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" })
+      ),
       config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasLostReasons ? getLostReasonsCached(config, origemId, origem, owner) : Promise.resolve(null),
       config.monthGoal != null ? getMonthGoalCached(config, from, to, owner) : Promise.resolve(null),

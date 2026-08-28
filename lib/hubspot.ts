@@ -551,7 +551,9 @@ export async function fetchConversionCounts(
     config.wonStageIds.length ? count([wonFilter]) : Promise.resolve(0),
   ]);
 
-  const months = await mapLimit(windows, 8, async (w) => {
+  // Concorrência baixa: o Search API tem limite por segundo e este fetch roda
+  // junto de vários outros no dashboard. 3 janelas × 2 buscas = 6 em voo.
+  const months = await mapLimit(windows, 3, async (w) => {
     const range = [
       { propertyName: dateProp, operator: "GTE", value: String(w.startMs) },
       { propertyName: dateProp, operator: "LT", value: String(w.endMs) },
