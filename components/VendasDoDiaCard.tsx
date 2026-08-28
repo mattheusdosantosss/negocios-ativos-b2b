@@ -3,7 +3,6 @@
 import type { VendasDoDiaData, VendaItem } from "@/lib/vendasDia";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
-const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const fmtK = (n: number) =>
   n >= 1000 ? `R$ ${(n / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k` : `R$ ${num(n)}`;
 const fmtDate = (iso?: string) => {
@@ -74,19 +73,11 @@ function Venda({ v }: { v: VendaItem }) {
 export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
   return (
     <div className="rounded-2xl bg-psa-surface border border-psa-line shadow-card overflow-hidden">
-      {/* Cabeçalho no padrão do painel */}
-      <div className="px-5 pt-5 pb-4">
-        <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Vendas do dia</div>
-        <div className="mt-1 flex items-baseline gap-3 flex-wrap">
-          <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(data.count)}</span>
-          <span className="text-sm text-psa-ink-soft">
-            {data.count === 1 ? "venda" : "vendas"} · <b className="text-psa-ink">{brl(data.total)}</b> no período
-          </span>
-        </div>
-        <div className="mt-1 text-[11px] text-psa-muted">Ganhos B2B e B2C por dia · role pra ver os dias anteriores · clique pra abrir</div>
+      <div className="px-5 pt-4 pb-2">
+        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-ink-soft">Vendas do dia</div>
       </div>
 
-      <div className="max-h-[560px] overflow-y-auto px-5 pb-5 border-t border-psa-line">
+      <div className="max-h-[560px] overflow-y-auto px-5 pb-5">
         {data.dias.length === 0 ? (
           <div className="py-10 text-center text-sm text-psa-ink-soft">Nenhuma venda no período.</div>
         ) : (
