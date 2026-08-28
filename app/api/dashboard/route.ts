@@ -212,19 +212,19 @@ const getLeadTimeGanhosCached = (config: SegmentConfig, origemId: string, origem
     { revalidate: 3600 }
   )();
 
-// "Vendas do Dia": feed de ganhos das DUAS pipelines (B2B+B2C) agrupado por dia.
-// Cross-pipeline (mesmo nas duas abas) → chave só por período. Cacheia 10 min.
-const getVendasDoDiaCached = (from?: string, to?: string) =>
+// "Vendas do Dia": ganhos do SEGMENTO agrupados por dia (pela entrada na etapa
+// de ganho); vendas que caíram ficam sinalizadas. Chave por segmento + período.
+const getVendasDoDiaCached = (config: SegmentConfig, from?: string, to?: string) =>
   unstable_cache(
     async (): Promise<{ data: DashboardData["vendasDoDia"]; warning?: string }> => {
       try {
         const owners = await fetchAllOwners();
-        return { data: await fetchVendasDoDia({ from, to }, owners) };
+        return { data: await fetchVendasDoDia(config, { from, to }, owners) };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar vendas do dia" };
       }
     },
-    ["vendas-dia-v1", from || "cur", to || "cur"],
+    ["vendas-dia-v2", config.id, from || "cur", to || "cur"],
     { revalidate: 600 }
   )();
 
@@ -272,7 +272,7 @@ export async function GET(req: NextRequest) {
       fetchCheckoutDeals(config, { from, to, owner }),
       getWonAggregateCached(config, origemId, origem, owner),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
-      getVendasDoDiaCached(from, to),
+      getVendasDoDiaCached(config, from, to),
       getConversionCached(config, origemId, origem, owner).catch(
         (e): { data: ConversionData | undefined; warning?: string } => ({ data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" })
       ),

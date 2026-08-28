@@ -25,14 +25,11 @@ function dayLabel(key: string): string {
   return base;
 }
 
-// Pipeline: badge + cor do valor (B2B azul, B2C laranja — identidade PSA).
-const SEG = {
-  b2b: { badge: "bg-psa-blue/10 text-psa-blue", value: "text-psa-blue" },
-  b2c: { badge: "bg-psa-orange/10 text-psa-orange", value: "text-psa-orange" },
-} as const;
+// Cor do valor por pipeline (B2B azul, B2C laranja — identidade PSA).
+const VALUE = { b2b: "text-psa-blue", b2c: "text-psa-orange" } as const;
 
 function Venda({ v }: { v: VendaItem }) {
-  const s = SEG[v.seg];
+  const caiu = v.status === "caiu";
   const tags: string[] = [];
   if (v.evento) tags.push(`Evento ${fmtDate(v.evento)}`);
   if (v.produto) tags.push(v.produto);
@@ -42,15 +39,22 @@ function Venda({ v }: { v: VendaItem }) {
       href={v.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block rounded-xl border border-psa-line bg-psa-canvas/40 p-3 hover:border-psa-orange/40 hover:bg-psa-canvas/70 transition-colors"
-      title="Abrir negócio no HubSpot"
+      className={`block rounded-xl border p-3 transition-colors ${
+        caiu
+          ? "border-red-300 bg-red-50 hover:bg-red-100/70"
+          : "border-psa-line bg-psa-canvas/40 hover:border-psa-orange/40 hover:bg-psa-canvas/70"
+      }`}
+      title={caiu ? `Saiu do ganho · agora em "${v.currentStage}"` : "Abrir negócio no HubSpot"}
     >
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${s.badge}`}>{v.seg}</span>
-        <span className={`text-sm font-bold tabular-nums ${s.value}`}>{fmtK(v.amount)}</span>
+        {caiu && (
+          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700">⚠ Caiu</span>
+        )}
+        <span className={`text-sm font-bold tabular-nums ${caiu ? "text-red-400 line-through" : VALUE[v.seg]}`}>{fmtK(v.amount)}</span>
         <span className="text-[12px] text-psa-muted truncate">{v.closer}</span>
+        {caiu && <span className="text-[11px] text-red-600 font-medium">→ {v.currentStage}</span>}
       </div>
-      <div className="mt-1.5 text-[13px] font-medium text-psa-ink truncate">{v.dealname}</div>
+      <div className={`mt-1.5 text-[13px] font-medium truncate ${caiu ? "text-psa-ink-soft" : "text-psa-ink"}`}>{v.dealname}</div>
       {v.sdrFarmer && (
         <div className="mt-0.5 text-[11px] text-psa-ink-soft">
           SDR/Farmer: <b className="text-psa-ink font-medium">{v.sdrFarmer}</b>
@@ -81,12 +85,19 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
         {data.dias.length === 0 ? (
           <div className="py-10 text-center text-sm text-psa-ink-soft">Nenhuma venda no período.</div>
         ) : (
-          data.dias.map((dia) => (
+          data.dias.map((dia) => {
+            const caiu = dia.vendas.filter((v) => v.status === "caiu").length;
+            return (
             <div key={dia.key} className="pt-4">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <span className="text-[12px] font-semibold text-psa-ink">{dayLabel(dia.key)}</span>
-                <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1 whitespace-nowrap">
-                  {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}
+                <span className="flex items-center gap-2 whitespace-nowrap">
+                  <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1">
+                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}
+                  </span>
+                  {caiu > 0 && (
+                    <span className="text-[11px] font-semibold text-red-700 bg-red-100 rounded-full px-2.5 py-1">{caiu} caiu</span>
+                  )}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -95,7 +106,8 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
                 ))}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
