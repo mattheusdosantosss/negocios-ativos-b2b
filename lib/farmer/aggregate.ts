@@ -465,7 +465,7 @@ export function aggregate(input: {
     // Prioridade: Ação de CRM (origem) → Com Criador (sdrfarmer==dono, ex.: Daniel
     // Gatti no B2C) → B2C (funil) → Carteira (origem "Carteira do Farmer").
     const cardBucket: DealLite["cardBucket"] =
-      lead === ORIGEM_ACAO_CRM_CARTEIRA || lead === ORIGEM_ACAO_CRM
+      lead === ORIGEM_ACAO_CRM_CARTEIRA // só "Ação de CRM (Carteira)"; a origem "Ação de CRM" pura é B2C/SDR, não é a ação do farmer
         ? "acao_crm"
         : sdrf && sdrf === owner
         ? "criador"
