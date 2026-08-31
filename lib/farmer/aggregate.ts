@@ -469,7 +469,9 @@ export function aggregate(input: {
         ? "acao_crm"
         : sdrf && sdrf === owner
         ? "criador"
-        : "carteira";
+        : lead === ORIGEM_CARTEIRA
+        ? "carteira" // origem_do_lead "Carteira do Farmer" (label "Carteira") — explícito, não catch-all
+        : undefined; // outras origens não entram em nenhum dos 4 cards
     const lite: DealLite = {
       id: deal.id,
       dealname: deal.properties.dealname || "(sem nome)",
