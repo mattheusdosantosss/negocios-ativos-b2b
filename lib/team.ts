@@ -29,7 +29,6 @@ export const B2B_TEAM_IDS = new Set(B2B_TEAM.map((m) => m.ownerId));
 // Roster oficial dos Closers B2C (pipeline "Funil de Vendas B2C"). Confirmado
 // em jul/2026 pela volumetria de negócios ativos + validação do usuário.
 export const B2C_TEAM: TeamMember[] = [
-  { ownerId: "79760746", nome: "Mayda Quadros" },
   { ownerId: "88628309", nome: "João Paulo da Silveira Araújo" },
   { ownerId: "88628313", nome: "Gabrielly Milani da Silva" },
   { ownerId: "89632494", nome: "Willker Santos Belous" },
@@ -37,7 +36,6 @@ export const B2C_TEAM: TeamMember[] = [
   { ownerId: "93470034", nome: "Franciele Oliveira" },
   { ownerId: "81035544", nome: "Camila Fay" },
   { ownerId: "84249251", nome: "Tércio Ferreira da Silva" },
-  { ownerId: "88200239", nome: "Luiza Rodriguez" },
 ];
 
 export const B2C_TEAM_IDS = new Set(B2C_TEAM.map((m) => m.ownerId));
