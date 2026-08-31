@@ -121,7 +121,8 @@ const B2C_LEADS_PIPELINE = "840313405"; // "B2C | Leads de Produtos Palestrantes
 const DAYS15 = 15 * 86_400_000;
 const LEAD_INBOUND_EXCL = new Set(["Ação de CRM", "Campanha Merlin"]);
 const DEAL_DISPARO_EXCL = new Set(["Indicação", "Indicação Partner | B2C", "Carteira do Farmer"]);
-const CANAIS_B2C = ["Inbound", "Disparos", "Outros"];
+const ORIGEM_RECOMPRA = "Recompra"; // origem_do_lead — base existente, não aquisição
+const CANAIS_B2C = ["Inbound", "Disparos", "Recompra", "Outros"];
 
 // Executa `fn` sobre os itens com no máx `limit` em voo (hsFetch já faz backoff em 429).
 async function pool<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
@@ -177,6 +178,8 @@ async function canaisB2C(deals: { id: string; createMs: number | null; origem: s
   const contactProps = await batchReadProps("contacts", contactIds, ["data_do_ultimo_disparo_de_crm"]);
 
   for (const d of deals) {
+    // Recompra tem prioridade: origem própria, sai da aquisição.
+    if (d.origem === ORIGEM_RECOMPRA) { result.set(d.id, "Recompra"); continue; }
     if (d.createMs == null) { result.set(d.id, "Outros"); continue; }
     const start = d.createMs - DAYS15, end = d.createMs;
     const cids = dealToContacts.get(d.id) ?? [];
