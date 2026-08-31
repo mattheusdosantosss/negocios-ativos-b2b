@@ -5,10 +5,11 @@ import type { Cards4, Cards4Bucket, DealLite } from "@/lib/farmer/aggregate";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 const pctTxt = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "0%");
-// Empresas únicas GLOBAIS do bucket (mesma empresa em farmers diferentes conta 1×);
-// deal sem empresa (B2C, pessoa física) conta 1.
+// Empresas únicas GLOBAIS do bucket (duas demandas da mesma empresa = 1).
 const empCount = (ds: DealLite[]) =>
   new Set(ds.filter((d) => d.companyId).map((d) => d.companyId)).size + ds.filter((d) => !d.companyId).length;
+// B2C é pessoa física (sem empresa) → conta negócios, não empresas únicas.
+const cardCount = (key: Cards4Bucket, ds: DealLite[]) => (key === "b2c" ? ds.length : empCount(ds));
 const idade = (iso?: string) => {
   const t = Date.parse(iso || "");
   return Number.isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86_400_000);
@@ -36,12 +37,12 @@ const CARDS: CardDef[] = [
 
 export default function Cards4Row({ data, loading }: { data: Cards4 | null; loading?: boolean }) {
   const [modal, setModal] = useState<CardDef | null>(null);
-  const total = data ? CARDS.reduce((s, c) => s + empCount(data.deals[c.key]), 0) : 0;
+  const total = data ? CARDS.reduce((s, c) => s + cardCount(c.key, data.deals[c.key]), 0) : 0;
 
   return (
     <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {CARDS.map((cd) => {
-        const value = data ? empCount(data.deals[cd.key]) : 0;
+        const value = data ? cardCount(cd.key, data.deals[cd.key]) : 0;
         const clickable = !!data && data.deals[cd.key].length > 0;
         return (
           <div
@@ -73,6 +74,7 @@ export default function Cards4Row({ data, loading }: { data: Cards4 | null; load
       })}
 
       {modal && data && <CardModal cd={modal} deals={data.deals[modal.key]} empresas={empCount(data.deals[modal.key])} onClose={() => setModal(null)} />}
+      {/* empresas só é exibido pra buckets com empresa; B2C mostra só negócios (ver CardModal) */}
     </section>
   );
 }
@@ -97,7 +99,8 @@ function CardModal({ cd, deals, empresas, onClose }: { cd: CardDef; deals: DealL
               <span className="inline-block w-2 h-2 rounded-full" style={{ background: cd.color }} /> {cd.label}
             </h3>
             <div className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color: cd.color }}>
-              {num(empresas)} {empresas === 1 ? "empresa" : "empresas"} · {num(deals.length)} {deals.length === 1 ? "negócio" : "negócios"}
+              {cd.key !== "b2c" && <>{num(empresas)} {empresas === 1 ? "empresa" : "empresas"} · </>}
+              {num(deals.length)} {deals.length === 1 ? "negócio" : "negócios"}
               {isCriador ? ` · sem repasse` : ""}
             </div>
           </div>
