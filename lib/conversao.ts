@@ -236,6 +236,7 @@ const B2C = {
   ganho: ["1105295876"],
   proposta: "hs_v2_date_entered_1057266722",
   emNeg: "hs_v2_date_entered_1275670104",
+  negAv: "hs_v2_date_entered_1275670105", // "Negociação avançada" — muitos ganhos B2C entram por aqui pulando a proposta
 };
 type DenomDeal = { stamp: number | null; sMonth: string | null; ganho: boolean; closeMonth: string | null; amount: number; seg: string | null };
 
@@ -312,16 +313,17 @@ export async function fetchConversao(): Promise<ConversaoData> {
   });
 
   // ---- B2C (segmentado por CANAL: Inbound/Disparos/Outros) ----
-  const b2cProps = ["dealstage", "closedate", "amount_in_home_currency", "createdate", "origem_do_lead", B2C.proposta, B2C.emNeg];
+  const b2cProps = ["dealstage", "closedate", "amount_in_home_currency", "createdate", "origem_do_lead", B2C.proposta, B2C.emNeg, B2C.negAv];
   const b2cRaw = await searchDeals(B2C.pipeline, [
     { filters: rangeStamp(B2C.proposta) },
     { filters: [{ propertyName: B2C.proposta, operator: "NOT_HAS_PROPERTY" }, ...rangeStamp(B2C.emNeg)] },
+    { filters: [{ propertyName: B2C.proposta, operator: "NOT_HAS_PROPERTY" }, { propertyName: B2C.emNeg, operator: "NOT_HAS_PROPERTY" }, ...rangeStamp(B2C.negAv)] },
   ], b2cProps);
   const canalMap = await canaisB2C(
     b2cRaw.map(({ id, p }) => ({ id, createMs: toMs(p.createdate), origem: (p.origem_do_lead || "").trim() }))
   );
   const b2cDeals: DenomDeal[] = b2cRaw.map(({ id, p }) => {
-    const stamp = toMs(p[B2C.proposta]) ?? toMs(p[B2C.emNeg]);
+    const stamp = toMs(p[B2C.proposta]) ?? toMs(p[B2C.emNeg]) ?? toMs(p[B2C.negAv]);
     return { stamp, sMonth: monthKey(stamp), ganho: B2C.ganho.includes(p.dealstage), closeMonth: monthKey(toMs(p.closedate)), amount: Number(p.amount_in_home_currency) || 0, seg: canalMap.get(id) ?? "Outros" };
   });
 
