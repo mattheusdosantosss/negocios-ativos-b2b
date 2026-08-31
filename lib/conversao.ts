@@ -241,7 +241,7 @@ const B2C = {
   emNeg: "hs_v2_date_entered_1275670104",
   negAv: "hs_v2_date_entered_1275670105", // "Negociação avançada" — muitos ganhos B2C entram por aqui pulando a proposta
 };
-type DenomDeal = { stamp: number | null; sMonth: string | null; ganho: boolean; closeMonth: string | null; amount: number; seg: string | null };
+type DenomDeal = { stamp: number | null; sMonth: string | null; ganho: boolean; closeMonth: string | null; amount: number; seg: string | null; direta?: boolean };
 
 function buildVertical(
   vertical: "b2b" | "b2c",
@@ -262,6 +262,16 @@ function buildVertical(
 
     for (const d of deals) {
       if (!d.seg) continue;
+      // Venda direta (ganho sem carimbo de funil: recompra/legacy/venda imediata):
+      // conta como proposta+venda no mês do fechamento, em qualquer método.
+      if (d.direta) {
+        if (d.closeMonth === mk) {
+          total.propostas++; porSegmento[d.seg].propostas++;
+          total.vendas++; total.receita += d.amount;
+          porSegmento[d.seg].vendas++; porSegmento[d.seg].receita += d.amount;
+        }
+        continue;
+      }
       let ehProposta = false;
       let ehVenda = false;
       if (usaJanela) {
@@ -322,19 +332,34 @@ export async function fetchConversao(): Promise<ConversaoData> {
     { filters: [{ propertyName: B2C.proposta, operator: "NOT_HAS_PROPERTY" }, ...rangeStamp(B2C.emNeg)] },
     { filters: [{ propertyName: B2C.proposta, operator: "NOT_HAS_PROPERTY" }, { propertyName: B2C.emNeg, operator: "NOT_HAS_PROPERTY" }, ...rangeStamp(B2C.negAv)] },
   ], b2cProps);
-  const canalMap = await canaisB2C(
-    b2cRaw.map(({ id, p }) => ({ id, createMs: toMs(p.createdate), origem: (p.origem_do_lead || "").trim() }))
-  );
+  // Ganhos B2C fechados no período que NÃO têm carimbo de funil (recompra/legacy/
+  // venda imediata) — pulam Proposta/Negociação. Entram como "venda direta".
+  const b2cGanhosRaw = await searchDeals(B2C.pipeline, [
+    { filters: [{ propertyName: "dealstage", operator: "EQ", value: B2C.ganho[0] }, ...rangeStamp("closedate")] },
+  ], b2cProps);
+  const temCarimbo = (p: Record<string, string>) => !!(p[B2C.proposta] || p[B2C.emNeg] || p[B2C.negAv]);
+  const diretasRaw = b2cGanhosRaw.filter(({ p }) => !temCarimbo(p));
+
+  // Classifica canal para funil + diretas de uma vez (dedup por id).
+  const canalIn = [...b2cRaw, ...diretasRaw].map(({ id, p }) => ({ id, createMs: toMs(p.createdate), origem: (p.origem_do_lead || "").trim() }));
+  const vistos = new Set<string>();
+  const canalMap = await canaisB2C(canalIn.filter((x) => (vistos.has(x.id) ? false : (vistos.add(x.id), true))));
+
   const b2cDeals: DenomDeal[] = b2cRaw.map(({ id, p }) => {
     const stamp = toMs(p[B2C.proposta]) ?? toMs(p[B2C.emNeg]) ?? toMs(p[B2C.negAv]);
     return { stamp, sMonth: monthKey(stamp), ganho: B2C.ganho.includes(p.dealstage), closeMonth: monthKey(toMs(p.closedate)), amount: Number(p.amount_in_home_currency) || 0, seg: canalMap.get(id) ?? "Outros" };
   });
+  const b2cDiretas: DenomDeal[] = diretasRaw.map(({ id, p }) => ({
+    stamp: null, sMonth: null, ganho: true, closeMonth: monthKey(toMs(p.closedate)),
+    amount: Number(p.amount_in_home_currency) || 0, seg: canalMap.get(id) ?? "Outros", direta: true,
+  }));
+  const b2cTodos = [...b2cDeals, ...b2cDiretas];
 
   return {
     b2b: buildVertical("b2b", "B2B", b2bDeals, CANAIS_B2B, janelaMeses,
       "Coorte da proposta nos meses maduros; janela defasada 16→15 nos 3 últimos meses. Por canal (origem da qualificação)."),
-    b2c: buildVertical("b2c", "B2C · por canal", b2cDeals, CANAIS_B2C, janelaMeses,
-      "Vendas por closedate no mês (janela defasada 16→15) nos 3 últimos meses; coorte da proposta nos anteriores. Canal por leads/contato: Inbound = lead (pipe B2C) criado até 15d antes do negócio (origem ≠ Ação de CRM/Merlin); Disparos = sem lead recente + último disparo de whats ≤ 15d e origem do negócio ≠ Indicação/Partner/Carteira."),
+    b2c: buildVertical("b2c", "B2C · por canal", b2cTodos, CANAIS_B2C, janelaMeses,
+      "Todo ganho do mês entra: pelo funil (proposta→venda) ou como venda direta (recompra/legacy/venda imediata, sem carimbo de etapa). Canal pela origem do lead: Recompra = origem Recompra; Inbound = lead (pipe B2C) até 15d antes (origem ≠ Ação de CRM/Merlin); Disparos = sem lead recente + último disparo ≤ 15d e origem ≠ Indicação/Partner/Carteira."),
     periodo: { de: "2026-01", ate: meses[meses.length - 1] },
   };
 }
