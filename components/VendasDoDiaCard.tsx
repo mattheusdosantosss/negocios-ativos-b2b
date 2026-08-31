@@ -10,7 +10,10 @@ const fmtDate = (iso?: string) => {
   const d = new Date(iso.length <= 10 ? iso + "T12:00:00" : iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
-const titleCase = (s: string) => s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+// Capitaliza só a 1ª letra de cada palavra (início / após espaço ou hífen).
+// NÃO usar \b: em JS o \b trata acentos (ç, á) como fronteira e capitaliza a
+// letra seguinte — vira "TerÇA-Feira" / "SÁBado".
+const titleCase = (s: string) => s.replace(/(^|[\s-])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase());
 
 // Rótulo do dia: "Quinta-Feira, 27 De Agosto", com "Hoje ·"/"Ontem ·" relativo.
 function dayLabel(key: string): string {
@@ -88,9 +91,13 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
           data.dias.map((dia) => {
             const caiu = dia.vendas.filter((v) => v.status === "caiu").length;
             return (
-            <div key={dia.key} className="pt-4">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <span className="text-[12px] font-semibold text-psa-ink">{dayLabel(dia.key)}</span>
+            <div key={dia.key} className="pb-5">
+              {/* Cabeçalho do dia fixo (sticky) durante o scroll */}
+              <div className="sticky top-0 z-10 -mx-5 px-5 py-2.5 mb-3 bg-psa-surface/95 backdrop-blur-sm border-b border-psa-line flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-psa-ink">
+                  <span className="inline-block w-1 h-4 rounded-full bg-psa-orange" />
+                  {dayLabel(dia.key)}
+                </span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
                   <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1">
                     {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}
