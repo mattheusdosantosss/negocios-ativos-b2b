@@ -462,13 +462,15 @@ export function aggregate(input: {
     //    sdrfarmer == proprietário) → Ação de CRM (origem) → Carteira (o resto).
     const sdrf = deal.properties.sdrfarmer_responsavel;
     const owner = deal.properties.hubspot_owner_id;
+    // Prioridade: Ação de CRM (origem) → Com Criador (sdrfarmer==dono, ex.: Daniel
+    // Gatti no B2C) → B2C (funil) → Carteira (origem "Carteira do Farmer").
     const cardBucket: DealLite["cardBucket"] =
-      deal.properties.pipeline === "725182862" && deal.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA && deal.properties.dealstage !== "1059939760"
-        ? "b2c"
-        : lead === ORIGEM_ACAO_CRM_CARTEIRA || lead === ORIGEM_ACAO_CRM
+      lead === ORIGEM_ACAO_CRM_CARTEIRA || lead === ORIGEM_ACAO_CRM
         ? "acao_crm"
         : sdrf && sdrf === owner
         ? "criador"
+        : deal.properties.pipeline === "725182862" && deal.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA && deal.properties.dealstage !== "1059939760"
+        ? "b2c"
         : lead === ORIGEM_CARTEIRA
         ? "carteira" // origem_do_lead "Carteira do Farmer" (label "Carteira") — explícito, não catch-all
         : undefined; // outras origens não entram em nenhum dos 4 cards
