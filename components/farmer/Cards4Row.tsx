@@ -70,12 +70,12 @@ export default function Cards4Row({ data, loading }: { data: Cards4 | null; load
         );
       })}
 
-      {modal && data && <CardModal cd={modal} deals={data.deals[modal.key]} onClose={() => setModal(null)} />}
+      {modal && data && <CardModal cd={modal} deals={data.deals[modal.key]} empresas={data[VALUE[modal.key]]} onClose={() => setModal(null)} />}
     </section>
   );
 }
 
-function CardModal({ cd, deals, onClose }: { cd: CardDef; deals: DealLite[]; onClose: () => void }) {
+function CardModal({ cd, deals, empresas, onClose }: { cd: CardDef; deals: DealLite[]; empresas: number; onClose: () => void }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
@@ -84,7 +84,6 @@ function CardModal({ cd, deals, onClose }: { cd: CardDef; deals: DealLite[]; onC
     return () => { window.removeEventListener("keydown", h); document.body.style.overflow = prev; };
   }, [onClose]);
   const isCriador = cd.key === "criador";
-  const empresas = new Set(deals.filter((d) => d.companyId).map((d) => d.companyId)).size + deals.filter((d) => !d.companyId).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
