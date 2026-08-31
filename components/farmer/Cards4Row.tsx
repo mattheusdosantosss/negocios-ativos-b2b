@@ -5,6 +5,10 @@ import type { Cards4, Cards4Bucket, DealLite } from "@/lib/farmer/aggregate";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 const pctTxt = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "0%");
+// Empresas únicas GLOBAIS do bucket (mesma empresa em farmers diferentes conta 1×);
+// deal sem empresa (B2C, pessoa física) conta 1.
+const empCount = (ds: DealLite[]) =>
+  new Set(ds.filter((d) => d.companyId).map((d) => d.companyId)).size + ds.filter((d) => !d.companyId).length;
 const idade = (iso?: string) => {
   const t = Date.parse(iso || "");
   return Number.isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86_400_000);
@@ -30,16 +34,14 @@ const CARDS: CardDef[] = [
   { key: "criador", label: "Com Criador", sub: "criado e sem repasse", color: "#DC2626", badge: "bg-red-100 text-red-700", accent: "bg-red-500" },
 ];
 
-const VALUE: Record<Cards4Bucket, keyof Pick<Cards4, "carteira" | "acaoCrm" | "b2c" | "criador">> = { carteira: "carteira", acaoCrm: "acaoCrm", b2c: "b2c", criador: "criador" };
-
 export default function Cards4Row({ data, loading }: { data: Cards4 | null; loading?: boolean }) {
   const [modal, setModal] = useState<CardDef | null>(null);
-  const total = data?.total ?? 0;
+  const total = data ? CARDS.reduce((s, c) => s + empCount(data.deals[c.key]), 0) : 0;
 
   return (
     <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {CARDS.map((cd) => {
-        const value = data ? data[VALUE[cd.key]] : 0;
+        const value = data ? empCount(data.deals[cd.key]) : 0;
         const clickable = !!data && data.deals[cd.key].length > 0;
         return (
           <div
@@ -70,7 +72,7 @@ export default function Cards4Row({ data, loading }: { data: Cards4 | null; load
         );
       })}
 
-      {modal && data && <CardModal cd={modal} deals={data.deals[modal.key]} empresas={data[VALUE[modal.key]]} onClose={() => setModal(null)} />}
+      {modal && data && <CardModal cd={modal} deals={data.deals[modal.key]} empresas={empCount(data.deals[modal.key])} onClose={() => setModal(null)} />}
     </section>
   );
 }
