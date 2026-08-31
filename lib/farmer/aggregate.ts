@@ -456,17 +456,19 @@ export function aggregate(input: {
     // Perdido por "Fora do MOA" (motivo em qualquer uma das duas propriedades)
     // NÃO conta como demanda levantada — mas fica na lista, marcado, pra ver.
     const foraMoa = isForaMoa(deal);
-    // Classificação dos 4 cards do topo (prioridade): B2C → Ação de CRM →
-    // Criador (Farmer criou e continua dona: sdrfarmer == proprietário) → Carteira.
+    // Classificação dos 4 cards do topo (cada demanda em 1 só, por prioridade):
+    //  B2C = funil B2C + qualificação "Farmer" + fora da etapa Perdido (pessoa
+    //    física, conta negócios) → depois Criador (Farmer criou e continua dona:
+    //    sdrfarmer == proprietário) → Ação de CRM (origem) → Carteira (o resto).
     const sdrf = deal.properties.sdrfarmer_responsavel;
     const owner = deal.properties.hubspot_owner_id;
     const cardBucket: DealLite["cardBucket"] =
-      sdrf && sdrf === owner
-        ? "criador" // Farmer criou e continua dona (sem repasse) — ganha do resto
-        : deal.properties.pipeline === "725182862"
+      deal.properties.pipeline === "725182862" && deal.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA && deal.properties.dealstage !== "1059939760"
         ? "b2c"
-        : lead === ORIGEM_ACAO_CRM_CARTEIRA
+        : lead === ORIGEM_ACAO_CRM_CARTEIRA || lead === ORIGEM_ACAO_CRM
         ? "acao_crm"
+        : sdrf && sdrf === owner
+        ? "criador"
         : "carteira";
     const lite: DealLite = {
       id: deal.id,
