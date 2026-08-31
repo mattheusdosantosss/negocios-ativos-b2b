@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import KpiCard from "@/components/farmer/KpiCard";
+import Cards4Row from "@/components/farmer/Cards4Row";
 import FarmerTable from "@/components/farmer/FarmerTable";
 import FarmersToolbar, { type FarmerFilter } from "@/components/farmer/FarmersToolbar";
 import PeriodFilter from "@/components/farmer/PeriodFilter";
@@ -11,6 +12,7 @@ import DrillModal, {
   type AggregatedTicketItem,
 } from "@/components/farmer/DrillModal";
 import { computePeriod, type PeriodValue } from "@/lib/farmer/periods";
+import { cards4 } from "@/lib/farmer/aggregate";
 import type { DashboardData, FarmerRow, DealLite, TicketLite } from "@/lib/farmer/aggregate";
 import { SQUADS, type TabValue } from "@/lib/farmer/teams";
 
@@ -308,6 +310,19 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
     const semEmpresa = ds.filter((d) => !d.companyId).length;
     return sum + comp + semEmpresa;
   }, 0);
+  // 4 cards do topo (empresas únicas por origem) — dedup POR FARMER e soma, igual
+  // ao empresasUnicas acima. Concatena os negócios do Criador pro modal.
+  const cards4Data = useMemo(() => {
+    if (!view) return null;
+    const acc = { carteira: 0, acaoCrm: 0, b2c: 0, criador: 0, total: 0, criadorCriticos: 0, criadorDeals: [] as DealLite[] };
+    for (const f of view.farmers) {
+      const c = cards4(f.demandasDeals || []);
+      acc.carteira += c.carteira; acc.acaoCrm += c.acaoCrm; acc.b2c += c.b2c; acc.criador += c.criador;
+      acc.total += c.total; acc.criadorCriticos += c.criadorCriticos; acc.criadorDeals.push(...c.criadorDeals);
+    }
+    acc.criadorDeals.sort((a, b) => (Date.parse(b.createdate || "") || 0) - (Date.parse(a.createdate || "") || 0));
+    return acc;
+  }, [view]);
   // Carteira do escopo atual (soma por farmer do map da carteira). null enquanto
   // o snapshot ainda está carregando à parte.
   const carteiraView = (view?.farmers ?? []).reduce(
@@ -748,7 +763,11 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
         </div>
       </div>
 
-      {/* KPIs — 5 cards (clicáveis: abrem a lista do escopo atual) */}
+      {/* 4 cards principais: demandas/empresas únicas por origem */}
+      <Cards4Row data={cards4Data} loading={loading} />
+
+      {/* Indicadores complementares — os 5 antigos, agora secundários */}
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-psa-ink-soft -mb-2">Indicadores complementares</div>
       <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <KpiCard
           label="Negócios fechados"

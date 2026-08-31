@@ -214,6 +214,7 @@ const DEAL_PROPS = [
   "createdate",
   "closedate",
   "sdrfarmer_responsavel",
+  "hubspot_owner_id",
   "pipedrive___data_de_qualificacao",
   "origem_do_lead",
   "origem_da_qualificacao",

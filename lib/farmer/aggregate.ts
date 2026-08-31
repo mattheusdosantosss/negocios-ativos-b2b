@@ -40,6 +40,10 @@ export type DealLite = {
   origemLead?: string; // Origem do lead do negócio (exposta no drill-down)
   stage?: string; // rótulo da etapa (dealstage) — usado no gráfico por etapa
   origemBucket?: "carteira" | "acao_crm" | "acao_crm_carteira" | "indicacao" | "palestrante" | "qualif_farmer"; // segmento do gráfico
+  // Classificação dos 4 cards do topo (cada demanda em 1 só, por prioridade):
+  //  B2C (funil B2C) → Ação de CRM (origem) → Criador (sdrfarmer==dono) → Carteira.
+  cardBucket?: "carteira" | "acao_crm" | "b2c" | "criador";
+  createdate?: string; // criação do negócio — idade do "crítico" (>3d sem repasse)
   nota?: number; // pontuacao_leadscore (0–12)
   criteriosFaltantes?: string[]; // critérios que faltam pra nota máxima
   foraMoa?: boolean; // perdido por "Fora do MOA" — não conta como demanda
@@ -81,6 +85,40 @@ function contaReunioesUnicas(deals: DealLite[]): { agendadas: number; realizadas
     if (u.re) realizadas += 1;
   }
   return { agendadas, realizadas };
+}
+
+// Os 4 cards do topo do painel Farmer: nº de EMPRESAS ÚNICAS por origem (cada
+// demanda em 1 bucket só, ver cardBucket). Demanda sem empresa conta 1. "Fora do
+// MOA" não conta. O Criador também expõe os críticos (>3 dias sem repasse).
+export type Cards4 = {
+  carteira: number;
+  acaoCrm: number;
+  b2c: number;
+  criador: number;
+  total: number;
+  criadorCriticos: number;
+  criadorDeals: DealLite[]; // ordenados por idade (mais antigo primeiro), pro modal
+};
+export function cards4(deals: DealLite[], nowMs = Date.now()): Cards4 {
+  const sets = { carteira: new Set<string>(), acao_crm: new Set<string>(), b2c: new Set<string>(), criador: new Set<string>() };
+  const sem = { carteira: 0, acao_crm: 0, b2c: 0, criador: 0 };
+  const criadorDeals: DealLite[] = [];
+  for (const d of deals) {
+    if (d.foraMoa || !d.cardBucket) continue;
+    const b = d.cardBucket;
+    if (d.companyId) sets[b].add(d.companyId);
+    else sem[b] += 1;
+    if (b === "criador") criadorDeals.push(d);
+  }
+  const c = (b: keyof typeof sets) => sets[b].size + sem[b];
+  const carteira = c("carteira");
+  const acaoCrm = c("acao_crm");
+  const b2c = c("b2c");
+  const criador = c("criador");
+  const dias = (d: DealLite) => { const t = Date.parse(d.createdate || ""); return Number.isNaN(t) ? 0 : (nowMs - t) / 86_400_000; };
+  const criadorCriticos = criadorDeals.filter((d) => dias(d) > 3).length;
+  criadorDeals.sort((a, b) => dias(b) - dias(a));
+  return { carteira, acaoCrm, b2c, criador, total: carteira + acaoCrm + b2c + criador, criadorCriticos, criadorDeals };
 }
 
 // Critérios de qualificação (lead score) — valores exatos da enumeração
@@ -419,14 +457,28 @@ export function aggregate(input: {
     // Perdido por "Fora do MOA" (motivo em qualquer uma das duas propriedades)
     // NÃO conta como demanda levantada — mas fica na lista, marcado, pra ver.
     const foraMoa = isForaMoa(deal);
+    // Classificação dos 4 cards do topo (prioridade): B2C → Ação de CRM →
+    // Criador (Farmer criou e continua dona: sdrfarmer == proprietário) → Carteira.
+    const sdrf = deal.properties.sdrfarmer_responsavel;
+    const owner = deal.properties.hubspot_owner_id;
+    const cardBucket: DealLite["cardBucket"] =
+      deal.properties.pipeline === "725182862"
+        ? "b2c"
+        : lead === ORIGEM_ACAO_CRM_CARTEIRA
+        ? "acao_crm"
+        : sdrf && sdrf === owner
+        ? "criador"
+        : "carteira";
     const lite: DealLite = {
       id: deal.id,
       dealname: deal.properties.dealname || "(sem nome)",
       amount: parseAmount(deal, revenueMode),
       date: deal.properties.pipedrive___data_de_qualificacao || deal.properties.createdate,
+      createdate: deal.properties.createdate,
       origemLead: deal.properties.origem_do_lead,
       stage: stageLabelById?.get(deal.properties.dealstage ?? "") ?? deal.properties.dealstage,
       origemBucket: bucket,
+      cardBucket,
       nota,
       criteriosFaltantes: LEADSCORE_CRITERIOS.filter((c) => !atendidos.includes(c)),
       foraMoa,
