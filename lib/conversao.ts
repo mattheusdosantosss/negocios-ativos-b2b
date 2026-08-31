@@ -328,8 +328,8 @@ export async function fetchConversao(): Promise<ConversaoData> {
   return {
     b2b: buildVertical("b2b", "B2B", b2bDeals, CANAIS_B2B, janelaMeses,
       "Coorte da proposta nos meses maduros; janela defasada 16→15 nos 3 últimos meses. Por canal (origem da qualificação)."),
-    b2c: buildVertical("b2c", "B2C · por canal", b2cDeals, CANAIS_B2C, new Set(),
-      "Coorte pura da proposta. Canal por leads/contato: Inbound = lead (pipe B2C) criado até 15d antes do negócio (origem ≠ Ação de CRM/Merlin); Disparos = sem lead recente + último disparo de whats ≤ 15d e origem do negócio ≠ Indicação/Partner/Carteira."),
+    b2c: buildVertical("b2c", "B2C · por canal", b2cDeals, CANAIS_B2C, janelaMeses,
+      "Vendas por closedate no mês (janela defasada 16→15) nos 3 últimos meses; coorte da proposta nos anteriores. Canal por leads/contato: Inbound = lead (pipe B2C) criado até 15d antes do negócio (origem ≠ Ação de CRM/Merlin); Disparos = sem lead recente + último disparo de whats ≤ 15d e origem do negócio ≠ Indicação/Partner/Carteira."),
     periodo: { de: "2026-01", ate: meses[meses.length - 1] },
   };
 }
