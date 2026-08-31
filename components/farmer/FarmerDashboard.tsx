@@ -314,13 +314,14 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
   // ao empresasUnicas acima. Concatena os negócios do Criador pro modal.
   const cards4Data = useMemo(() => {
     if (!view) return null;
-    const acc = { carteira: 0, acaoCrm: 0, b2c: 0, criador: 0, total: 0, criadorCriticos: 0, criadorDeals: [] as DealLite[] };
+    const acc = { carteira: 0, acaoCrm: 0, b2c: 0, criador: 0, total: 0, criadorCriticos: 0, deals: { carteira: [] as DealLite[], acaoCrm: [] as DealLite[], b2c: [] as DealLite[], criador: [] as DealLite[] } };
     for (const f of view.farmers) {
       const c = cards4(f.demandasDeals || []);
       acc.carteira += c.carteira; acc.acaoCrm += c.acaoCrm; acc.b2c += c.b2c; acc.criador += c.criador;
-      acc.total += c.total; acc.criadorCriticos += c.criadorCriticos; acc.criadorDeals.push(...c.criadorDeals);
+      acc.total += c.total; acc.criadorCriticos += c.criadorCriticos;
+      acc.deals.carteira.push(...c.deals.carteira); acc.deals.acaoCrm.push(...c.deals.acaoCrm); acc.deals.b2c.push(...c.deals.b2c); acc.deals.criador.push(...c.deals.criador);
     }
-    acc.criadorDeals.sort((a, b) => (Date.parse(b.createdate || "") || 0) - (Date.parse(a.createdate || "") || 0));
+    acc.deals.criador.sort((a, b) => (Date.parse(b.createdate || "") || 0) - (Date.parse(a.createdate || "") || 0));
     return acc;
   }, [view]);
   // Carteira do escopo atual (soma por farmer do map da carteira). null enquanto

@@ -90,6 +90,7 @@ function contaReunioesUnicas(deals: DealLite[]): { agendadas: number; realizadas
 // Os 4 cards do topo do painel Farmer: nº de EMPRESAS ÚNICAS por origem (cada
 // demanda em 1 bucket só, ver cardBucket). Demanda sem empresa conta 1. "Fora do
 // MOA" não conta. O Criador também expõe os críticos (>3 dias sem repasse).
+export type Cards4Bucket = "carteira" | "acaoCrm" | "b2c" | "criador";
 export type Cards4 = {
   carteira: number;
   acaoCrm: number;
@@ -97,28 +98,26 @@ export type Cards4 = {
   criador: number;
   total: number;
   criadorCriticos: number;
-  criadorDeals: DealLite[]; // ordenados por idade (mais antigo primeiro), pro modal
+  // Negócios de cada card (pro popup de auditoria). Criador já ordenado por idade.
+  deals: Record<Cards4Bucket, DealLite[]>;
 };
+const BUCKET_KEY: Record<NonNullable<DealLite["cardBucket"]>, Cards4Bucket> = { carteira: "carteira", acao_crm: "acaoCrm", b2c: "b2c", criador: "criador" };
 export function cards4(deals: DealLite[], nowMs = Date.now()): Cards4 {
-  const sets = { carteira: new Set<string>(), acao_crm: new Set<string>(), b2c: new Set<string>(), criador: new Set<string>() };
-  const sem = { carteira: 0, acao_crm: 0, b2c: 0, criador: 0 };
-  const criadorDeals: DealLite[] = [];
+  const sets = { carteira: new Set<string>(), acaoCrm: new Set<string>(), b2c: new Set<string>(), criador: new Set<string>() };
+  const sem = { carteira: 0, acaoCrm: 0, b2c: 0, criador: 0 };
+  const lists: Record<Cards4Bucket, DealLite[]> = { carteira: [], acaoCrm: [], b2c: [], criador: [] };
   for (const d of deals) {
     if (d.foraMoa || !d.cardBucket) continue;
-    const b = d.cardBucket;
+    const b = BUCKET_KEY[d.cardBucket];
     if (d.companyId) sets[b].add(d.companyId);
     else sem[b] += 1;
-    if (b === "criador") criadorDeals.push(d);
+    lists[b].push(d);
   }
-  const c = (b: keyof typeof sets) => sets[b].size + sem[b];
-  const carteira = c("carteira");
-  const acaoCrm = c("acao_crm");
-  const b2c = c("b2c");
-  const criador = c("criador");
+  const c = (b: Cards4Bucket) => sets[b].size + sem[b];
   const dias = (d: DealLite) => { const t = Date.parse(d.createdate || ""); return Number.isNaN(t) ? 0 : (nowMs - t) / 86_400_000; };
-  const criadorCriticos = criadorDeals.filter((d) => dias(d) > 3).length;
-  criadorDeals.sort((a, b) => dias(b) - dias(a));
-  return { carteira, acaoCrm, b2c, criador, total: carteira + acaoCrm + b2c + criador, criadorCriticos, criadorDeals };
+  const carteira = c("carteira"), acaoCrm = c("acaoCrm"), b2c = c("b2c"), criador = c("criador");
+  lists.criador.sort((a, b) => dias(b) - dias(a));
+  return { carteira, acaoCrm, b2c, criador, total: carteira + acaoCrm + b2c + criador, criadorCriticos: lists.criador.filter((d) => dias(d) > 3).length, deals: lists };
 }
 
 // Critérios de qualificação (lead score) — valores exatos da enumeração
@@ -462,12 +461,12 @@ export function aggregate(input: {
     const sdrf = deal.properties.sdrfarmer_responsavel;
     const owner = deal.properties.hubspot_owner_id;
     const cardBucket: DealLite["cardBucket"] =
-      deal.properties.pipeline === "725182862"
+      sdrf && sdrf === owner
+        ? "criador" // Farmer criou e continua dona (sem repasse) — ganha do resto
+        : deal.properties.pipeline === "725182862"
         ? "b2c"
         : lead === ORIGEM_ACAO_CRM_CARTEIRA
         ? "acao_crm"
-        : sdrf && sdrf === owner
-        ? "criador"
         : "carteira";
     const lite: DealLite = {
       id: deal.id,
