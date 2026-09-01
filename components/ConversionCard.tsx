@@ -31,7 +31,9 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
 
   const scope = month === "all" ? data.geral : data.months.find((m) => m.key === month) ?? data.geral;
   const scopeLabel = month === "all" ? "todo o histórico" : data.months.find((m) => m.key === month)?.label ?? month;
-  const mScope = !motivos ? null : month === "all" ? motivos.geral : motivos.months.find((m) => m.key === month) ?? motivos.geral;
+  // Mês específico sem perdidos fechados ainda (ex.: começo do mês) → escopo vazio,
+  // NÃO o geral (senão o histórico inteiro vaza pra dentro do mês selecionado).
+  const mScope = !motivos ? null : month === "all" ? motivos.geral : motivos.months.find((m) => m.key === month) ?? { total: 0, reasons: [] };
   const mMax = mScope?.reasons[0]?.count ?? 1;
 
   return (
@@ -78,6 +80,13 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
 
       {/* Ganhos por atributo — detalha o lado dos ganhos (só B2C). */}
       {ganhosAtributos && ganhosAtributos.total > 0 && <GanhosAtributosCard data={ganhosAtributos} />}
+
+      {mScope && mScope.total === 0 && month !== "all" && (
+        <div className="mt-5 pt-4 border-t border-psa-line text-[12px] text-psa-muted">
+          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Motivos de perda</span>
+          {" "}· nenhum negócio perdido fechado em {scopeLabel}.
+        </div>
+      )}
 
       {mScope && mScope.total > 0 && (
         <div className="mt-5 pt-4 border-t border-psa-line">
