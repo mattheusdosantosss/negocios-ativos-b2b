@@ -15,6 +15,15 @@ const notaColor = (n: number) =>
 
 type CarteiraMap = Record<string, { carteira: number; completo: number }> | null;
 
+// Empresas únicas das demandas do farmer: dedupa por companyId; demanda sem
+// empresa (inclui B2C) conta 1; Fora do MOA não conta. Mesma regra do card de meta.
+const empresasUnicasDe = (f: FarmerRow) => {
+  const deals = f.demandasDeals.filter((d) => !d.foraMoa);
+  const comp = new Set(deals.filter((d) => d.companyId).map((d) => d.companyId));
+  const semEmpresa = deals.filter((d) => !d.companyId).length;
+  return comp.size + semEmpresa;
+};
+
 type Props = {
   rows: FarmerRow[];
   loading?: boolean;
@@ -77,12 +86,7 @@ function DetailPanel({
   const foraMoaTotal = f.demandasDeals.filter((d) => d.foraMoa).length;
   // Empresas únicas das demandas: dedupa por companyId; demanda sem empresa
   // (inclui B2C) conta 1; Fora do MOA não conta. Mesma regra do card de meta.
-  const empresasUnicas = (() => {
-    const deals = f.demandasDeals.filter((d) => !d.foraMoa);
-    const comp = new Set(deals.filter((d) => d.companyId).map((d) => d.companyId));
-    const semEmpresa = deals.filter((d) => !d.companyId).length;
-    return comp.size + semEmpresa;
-  })();
+  const empresasUnicas = empresasUnicasDe(f);
   const stages = [
     ...stageOrder.filter((s) => byStage.has(s)),
     ...[...byStage.keys()].filter((s) => !stageOrder.includes(s)),
@@ -470,6 +474,8 @@ export default function FarmerTable({ rows, loading = false, csAtivo = true, onD
       let cmp: number;
       if (sort.key === "nome") {
         cmp = a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" });
+      } else if (sort.key === "demandas") {
+        cmp = empresasUnicasDe(a) - empresasUnicasDe(b); // coluna mostra empresas únicas
       } else {
         cmp = a[sort.key] - b[sort.key];
       }
@@ -543,7 +549,7 @@ export default function FarmerTable({ rows, loading = false, csAtivo = true, onD
         <thead>
           <tr className="text-[11px] font-semibold border-b border-psa-line">
             <Th label="Farmer" col="nome" align="left" />
-            <Th label="Demandas levantadas" col="demandas" />
+            <Th label="Empresas únicas" col="demandas" />
             <Th label="Nota" col="notaMedia" />
             <Th label="Negócios fechados" col="negocios" />
             <Th label="Negócios perdidos" col="perdidos" />
@@ -571,10 +577,10 @@ export default function FarmerTable({ rows, loading = false, csAtivo = true, onD
               </td>
               <td className="px-5 py-3 text-right font-semibold">
                 <Cell
-                  count={f.demandas}
-                  display={num(f.demandas)}
+                  count={empresasUnicasDe(f)}
+                  display={num(empresasUnicasDe(f))}
                   color="text-psa-blue"
-                  onClick={onDrillDown ? () => onDrillDown(f, "demandas") : undefined}
+                  onClick={onDrillDown ? () => onDrillDown(f, "empresas_unicas") : undefined}
                 />
               </td>
               <td
