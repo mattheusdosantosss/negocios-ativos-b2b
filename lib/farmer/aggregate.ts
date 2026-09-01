@@ -469,8 +469,8 @@ export function aggregate(input: {
         ? "acao_crm"
         : sdrf && sdrf === owner
         ? "criador"
-        : deal.properties.pipeline === "725182862" && deal.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA && deal.properties.dealstage !== "1059939760"
-        ? "b2c"
+        : deal.properties.pipeline === "725182862" && deal.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA
+        ? "b2c" // funil B2C + qual=Farmer; inclui perdido (o "Fora do MOA" já é excluído globalmente, ver foraMoa)
         : lead === ORIGEM_CARTEIRA
         ? "carteira" // origem_do_lead "Carteira do Farmer" (label "Carteira") — explícito, não catch-all
         : undefined; // outras origens não entram em nenhum dos 4 cards
