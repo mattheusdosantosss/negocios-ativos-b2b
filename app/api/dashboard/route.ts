@@ -93,7 +93,7 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
       const monthFilterLabel = config.conversionDateProp === "closedate" ? "Mês de fechamento" : "Mês de criação";
       return { data: conversionFromCounts(counts, config.conversionDenomLabel, monthFilterLabel), warning: undefined };
     },
-    ["conversion-v16", config.id, origemId, owner || "all"],
+    ["conversion-v17-fechados", config.id, origemId, owner || "all"],
     { revalidate: 21600 }
   )();
 
@@ -132,7 +132,7 @@ const getLostReasonsCached = (config: SegmentConfig, origemId: string, origem: s
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar motivos de perda" };
       }
     },
-    ["lost-reasons-v10", config.id, origemId, owner || "all"],
+    ["lost-reasons-v11", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 

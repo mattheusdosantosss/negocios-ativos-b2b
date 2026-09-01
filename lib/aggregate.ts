@@ -294,24 +294,25 @@ export type ConversionData = {
  */
 export function conversionFromCounts(
   counts: {
-    geral: { created: number; won: number };
-    months: { key: string; created: number; won: number }[];
+    geral: { created: number; won: number; lost: number };
+    months: { key: string; created: number; won: number; lost: number }[];
   },
   denomLabel: string,
   monthFilterLabel: string
 ): ConversionData {
+  // "entered" (denominador) = ganhos + perdidos REAIS (negócios de fato fechados).
+  // NÃO usa `created` (closedate + proposta), que inclui negócios ainda ABERTOS
+  // cuja data de fechamento é só uma previsão — senão eles vazam como "perdidos".
   const months: ConversionMonth[] = counts.months
-    .map((m) => ({
-      key: m.key,
-      label: mesLabel(m.key),
-      entered: m.created,
-      won: m.won,
-      conv: m.created > 0 ? m.won / m.created : 0,
-    }))
+    .map((m) => {
+      const fechados = m.won + m.lost;
+      return { key: m.key, label: mesLabel(m.key), entered: fechados, won: m.won, conv: fechados > 0 ? m.won / fechados : 0 };
+    })
     .sort((a, b) => b.key.localeCompare(a.key));
-  const { created, won } = counts.geral;
+  const { won, lost } = counts.geral;
+  const fechados = won + lost;
   return {
-    geral: { entered: created, won, conv: created > 0 ? won / created : 0 },
+    geral: { entered: fechados, won, conv: fechados > 0 ? won / fechados : 0 },
     months,
     denomLabel,
     monthFilterLabel,

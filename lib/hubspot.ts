@@ -481,8 +481,8 @@ export async function fetchConversionDeals(
 }
 
 export type ConversionCounts = {
-  geral: { created: number; won: number };
-  months: { key: string; created: number; won: number }[]; // últimos 24 meses
+  geral: { created: number; won: number; lost: number };
+  months: { key: string; created: number; won: number; lost: number }[]; // últimos 24 meses
 };
 
 /**
@@ -505,6 +505,7 @@ export async function fetchConversionCounts(
     base.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   }
   const wonFilter = { propertyName: "dealstage", operator: "IN", values: config.wonStageIds };
+  const lostFilter = { propertyName: "dealstage", operator: "IN", values: config.lostStageIds };
 
   // Monta os filterGroups do denominador (que valem pro numerador tb, pois o
   // ganho é AND dentro de cada grupo). Se `conversionDenomAnyOf`, é um OR:
@@ -546,26 +547,28 @@ export async function fetchConversionCounts(
   }
 
   const dateProp = config.conversionDateProp; // "closedate" (B2B) ou "createdate" (B2C)
-  const [geralCreated, geralWon] = await Promise.all([
+  const [geralCreated, geralWon, geralLost] = await Promise.all([
     count([{ propertyName: dateProp, operator: "HAS_PROPERTY" }]),
     config.wonStageIds.length ? count([wonFilter]) : Promise.resolve(0),
+    config.lostStageIds.length ? count([lostFilter]) : Promise.resolve(0),
   ]);
 
   // Concorrência baixa: o Search API tem limite por segundo e este fetch roda
-  // junto de vários outros no dashboard. 3 janelas × 2 buscas = 6 em voo.
+  // junto de vários outros no dashboard. 3 janelas × 3 buscas = 9 em voo.
   const months = await mapLimit(windows, 3, async (w) => {
     const range = [
       { propertyName: dateProp, operator: "GTE", value: String(w.startMs) },
       { propertyName: dateProp, operator: "LT", value: String(w.endMs) },
     ];
-    const [created, won] = await Promise.all([
+    const [created, won, lost] = await Promise.all([
       count(range),
       config.wonStageIds.length ? count([...range, wonFilter]) : Promise.resolve(0),
+      config.lostStageIds.length ? count([...range, lostFilter]) : Promise.resolve(0),
     ]);
-    return { key: w.key, created, won };
+    return { key: w.key, created, won, lost };
   });
 
-  return { geral: { created: geralCreated, won: geralWon }, months };
+  return { geral: { created: geralCreated, won: geralWon, lost: geralLost }, months };
 }
 
 export type MonthGoalCloser = { name: string; sold: number; count: number; sales: { dealname: string; url: string; amount: number }[] };
