@@ -38,6 +38,11 @@ export type VendaItem = {
 export type VendaDia = { key: string; count: number; total: number; vendas: VendaItem[] };
 export type VendasDoDiaData = { dias: VendaDia[]; total: number; count: number };
 
+// Override pontual: negócios cujo GANHO foi registrado no dia seguinte, mas que
+// devem contar como venda do dia do FECHAMENTO (closedate). Entram sob a closedate,
+// nunca sob a entrada real no ganho. (Ajuste manual pedido — remover quando não fizer sentido.)
+const VENDA_DIA_OVERRIDE = new Set(["64338523747", "62028951388", "64410607418", "62738508899"]);
+
 export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: string; to?: string }, owners: Map<string, Owner>): Promise<VendasDoDiaData> {
   const startMs = startOf(opts.from);
   const endMs = endOf(opts.to);
@@ -82,34 +87,58 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const clean = (v?: string) => (v && v.trim() ? v.trim() : undefined);
   const seg: "b2b" | "b2c" = config.id === "b2c" ? "b2c" : "b2b";
 
+  const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; amount: number } => {
+    const amount = Number(p.amount) || 0;
+    const isWon = wonSet.has(p.dealstage);
+    return {
+      amount, isWon,
+      item: {
+        seg,
+        status: isWon ? "ganho" : "caiu",
+        currentStage: isWon ? undefined : (stageLabel.get(p.dealstage) || "Outra etapa"),
+        amount,
+        closer: name(p.hubspot_owner_id) || "Sem closer",
+        dealname: p.dealname || `Negócio ${id}`,
+        url: dealUrl(id),
+        sdrFarmer: clean(name(p.sdrfarmer_responsavel)),
+        evento: clean(p.data_prevista_do_evento),
+        palestrante: clean(p.palestrante_principal__ganho_) || clean(p.palestrante_de_interesse),
+        produto: clean(p.produto_de_interesse),
+        turma: clean(p.turma_the_best_weekend_) || clean(p.turma_the_best_weekend) || clean(p.turma_tbw_s),
+      },
+    };
+  };
+
   const byDay = new Map<string, VendaDia>();
   let total = 0;
   let count = 0;
-  for (const d of raw) {
-    const p = d.properties;
-    const saleMs = toMs(p[stampProp]) ?? toMs(p.closedate);
-    if (saleMs == null) continue;
-    const amount = Number(p.amount) || 0;
-    const isWon = wonSet.has(p.dealstage);
-    const item: VendaItem = {
-      seg,
-      status: isWon ? "ganho" : "caiu",
-      currentStage: isWon ? undefined : (stageLabel.get(p.dealstage) || "Outra etapa"),
-      amount,
-      closer: name(p.hubspot_owner_id) || "Sem closer",
-      dealname: p.dealname || `Negócio ${d.id}`,
-      url: dealUrl(d.id),
-      sdrFarmer: clean(name(p.sdrfarmer_responsavel)),
-      evento: clean(p.data_prevista_do_evento),
-      palestrante: clean(p.palestrante_principal__ganho_) || clean(p.palestrante_de_interesse),
-      produto: clean(p.produto_de_interesse),
-      turma: clean(p.turma_the_best_weekend_) || clean(p.turma_the_best_weekend) || clean(p.turma_tbw_s),
-    };
+  const push = (saleMs: number, id: string, p: Record<string, string>) => {
+    const { item, isWon, amount } = toItem(id, p);
     const k = dayKey(saleMs);
     let dia = byDay.get(k);
     if (!dia) { dia = { key: k, count: 0, total: 0, vendas: [] }; byDay.set(k, dia); }
     dia.vendas.push(item);
     if (isWon) { dia.count += 1; dia.total += amount; total += amount; count += 1; }
+  };
+
+  for (const d of raw) {
+    if (VENDA_DIA_OVERRIDE.has(d.id)) continue; // tratado abaixo, pela closedate
+    const saleMs = toMs(d.properties[stampProp]) ?? toMs(d.properties.closedate);
+    if (saleMs != null) push(saleMs, d.id, d.properties);
+  }
+
+  // Override: esses IDs entram pela closedate (não pela entrada no ganho), se a
+  // data cair no período visto. Assim aparecem no dia do fechamento (ex.: 31/08).
+  if (VENDA_DIA_OVERRIDE.size > 0) {
+    const ov = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[] }>(
+      `/crm/v3/objects/deals/batch/read`,
+      { method: "POST", body: JSON.stringify({ properties: [...props, "pipeline"], inputs: [...VENDA_DIA_OVERRIDE].map((id) => ({ id })) }) }
+    );
+    for (const d of ov.results ?? []) {
+      if (d.properties.pipeline !== pipe) continue; // só no segmento do negócio
+      const saleMs = toMs(d.properties.closedate);
+      if (saleMs != null && saleMs >= startMs && saleMs <= endMs) push(saleMs, d.id, d.properties);
+    }
   }
 
   const dias = [...byDay.values()].sort((a, b) => (a.key < b.key ? 1 : -1));
