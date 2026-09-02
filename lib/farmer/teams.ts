@@ -28,7 +28,6 @@ export const SQUADS: Squad[] = [
     leader: "Letícia",
     members: [
       "leonardo.machado@profissionaissa.com", // Leonardo Bitencourt Machado
-      "vitor.martini@profissionaissa.com", // Vitor França Martini
       "juliano.marques@profissionaissa.com", // Juliano Machado Marques
       "samuel.oliveira@profissionaissa.com", // Samuel Marques Brião de Oliveira
     ],
