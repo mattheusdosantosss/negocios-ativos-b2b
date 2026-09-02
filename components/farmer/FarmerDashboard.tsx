@@ -419,8 +419,8 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
         />
         <div aria-hidden className="pointer-events-none absolute top-0 right-0 h-full w-1.5 bg-psa-orange" />
 
-        <div className="relative px-8 py-8 min-h-[260px]">
-          <div className="flex items-start justify-between gap-8 flex-wrap">
+        <div className="relative px-5 py-6 sm:px-8 sm:py-8 sm:min-h-[260px]">
+          <div className="flex items-start justify-between gap-6 sm:gap-8 flex-wrap">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-psa-orange/15 border border-psa-orange/30">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-psa-orange" />
@@ -428,7 +428,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                   PSA · Líderes Táticos
                 </span>
               </div>
-              <h1 className="font-display text-[40px] leading-[1.05] font-extrabold tracking-tight text-white">
+              <h1 className="font-display text-[28px] sm:text-[40px] leading-[1.05] font-extrabold tracking-tight text-white">
                 Performance
                 <br />
                 <span className="text-psa-orange">dos Times.</span>
@@ -439,9 +439,9 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
             </div>
 
             <div className="flex flex-col gap-3 w-full lg:w-auto lg:shrink-0">
-              <div className="flex items-stretch gap-2.5 flex-wrap">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-stretch sm:flex-wrap">
               {/* Filtros agrupados numa caixa só */}
-              <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-4 flex-wrap">
+              <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex flex-col w-full gap-3 sm:flex-row sm:items-end sm:w-auto sm:gap-4 sm:flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
 
                 <div className="flex flex-col">
@@ -449,7 +449,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                   <select
                     value={origem}
                     onChange={(e) => setOrigem(e.target.value as typeof origem)}
-                    className="rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 min-w-[170px]"
+                    className="w-full sm:w-auto rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 sm:min-w-[170px]"
                   >
                     <option value="carteira">Carteira</option>
                     <option value="acao_crm">Ação de CRM</option>
@@ -484,7 +484,7 @@ export default function FarmerDashboard({ segmentSelector }: { segmentSelector?:
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1 w-[200px] rounded-xl bg-white/[0.06] border border-white/10 p-1">
+              <div className="flex flex-col gap-1 w-full sm:w-[200px] rounded-xl bg-white/[0.06] border border-white/10 p-1">
               {segmentSelector}
               <button
                 type="button"

@@ -56,14 +56,14 @@ export default function ConversaoDashboard({ segmentSelector }: { segmentSelecto
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 w-[420px] h-[420px] rounded-full bg-psa-orange opacity-20 blur-[2px]" />
         <div aria-hidden className="pointer-events-none absolute -bottom-32 -left-12 w-[300px] h-[300px] rounded-full bg-psa-blue opacity-25" />
         <div aria-hidden className="pointer-events-none absolute top-0 right-0 h-full w-1.5 bg-psa-orange" />
-        <div className="relative px-8 py-8 min-h-[220px]">
-          <div className="flex items-start justify-between gap-8 flex-wrap">
+        <div className="relative px-5 py-6 sm:px-8 sm:py-8 sm:min-h-[220px]">
+          <div className="flex items-start justify-between gap-6 sm:gap-8 flex-wrap">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-psa-orange/15 border border-psa-orange/30">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-psa-orange" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white">PSA · Conversão</span>
               </div>
-              <h1 className="font-display text-[40px] leading-[1.05] font-extrabold tracking-tight text-white">
+              <h1 className="font-display text-[28px] sm:text-[40px] leading-[1.05] font-extrabold tracking-tight text-white">
                 Conversão
                 <br />
                 <span className="text-psa-orange">dos Funis.</span>
@@ -73,7 +73,7 @@ export default function ConversaoDashboard({ segmentSelector }: { segmentSelecto
                 em negociação → negociação avançada); ganhos sem rastro e perdidos sem proposta ficam fora.
               </p>
             </div>
-            <div className="flex flex-col gap-1 w-[200px] shrink-0 rounded-xl bg-white/[0.06] border border-white/10 p-1">
+            <div className="flex flex-col gap-1 w-full sm:w-[200px] sm:shrink-0 rounded-xl bg-white/[0.06] border border-white/10 p-1">
               {segmentSelector}
               <button
                 type="button"
