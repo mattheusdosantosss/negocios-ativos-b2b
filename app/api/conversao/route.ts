@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 // Funil pesado (varre ~5k negócios via Search) — cache de 1h, carregado só
 // quando a aba Conversão é aberta.
-const getConversaoCached = unstable_cache(async () => fetchConversao(), ["conversao-v8-b2c-diretas"], { revalidate: 3600 });
+const getConversaoCached = unstable_cache(async () => fetchConversao(), ["conversao-v9-b2b-diretas"], { revalidate: 3600 });
 
 export async function GET() {
   try {

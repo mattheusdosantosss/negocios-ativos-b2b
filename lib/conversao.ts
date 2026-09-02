@@ -324,6 +324,19 @@ export async function fetchConversao(): Promise<ConversaoData> {
     const stamp = toMs(p[B2B.proposta]) ?? toMs(p[B2B.emNeg]) ?? toMs(p[B2B.negAv]);
     return { stamp, sMonth: monthKey(stamp), ganho: B2B.ganho.includes(p.dealstage), closeMonth: monthKey(toMs(p.closedate)), amount: Number(p.amount_in_home_currency) || 0, seg: canalB2B(p) };
   });
+  // Ganhos B2B fechados no período SEM carimbo de funil (ganho direto, sem passar
+  // por Proposta/Negociação) → entram como "venda direta" (conta no mês do fechamento).
+  const b2bGanhosRaw = await searchDeals(
+    B2B.pipeline,
+    B2B.ganho.map((stage) => ({ filters: [{ propertyName: "dealstage", operator: "EQ", value: stage }, ...rangeStamp("closedate")] })),
+    b2bProps
+  );
+  const temCarimboB2B = (p: Record<string, string>) => !!(p[B2B.proposta] || p[B2B.emNeg] || p[B2B.negAv]);
+  const b2bDiretas: DenomDeal[] = b2bGanhosRaw.filter(({ p }) => !temCarimboB2B(p)).map(({ p }) => ({
+    stamp: null, sMonth: null, ganho: true, closeMonth: monthKey(toMs(p.closedate)),
+    amount: Number(p.amount_in_home_currency) || 0, seg: canalB2B(p), direta: true,
+  }));
+  const b2bTodos = [...b2bDeals, ...b2bDiretas];
 
   // ---- B2C (segmentado por CANAL: Inbound/Disparos/Outros) ----
   const b2cProps = ["dealstage", "closedate", "amount_in_home_currency", "createdate", "origem_do_lead", B2C.proposta, B2C.emNeg, B2C.negAv];
@@ -356,8 +369,8 @@ export async function fetchConversao(): Promise<ConversaoData> {
   const b2cTodos = [...b2cDeals, ...b2cDiretas];
 
   return {
-    b2b: buildVertical("b2b", "B2B", b2bDeals, CANAIS_B2B, janelaMeses,
-      "Coorte da proposta nos meses maduros; janela defasada 16→15 nos 3 últimos meses. Por canal (origem da qualificação)."),
+    b2b: buildVertical("b2b", "B2B", b2bTodos, CANAIS_B2B, janelaMeses,
+      "Coorte da proposta nos meses maduros; janela defasada 16→15 nos 3 últimos meses. Ganhos sem carimbo de funil entram como venda direta (todo ganho do mês conta). Por canal (origem da qualificação)."),
     b2c: buildVertical("b2c", "B2C · por canal", b2cTodos, CANAIS_B2C, janelaMeses,
       "Todo ganho do mês entra: pelo funil (proposta→venda) ou como venda direta (recompra/legacy/venda imediata, sem carimbo de etapa). Canal pela origem do lead: Recompra = origem Recompra; Inbound = lead (pipe B2C) até 15d antes (origem ≠ Ação de CRM/Merlin); Disparos = sem lead recente + último disparo ≤ 15d e origem ≠ Indicação/Partner/Carteira."),
     periodo: { de: "2026-01", ate: meses[meses.length - 1] },
