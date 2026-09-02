@@ -820,7 +820,7 @@ function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["mont
             )}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           {showBar && <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">{pctTxt}</div>}
           <div className="text-[11px] text-psa-ink-soft">
             {num(count)} {count === 1 ? "venda" : "vendas"} · {periodLabel}

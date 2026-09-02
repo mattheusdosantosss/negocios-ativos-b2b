@@ -91,7 +91,7 @@ export default function TemperatureStacked({
           const semLeitura = matrix[s.id]?.sem_leitura ?? 0;
           return (
             <div key={s.id}>
-              <div className="flex justify-between items-baseline mb-1.5 gap-2">
+              <div className="flex flex-col gap-0.5 mb-1.5 sm:flex-row sm:justify-between sm:items-baseline sm:gap-2">
                 <span className={`font-medium ${compact ? "text-xs" : "text-[13px]"}`}>
                   {s.label} <span className="text-psa-ink-soft font-normal">{num(total)} {unitLabel}</span>
                 </span>
