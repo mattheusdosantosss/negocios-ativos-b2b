@@ -27,12 +27,10 @@ export const SQUADS: Squad[] = [
     label: "Squad Leticia",
     leader: "Letícia",
     members: [
-      "francielle.sotoriva@profissionaissa.com", // Francielle Sotoriva Inacio
-      "gustavo.pacheco@profissionaissa.com", // Gustavo Pacheco
-      "maria.azevedo@profissionaissa.com", // Maria Julia Beck
-      "rhayssa.wolkmer@profissionaissa.com", // Rhayssa de Almeida Wolkmer
-      "andrei.mello@profissionaissa.com", // Felippe Freitas
-      "nathalia.pereira@profissionaissa.com", // Nathalia Pereira
+      "leonardo.machado@profissionaissa.com", // Leonardo Bitencourt Machado
+      "vitor.martini@profissionaissa.com", // Vitor França Martini
+      "juliano.marques@profissionaissa.com", // Juliano Machado Marques
+      "samuel.oliveira@profissionaissa.com", // Samuel Marques Brião de Oliveira
     ],
   },
   {
@@ -40,13 +38,12 @@ export const SQUADS: Squad[] = [
     label: "Squad Katyeli",
     leader: "Katyeli",
     members: [
-      "maria.guimaraes@profissionaissa.com", // Maria Eduarda Porto Guimaraes
-      "francielle.lenz@profissionaissa.com", // Francielle Lenz
-      "joao.backmann@profissionaissa.com", // João Lucas Backmann
-      "bruna.saraiva@profissionaissa.com", // Bruna Halfen Saraiva
+      "francielle.sotoriva@profissionaissa.com", // Francielle Sotoriva Inacio
       "gisele.santos@profissionaissa.com", // Gisele Beatriz Santos dos Santos
-      "alecxia.oliveira@profissionaissa.com", // Alecxia Oliveira e Oliveira
-      "leonardo.machado@profissionaissa.com", // Leonardo Bitencourt Machado
+      "thaina.malta@profissionaissa.com", // Thaina Malta
+      "rafael.brack@profissionaissa.com", // Rafael Rodrigues Brack da Silva
+      "bruna.saraiva@profissionaissa.com", // Bruna Halfen Saraiva
+      "francielle.lenz@profissionaissa.com", // Francielle Teles Lenz
     ],
   },
   {
@@ -54,13 +51,12 @@ export const SQUADS: Squad[] = [
     label: "Squad Daniel",
     leader: "Daniel",
     members: [
-      "priscila.dias@profissionaissa.com", // Priscila Dornelles Dias
-      "thiago.souza@profissionaissa.com", // Thiago Berto
-      "thaina.malta@profissionaissa.com", // Thaina Malta
-      "hans.lopes@profissionaissa.com", // Hans Kelton Sales Lopes
-      "rafael.brack@profissionaissa.com", // Rafael Brack
-      "wagner.freitas@profissionaissa.com", // Wagner Macedo Freitas
-      "juliano.marques@profissionaissa.com", // Juliano Machado Marques
+      "andrei.mello@profissionaissa.com", // Andrei Felippe Freitas de Mello
+      "gustavo.pacheco@profissionaissa.com", // Gustavo Stivanin Pacheco
+      "maria.guimaraes@profissionaissa.com", // Maria Eduarda Porto Guimaraes
+      "thiago.souza@profissionaissa.com", // Thiago Berto Souza
+      "nathalia.pereira@profissionaissa.com", // Nathalia Pereira
+      "joao.backmann@profissionaissa.com", // João Lucas Backmann
     ],
   },
   {
@@ -68,11 +64,12 @@ export const SQUADS: Squad[] = [
     label: "Squad Camila",
     leader: "Camila",
     members: [
-      "bruna.machado@profissionaissa.com", // Bruna Machado
-      "vitoria.schaeffer@profissionaissa.com", // Vitoria Garcia Schaeffer
       "jhuly.carvalho@profissionaissa.com", // Jhuly Correa de Carvalho
-      "leonardo.gomes@profissionaissa.com", // Leonardo Gomes
-      "samuel.oliveira@profissionaissa.com", // Samuel Marques Brião de Oliveira
+      "maria.azevedo@profissionaissa.com", // Maria Julia Heredia Beck de Azevedo
+      "vitoria.schaeffer@profissionaissa.com", // Vitoria Garcia Schaeffer
+      "hans.lopes@profissionaissa.com", // Hans Kelton Sales Lopes
+      "rhayssa.wolkmer@profissionaissa.com", // Rhayssa de Almeida Wolkmer
+      "luiza.rodriguez@profissionaissa.com", // Luiza Teixeira Basteiro Rodriguez
     ],
   },
 ];
