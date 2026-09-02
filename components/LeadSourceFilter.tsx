@@ -16,7 +16,7 @@ export default function LeadSourceFilter({ value, onChange }: Props) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as LeadSourceId)}
-        className="w-[150px] rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10"
+        className="w-full sm:w-[150px] rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10"
       >
         {LEAD_SOURCES.map((s) => (
           <option key={s.id} value={s.id}>

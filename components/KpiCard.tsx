@@ -48,7 +48,7 @@ export default function KpiCard({ label, value, hint, accent = "ink", loading = 
           <span className="skeleton h-9 w-24 inline-block" />
         ) : (
           <span
-            className={`font-display font-bold leading-none tabular-nums whitespace-nowrap ${accentColor} text-[clamp(1.5rem,5cqw,2.125rem)]`}
+            className={`font-display font-bold leading-none tabular-nums whitespace-nowrap ${accentColor} text-[clamp(1rem,8cqw,2.125rem)]`}
           >
             {value}
           </span>

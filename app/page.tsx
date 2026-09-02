@@ -329,8 +329,8 @@ export default function Page() {
         />
         <div aria-hidden className="pointer-events-none absolute top-0 right-0 h-full w-1.5 bg-psa-orange" />
 
-        <div className="relative px-8 py-8 min-h-[260px]">
-          <div className="flex items-start justify-between gap-8 flex-wrap">
+        <div className="relative px-5 py-6 sm:px-8 sm:py-8 sm:min-h-[260px]">
+          <div className="flex items-start justify-between gap-6 sm:gap-8 flex-wrap">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-psa-orange/15 border border-psa-orange/30">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-psa-orange" />
@@ -338,7 +338,7 @@ export default function Page() {
                   {cfg.eyebrow}
                 </span>
               </div>
-              <h1 className="font-display text-[40px] leading-[1.05] font-extrabold tracking-tight text-white">
+              <h1 className="font-display text-[28px] sm:text-[40px] leading-[1.05] font-extrabold tracking-tight text-white">
                 Negócios Ativos
                 <br />
                 <span className="text-psa-orange">{cfg.pipelineName}.</span>
@@ -349,9 +349,9 @@ export default function Page() {
               </p>
             </div>
 
-            <div className="flex items-stretch gap-2.5 shrink-0">
+            <div className="flex flex-col w-full gap-2.5 sm:flex-row sm:items-stretch sm:w-auto sm:shrink-0">
               {/* Filtro de período */}
-              <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex items-end gap-3 flex-wrap">
+              <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex flex-col w-full gap-3 sm:flex-row sm:items-end sm:w-auto sm:flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
                 <LeadSourceFilter value={leadSource} onChange={setLeadSource} />
                 <CloserFilter value={closer} options={closerOptions} onChange={setCloser} />
@@ -359,7 +359,7 @@ export default function Page() {
 
               {/* Coluna direita: abas B2B|B2C|FARMER logo acima do Atualizar.
                   Largura fixa (mesma no funil e no farmer). */}
-              <div className="flex flex-col gap-1 w-[200px] rounded-xl bg-white/[0.06] border border-white/10 p-1">
+              <div className="flex flex-col gap-1 w-full sm:w-[200px] rounded-xl bg-white/[0.06] border border-white/10 p-1">
                 {segmentSelector}
 
                 <button

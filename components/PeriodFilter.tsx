@@ -23,7 +23,7 @@ export default function PeriodFilter({ value, onChange }: Props) {
 
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <div className="flex flex-col w-[172px]">
+      <div className="flex flex-col w-full sm:w-[172px]">
         <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/85">
           Data de criação
         </label>
