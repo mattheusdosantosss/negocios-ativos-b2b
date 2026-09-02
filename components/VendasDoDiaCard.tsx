@@ -118,17 +118,20 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
             </span>
           )}
         </div>
-        <select
-          value={produto}
-          onChange={(e) => setProduto(e.target.value)}
-          className="rounded-lg border border-psa-line bg-psa-surface px-2.5 py-1.5 text-xs text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 max-w-[70%] sm:max-w-none"
-          title="Filtrar por produto"
-        >
-          <option value="all">Todos os produtos</option>
-          {produtos.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
+        {/* Seletor de produto só no B2C (negócios B2B não têm produto_de_interesse). */}
+        {produtos.length > 0 && (
+          <select
+            value={produto}
+            onChange={(e) => setProduto(e.target.value)}
+            className="rounded-lg border border-psa-line bg-psa-surface px-2.5 py-1.5 text-xs text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 max-w-[70%] sm:max-w-none"
+            title="Filtrar por produto"
+          >
+            <option value="all">Todos os produtos</option>
+            {produtos.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="max-h-[560px] overflow-y-auto px-5 pb-5">
