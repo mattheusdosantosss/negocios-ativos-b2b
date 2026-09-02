@@ -1,6 +1,10 @@
 "use client";
 
-import type { VendasDoDiaData, VendaItem } from "@/lib/vendasDia";
+import { useMemo, useState } from "react";
+import type { VendasDoDiaData, VendaItem, VendaDia } from "@/lib/vendasDia";
+
+// produto_de_interesse pode ter vários produtos separados por ";".
+const splitProd = (s?: string): string[] => (s ? s.split(";").map((x) => x.trim()).filter(Boolean) : []);
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 const fmtK = (n: number) =>
@@ -78,17 +82,62 @@ function Venda({ v }: { v: VendaItem }) {
 }
 
 export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
+  const [produto, setProduto] = useState("all");
+
+  // Lista de produtos distintos (do produto_de_interesse) pra alimentar o seletor.
+  const produtos = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of data.dias) for (const v of d.vendas) for (const p of splitProd(v.produto)) set.add(p);
+    return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [data]);
+
+  // Filtra por produto (client-side) e recalcula contagem/total só do produto.
+  const view = useMemo(() => {
+    if (produto === "all") return { dias: data.dias, count: data.count, total: data.total };
+    const dias: VendaDia[] = [];
+    let count = 0, total = 0;
+    for (const d of data.dias) {
+      const vendas = d.vendas.filter((v) => splitProd(v.produto).includes(produto));
+      if (vendas.length === 0) continue;
+      let c = 0, t = 0;
+      for (const v of vendas) if (v.status === "ganho") { c += 1; t += v.amount; }
+      count += c; total += t;
+      dias.push({ key: d.key, count: c, total: t, vendas });
+    }
+    return { dias, count, total };
+  }, [data, produto]);
+
   return (
     <div className="rounded-2xl bg-psa-surface border border-psa-line shadow-card overflow-hidden">
-      <div className="px-5 pt-4 pb-2">
-        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-ink-soft">Vendas do dia</div>
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-ink-soft">
+          Vendas do dia
+          {produto !== "all" && (
+            <span className="ml-2 text-psa-orange normal-case tracking-normal font-semibold">
+              · {view.count} {view.count === 1 ? "venda" : "vendas"} de {produto} · {fmtK(view.total)}
+            </span>
+          )}
+        </div>
+        <select
+          value={produto}
+          onChange={(e) => setProduto(e.target.value)}
+          className="rounded-lg border border-psa-line bg-psa-surface px-2.5 py-1.5 text-xs text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10 max-w-[70%] sm:max-w-none"
+          title="Filtrar por produto"
+        >
+          <option value="all">Todos os produtos</option>
+          {produtos.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
       </div>
 
       <div className="max-h-[560px] overflow-y-auto px-5 pb-5">
-        {data.dias.length === 0 ? (
-          <div className="py-10 text-center text-sm text-psa-ink-soft">Nenhuma venda no período.</div>
+        {view.dias.length === 0 ? (
+          <div className="py-10 text-center text-sm text-psa-ink-soft">
+            {produto === "all" ? "Nenhuma venda no período." : `Nenhuma venda de ${produto} no período.`}
+          </div>
         ) : (
-          data.dias.map((dia) => {
+          view.dias.map((dia) => {
             const caiu = dia.vendas.filter((v) => v.status === "caiu").length;
             return (
             <div key={dia.key} className="pb-5">
