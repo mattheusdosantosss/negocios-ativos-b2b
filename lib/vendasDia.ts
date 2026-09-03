@@ -41,7 +41,7 @@ export type VendasDoDiaData = { dias: VendaDia[]; total: number; count: number }
 // Override pontual: negócios cujo GANHO foi registrado no dia seguinte, mas que
 // devem contar como venda do dia do FECHAMENTO (closedate). Entram sob a closedate,
 // nunca sob a entrada real no ganho. (Ajuste manual pedido — remover quando não fizer sentido.)
-const VENDA_DIA_OVERRIDE = new Set(["64338523747", "62028951388", "64410607418", "62738508899"]);
+const VENDA_DIA_OVERRIDE = new Set(["64338523747", "62028951388", "64410607418", "62738508899", "63774100134"]);
 
 export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: string; to?: string }, owners: Map<string, Owner>): Promise<VendasDoDiaData> {
   const startMs = startOf(opts.from);
