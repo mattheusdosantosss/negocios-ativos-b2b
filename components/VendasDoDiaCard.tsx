@@ -57,7 +57,8 @@ function Venda({ v }: { v: VendaItem }) {
         {caiu && (
           <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700">⚠ Caiu</span>
         )}
-        <span className={`text-sm font-bold tabular-nums ${caiu ? "text-red-400 line-through" : VALUE[v.seg]}`}>{fmtK(v.amount)}</span>
+        <span className={`text-sm font-bold tabular-nums ${caiu ? "text-red-400 line-through" : VALUE[v.seg]}`}>{fmtK(v.bruto)}</span>
+        <span className={`text-[11px] tabular-nums whitespace-nowrap ${caiu ? "text-red-300 line-through" : "text-psa-muted"}`}>líq {fmtK(v.liquido)}</span>
         <span className="text-[12px] text-psa-muted truncate">{v.closer}</span>
         {caiu && <span className="text-[11px] text-red-600 font-medium">→ {v.currentStage}</span>}
       </div>
@@ -91,20 +92,20 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
     return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [data]);
 
-  // Filtra por produto (client-side) e recalcula contagem/total só do produto.
+  // Filtra por produto (client-side) e recalcula contagem/total (bruto+líq) só do produto.
   const view = useMemo(() => {
-    if (produto === "all") return { dias: data.dias, count: data.count, total: data.total };
+    if (produto === "all") return { dias: data.dias, count: data.count, total: data.total, totalLiq: data.totalLiq };
     const dias: VendaDia[] = [];
-    let count = 0, total = 0;
+    let count = 0, total = 0, totalLiq = 0;
     for (const d of data.dias) {
       const vendas = d.vendas.filter((v) => splitProd(v.produto).includes(produto));
       if (vendas.length === 0) continue;
-      let c = 0, t = 0;
-      for (const v of vendas) if (v.status === "ganho") { c += 1; t += v.amount; }
-      count += c; total += t;
-      dias.push({ key: d.key, count: c, total: t, vendas });
+      let c = 0, t = 0, tL = 0;
+      for (const v of vendas) if (v.status === "ganho") { c += 1; t += v.bruto; tL += v.liquido; }
+      count += c; total += t; totalLiq += tL;
+      dias.push({ key: d.key, count: c, total: t, totalLiq: tL, vendas });
     }
-    return { dias, count, total };
+    return { dias, count, total, totalLiq };
   }, [data, produto]);
 
   return (
@@ -114,7 +115,7 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
           Vendas do dia
           {produto !== "all" && (
             <span className="ml-2 text-psa-orange normal-case tracking-normal font-semibold">
-              · {view.count} {view.count === 1 ? "venda" : "vendas"} de {produto} · {fmtK(view.total)}
+              · {view.count} {view.count === 1 ? "venda" : "vendas"} de {produto} · {fmtK(view.total)} <span className="text-psa-muted font-normal">(líq {fmtK(view.totalLiq)})</span>
             </span>
           )}
         </div>
@@ -152,7 +153,7 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
                 </span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
                   <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1">
-                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}
+                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)} <span className="font-normal opacity-70">líq {fmtK(dia.totalLiq)}</span>
                   </span>
                   {caiu > 0 && (
                     <span className="text-[11px] font-semibold text-red-700 bg-red-100 rounded-full px-2.5 py-1">{caiu} caiu</span>

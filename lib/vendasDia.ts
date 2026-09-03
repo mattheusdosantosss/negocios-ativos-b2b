@@ -25,18 +25,21 @@ export type VendaItem = {
   seg: "b2b" | "b2c";
   status: "ganho" | "caiu";
   currentStage?: string; // etapa atual quando caiu (ex.: "Perdido")
-  amount: number;
+  // B2B: bruto = valor total do contrato (ganho), líquido = amount.
+  // B2C: bruto = amount, líquido = valor líquido -10%.
+  bruto: number;
+  liquido: number;
   closer: string;
   dealname: string;
   url: string;
   sdrFarmer?: string;
   evento?: string;
-  palestrante?: string;
+  palestrante?: string; // só B2B (palestrante vendido)
   produto?: string;
   turma?: string;
 };
-export type VendaDia = { key: string; count: number; total: number; vendas: VendaItem[] };
-export type VendasDoDiaData = { dias: VendaDia[]; total: number; count: number };
+export type VendaDia = { key: string; count: number; total: number; totalLiq: number; vendas: VendaItem[] };
+export type VendasDoDiaData = { dias: VendaDia[]; total: number; totalLiq: number; count: number };
 
 // Override pontual: negócios cujo GANHO foi registrado no dia seguinte, mas que
 // devem contar como venda do dia do FECHAMENTO (closedate). Entram sob a closedate,
@@ -57,9 +60,9 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   config.wonStageIds.forEach((id) => stageLabel.set(id, "Ganho"));
 
   const props = [
-    "dealname", "amount", "hubspot_owner_id", "closedate", "dealstage", stampProp,
-    "sdrfarmer_responsavel", "data_prevista_do_evento",
-    "palestrante_principal__ganho_", "palestrante_de_interesse",
+    "dealname", "amount", "valor_total_do_contrato__bruto___ganho_", "valor_liquido_b2c_10",
+    "hubspot_owner_id", "closedate", "dealstage", stampProp,
+    "sdrfarmer_responsavel", "data_prevista_do_evento", "palestrante_principal_correta",
     "produto_de_interesse", "turma_the_best_weekend_", "turma_the_best_weekend", "turma_tbw_s",
   ];
   // Entraram na etapa de GANHO no período (carimbo), qualquer etapa atual.
@@ -87,22 +90,44 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const clean = (v?: string) => (v && v.trim() ? v.trim() : undefined);
   const seg: "b2b" | "b2c" = config.id === "b2c" ? "b2c" : "b2b";
 
-  const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; amount: number } => {
+  // Palestrante vendido (só B2B): mapeia o valor do enum (slug) pro nome legível.
+  // Alguns labels vêm como slug no HubSpot ("rachel-maia") — prettifica pra "Rachel Maia".
+  const prettyPal = (raw: string): string => {
+    const label = raw.replace(/\s+/g, " ").trim();
+    if (!label || label.includes(" ") || !label.includes("-")) return label; // já legível
+    const parts = label.split("-").filter(Boolean);
+    if (parts.length > 1 && /\d/.test(parts[parts.length - 1])) parts.pop(); // dropa sufixo id/hash
+    return parts.map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  };
+  const palMap = new Map<string, string>();
+  if (seg === "b2b") {
+    const pj = await hsFetch<{ options?: { value: string; label: string; hidden?: boolean }[] }>(
+      "/crm/v3/properties/deals/palestrante_principal_correta"
+    );
+    for (const o of pj.options ?? []) if (!o.hidden) palMap.set(o.value, prettyPal((o.label || "").trim()));
+  }
+
+  const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; bruto: number; liquido: number } => {
     const amount = Number(p.amount) || 0;
+    const brutoGanho = Number(p.valor_total_do_contrato__bruto___ganho_) || 0;
+    const liqB2c = Number(p.valor_liquido_b2c_10) || 0;
+    // B2B: bruto = contrato bruto (ganho), líquido = amount. B2C: bruto = amount, líquido = -10%.
+    const bruto = seg === "b2b" ? (brutoGanho > 0 ? brutoGanho : amount) : amount;
+    const liquido = seg === "b2b" ? amount : (liqB2c > 0 ? liqB2c : amount);
     const isWon = wonSet.has(p.dealstage);
     return {
-      amount, isWon,
+      bruto, liquido, isWon,
       item: {
         seg,
         status: isWon ? "ganho" : "caiu",
         currentStage: isWon ? undefined : (stageLabel.get(p.dealstage) || "Outra etapa"),
-        amount,
+        bruto, liquido,
         closer: name(p.hubspot_owner_id) || "Sem closer",
         dealname: p.dealname || `Negócio ${id}`,
         url: dealUrl(id),
         sdrFarmer: clean(name(p.sdrfarmer_responsavel)),
         evento: clean(p.data_prevista_do_evento),
-        palestrante: clean(p.palestrante_principal__ganho_) || clean(p.palestrante_de_interesse),
+        palestrante: seg === "b2b" ? (palMap.get((p.palestrante_principal_correta || "").trim()) || undefined) : undefined,
         produto: clean(p.produto_de_interesse),
         turma: clean(p.turma_the_best_weekend_) || clean(p.turma_the_best_weekend) || clean(p.turma_tbw_s),
       },
@@ -111,14 +136,15 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
 
   const byDay = new Map<string, VendaDia>();
   let total = 0;
+  let totalLiq = 0;
   let count = 0;
   const push = (saleMs: number, id: string, p: Record<string, string>) => {
-    const { item, isWon, amount } = toItem(id, p);
+    const { item, isWon, bruto, liquido } = toItem(id, p);
     const k = dayKey(saleMs);
     let dia = byDay.get(k);
-    if (!dia) { dia = { key: k, count: 0, total: 0, vendas: [] }; byDay.set(k, dia); }
+    if (!dia) { dia = { key: k, count: 0, total: 0, totalLiq: 0, vendas: [] }; byDay.set(k, dia); }
     dia.vendas.push(item);
-    if (isWon) { dia.count += 1; dia.total += amount; total += amount; count += 1; }
+    if (isWon) { dia.count += 1; dia.total += bruto; dia.totalLiq += liquido; total += bruto; totalLiq += liquido; count += 1; }
   };
 
   for (const d of raw) {
@@ -142,7 +168,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   }
 
   const dias = [...byDay.values()].sort((a, b) => (a.key < b.key ? 1 : -1));
-  // Dentro do dia: ganhos primeiro (valor desc), depois as que caíram.
-  dias.forEach((d) => d.vendas.sort((a, b) => (a.status === b.status ? b.amount - a.amount : a.status === "ganho" ? -1 : 1)));
-  return { dias, total, count };
+  // Dentro do dia: ganhos primeiro (valor bruto desc), depois as que caíram.
+  dias.forEach((d) => d.vendas.sort((a, b) => (a.status === b.status ? b.bruto - a.bruto : a.status === "ganho" ? -1 : 1)));
+  return { dias, total, totalLiq, count };
 }
