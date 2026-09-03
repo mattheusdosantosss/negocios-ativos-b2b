@@ -13,6 +13,13 @@ const SEM_FILL = "#E8A317"; // sem proposta
 const pct = (x: number) => `${(x * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 const pctND = (n: number, d: number) => (d > 0 ? pct(n / d) : "0%");
 const num = (n: number) => n.toLocaleString("pt-BR");
+// Intervalo real da janela fiscal 16→15 pra um mês "YYYY-MM" (ex.: 2026-09 → "16/08–15/09").
+const janelaRange = (key: string): string => {
+  const [, mm] = key.split("-").map(Number); // mm 1-12
+  const prevM = mm === 1 ? 12 : mm - 1;
+  const dd = (n: number) => String(n).padStart(2, "0");
+  return `16/${dd(prevM)}–15/${dd(mm)}`;
+};
 
 type Props = { data: ConversionData; motivos?: MotivosData; forcedMonth?: string | null; showProposta?: boolean; ganhosAtributos?: GanhosAtributosData };
 
@@ -46,7 +53,7 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
             <span className="text-sm text-psa-ink-soft">
               <b className="text-psa-ink">{num(scope.won)}</b> ganhos ·{" "}
               <b className="text-psa-ink">{num(Math.max(0, scope.entered - scope.won))}</b> perdidos ·{" "}
-              <span className="text-psa-muted">{scopeLabel}</span>
+              <span className="text-psa-muted">{scopeLabel}{month !== "all" && ` · ${janelaRange(month)}`}</span>
             </span>
           </div>
           {data.denomLabel && <div className="mt-1 text-[11px] text-psa-muted">{data.denomLabel}</div>}
@@ -59,7 +66,8 @@ export default function ConversionCard({ data, motivos, forcedMonth, showPropost
           {forced ? (
             // Travado pelo filtro de tempo do topo — mostra o mês, sem seletor.
             <div className="rounded-lg border border-psa-line bg-psa-canvas px-3 py-2 text-sm text-psa-ink min-w-[190px]">
-              {scopeLabel} <span className="text-psa-muted text-xs">· pelo filtro de tempo</span>
+              {scopeLabel}{month !== "all" && <span className="text-psa-muted text-xs"> · {janelaRange(month)}</span>}
+              <span className="block text-psa-muted text-[10px]">janela 16→15 · pelo filtro de tempo</span>
             </div>
           ) : (
             <select

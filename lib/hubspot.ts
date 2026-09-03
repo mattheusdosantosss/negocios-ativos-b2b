@@ -537,10 +537,12 @@ export async function fetchConversionCounts(
   const windows: { key: string; startMs: number; endMs: number }[] = [];
   for (let i = 0; i < 24; i++) {
     const key = `${y}-${String(m + 1).padStart(2, "0")}`;
-    const startMs = Date.UTC(y, m, 1) + BR_OFFSET_MS;
-    const nY = m === 11 ? y + 1 : y;
-    const nM = m === 11 ? 0 : m + 1;
-    const endMs = Date.UTC(nY, nM, 1) + BR_OFFSET_MS;
+    // Janela fiscal 16→15: mês M vai do dia 16 do mês ANTERIOR até o dia 15 de M
+    // (ex.: set/26 = 16/08 → 15/09). Fuso BR.
+    const prevY = m === 0 ? y - 1 : y;
+    const prevM = m === 0 ? 11 : m - 1;
+    const startMs = Date.UTC(prevY, prevM, 16) + BR_OFFSET_MS;
+    const endMs = Date.UTC(y, m, 16) + BR_OFFSET_MS;
     windows.push({ key, startMs, endMs });
     m -= 1;
     if (m < 0) { m = 11; y -= 1; }

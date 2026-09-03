@@ -93,7 +93,7 @@ const getConversionCached = (config: SegmentConfig, origemId: string, origem: st
       const monthFilterLabel = config.conversionDateProp === "closedate" ? "Mês de fechamento" : "Mês de criação";
       return { data: conversionFromCounts(counts, config.conversionDenomLabel, monthFilterLabel), warning: undefined };
     },
-    ["conversion-v17-fechados", config.id, origemId, owner || "all"],
+    ["conversion-v18-janela1615", config.id, origemId, owner || "all"],
     { revalidate: 21600 }
   )();
 
