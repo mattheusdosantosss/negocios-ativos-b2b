@@ -65,7 +65,7 @@ function Venda({ v }: { v: VendaItem }) {
       {/* Título do negócio */}
       <div className="flex items-start gap-2">
         {caiu && (
-          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700">⚠ Caiu</span>
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700">Caiu</span>
         )}
         <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate ${caiu ? "text-psa-ink-soft" : "text-psa-ink"}`}>{v.dealname}</span>
       </div>
@@ -94,10 +94,10 @@ function Venda({ v }: { v: VendaItem }) {
       {(v.palestrante || v.evento || v.produto || v.turma) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {v.palestrante && (
-            <span className="text-[10px] font-medium text-psa-orange bg-psa-orange/10 rounded px-1.5 py-0.5 truncate max-w-full">🎤 {v.palestrante}</span>
+            <span className="text-[10px] font-medium text-psa-orange bg-psa-orange/10 rounded px-1.5 py-0.5 truncate max-w-full">Palestrante: {v.palestrante}</span>
           )}
           {v.evento && (
-            <span className="text-[10px] text-psa-ink-soft bg-psa-surface border border-psa-line rounded px-1.5 py-0.5">📅 Evento {fmtDate(v.evento)}</span>
+            <span className="text-[10px] text-psa-ink-soft bg-psa-surface border border-psa-line rounded px-1.5 py-0.5">Evento {fmtDate(v.evento)}</span>
           )}
           {v.produto && (
             <span className="text-[10px] text-psa-ink-soft bg-psa-surface border border-psa-line rounded px-1.5 py-0.5 truncate max-w-full">{v.produto}</span>

@@ -515,7 +515,7 @@ export default function Page() {
       {cfg.hasEvento && (
       <section className="rounded-2xl border-2 border-psa-ink/10 bg-psa-surface shadow-card overflow-hidden">
         <div className="flex items-center gap-2 px-5 pt-4">
-          <span className="text-lg leading-none">⚠️</span>
+          <span aria-hidden className="w-1 h-4 rounded-full bg-psa-orange" />
           <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Atenção</h2>
         </div>
         <div className={`grid grid-cols-1 gap-4 p-5 ${cfg.hasEvento ? "md:grid-cols-2" : ""}`}>
@@ -839,7 +839,7 @@ function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["mont
           <div className="mt-2 flex items-center justify-between gap-3 flex-wrap text-[11px] text-psa-ink-soft">
             <span>
               {reached ? (
-                <span className="font-bold text-psa-orange">🎉 Meta batida!</span>
+                <span className="font-bold text-psa-orange">Meta batida!</span>
               ) : (
                 <>
                   Faltam <b className="text-psa-ink">{brl(remaining)}</b> pra bater a meta
