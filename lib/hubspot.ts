@@ -573,7 +573,7 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon, lost: geralLost }, months };
 }
 
-export type MonthGoalCloser = { name: string; sold: number; count: number; sales: { dealname: string; url: string; amount: number }[] };
+export type MonthGoalCloser = { name: string; sold: number; count: number; sales: { dealname: string; url: string; amount: number; bruto: number }[] };
 export type MonthGoalData = { goal: number; sold: number; count: number; byCloser: MonthGoalCloser[] };
 
 /** Primeiro dia do mês corrente (fuso BR) em ms. */
@@ -608,7 +608,7 @@ export async function fetchSalesByCloser(
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: ["amount", "hubspot_owner_id", "dealname"],
+      properties: ["amount", "valor_total_do_contrato__bruto___ganho_", "hubspot_owner_id", "dealname"],
       limit: 200,
     };
     if (after) body.after = after;
@@ -629,9 +629,11 @@ export async function fetchSalesByCloser(
     if (!byId.has(oid)) byId.set(oid, { name, sold: 0, count: 0, sales: [] });
     const c = byId.get(oid)!;
     const amount = Number(d.properties.amount || 0);
+    const brutoRaw = Number((d.properties as Record<string, string>).valor_total_do_contrato__bruto___ganho_ || 0);
+    const bruto = brutoRaw > 0 ? brutoRaw : amount; // bruto = contrato; líquido = amount
     c.sold += amount;
     c.count += 1;
-    c.sales.push({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), amount });
+    c.sales.push({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), amount, bruto });
   }
   const byCloser = [...byId.values()].sort((a, b) => b.sold - a.sold);
   byCloser.forEach((c) => c.sales.sort((a, b) => b.amount - a.amount));

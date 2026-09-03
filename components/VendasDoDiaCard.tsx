@@ -70,11 +70,17 @@ function Venda({ v }: { v: VendaItem }) {
         <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate ${caiu ? "text-psa-ink-soft" : "text-psa-ink"}`}>{v.dealname}</span>
       </div>
 
-      {/* Valores discriminados */}
+      {/* Valores discriminados — destaque no LÍQUIDO (B2B); B2C mostra só o valor. */}
       <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-1.5">
-        <Valor label={temMargem ? "Bruto" : "Valor"} value={fmtK(v.bruto)} strong={VALUE[v.seg]} caiu={caiu} />
-        {temMargem && <Valor label="Líquido" value={fmtK(v.liquido)} caiu={caiu} />}
-        {temMargem && <Valor label="Margem" value={pctLiq(v.liquido, v.bruto)} caiu={caiu} />}
+        {temMargem ? (
+          <>
+            <Valor label="Líquido" value={fmtK(v.liquido)} strong={VALUE[v.seg]} caiu={caiu} />
+            <Valor label="Bruto" value={fmtK(v.bruto)} caiu={caiu} />
+            <Valor label="Margem" value={pctLiq(v.liquido, v.bruto)} caiu={caiu} />
+          </>
+        ) : (
+          <Valor label="Valor" value={fmtK(v.bruto)} strong={VALUE[v.seg]} caiu={caiu} />
+        )}
         {caiu && <span className="text-[11px] text-red-600 font-medium self-center">→ {v.currentStage}</span>}
       </div>
 

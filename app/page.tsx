@@ -688,8 +688,8 @@ export default function Page() {
       )}
 
       {/* Tempo da reunião ao fechamento — dias da 1ª reunião concluída com o
-          closer até o negócio virar Ganho/Perdido (só negócios dos closers). */}
-      {data && data.closeTime && (
+          closer até o negócio virar Ganho/Perdido (só negócios dos closers). Fora do B2C. */}
+      {data && data.closeTime && segment !== "b2c" && (
         <SectionCard
           title="Tempo da reunião ao fechamento"
           subtitle={
@@ -904,7 +904,12 @@ function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["mont
                         >
                           {s.dealname}
                         </a>
-                        <span className="shrink-0 tabular-nums text-psa-ink-soft">{brl(s.amount)}</span>
+                        <span className="shrink-0 tabular-nums text-psa-ink-soft">
+                          {brl(s.amount)}
+                          {s.bruto > s.amount && (
+                            <span className="ml-1.5 text-psa-muted">· margem {Math.round((s.amount / s.bruto) * 100)}%</span>
+                          )}
+                        </span>
                       </li>
                     ))}
                   </ul>
