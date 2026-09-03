@@ -7,6 +7,8 @@ import type { VendasDoDiaData, VendaItem, VendaDia } from "@/lib/vendasDia";
 const splitProd = (s?: string): string[] => (s ? s.split(";").map((x) => x.trim()).filter(Boolean) : []);
 
 const num = (n: number) => n.toLocaleString("pt-BR");
+// Percentual da venda = líquido ÷ bruto (fatia da PSA sobre o contrato). Só no B2B (bruto ≠ líq).
+const pctLiq = (liq: number, bruto: number) => (bruto > 0 ? `${Math.round((liq / bruto) * 100)}%` : "");
 const fmtK = (n: number) =>
   n >= 1000 ? `R$ ${(n / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k` : `R$ ${num(n)}`;
 const fmtDate = (iso?: string) => {
@@ -59,7 +61,7 @@ function Venda({ v }: { v: VendaItem }) {
         )}
         <span className={`text-sm font-bold tabular-nums ${caiu ? "text-red-400 line-through" : VALUE[v.seg]}`}>{fmtK(v.bruto)}</span>
         {v.liquido !== v.bruto && (
-          <span className={`text-[11px] tabular-nums whitespace-nowrap ${caiu ? "text-red-300 line-through" : "text-psa-muted"}`}>líq {fmtK(v.liquido)}</span>
+          <span className={`text-[11px] tabular-nums whitespace-nowrap ${caiu ? "text-red-300 line-through" : "text-psa-muted"}`}>líq {fmtK(v.liquido)} · {pctLiq(v.liquido, v.bruto)}</span>
         )}
         <span className="text-[12px] text-psa-muted truncate">{v.closer}</span>
         {caiu && <span className="text-[11px] text-red-600 font-medium">→ {v.currentStage}</span>}
@@ -117,7 +119,7 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
           Vendas do dia
           {produto !== "all" && (
             <span className="ml-2 text-psa-orange normal-case tracking-normal font-semibold">
-              · {view.count} {view.count === 1 ? "venda" : "vendas"} de {produto} · {fmtK(view.total)}{view.totalLiq !== view.total && <span className="text-psa-muted font-normal"> (líq {fmtK(view.totalLiq)})</span>}
+              · {view.count} {view.count === 1 ? "venda" : "vendas"} de {produto} · {fmtK(view.total)}{view.totalLiq !== view.total && <span className="text-psa-muted font-normal"> (líq {fmtK(view.totalLiq)} · {pctLiq(view.totalLiq, view.total)})</span>}
             </span>
           )}
         </div>
@@ -155,7 +157,7 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
                 </span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
                   <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1">
-                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}{dia.totalLiq !== dia.total && <span className="font-normal opacity-70"> líq {fmtK(dia.totalLiq)}</span>}
+                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}{dia.totalLiq !== dia.total && <span className="font-normal opacity-70"> líq {fmtK(dia.totalLiq)} · {pctLiq(dia.totalLiq, dia.total)}</span>}
                   </span>
                   {caiu > 0 && (
                     <span className="text-[11px] font-semibold text-red-700 bg-red-100 rounded-full px-2.5 py-1">{caiu} caiu</span>
