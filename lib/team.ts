@@ -16,12 +16,16 @@ export const B2B_TEAM: TeamMember[] = [
   // Closers temporários incluídos em jul/2026 pra reforçar as vendas B2B.
   { ownerId: "80454573", nome: "Nicollas Lenuzza" },
   { ownerId: "79760744", nome: "Diego Conceição" },
-  { ownerId: "80454585", nome: "Leandro Bengochea" },
   { ownerId: "92333469", nome: "Rafael Oliveira Alves" },
   { ownerId: "94316538", nome: "Gabriel Oliveira Alves" },
   { ownerId: "80454584", nome: "Cesar Luiz dos Santos Filho" },
   { ownerId: "94028856", nome: "Andrei Felippe Freitas de Mello" },
   { ownerId: "95811085", nome: "Wagner Macedo Freitas" },
+  { ownerId: "85002012", nome: "Bruna Machado" },
+  { ownerId: "79760745", nome: "Thiago Berto Souza" },
+  { ownerId: "81033487", nome: "Gustavo Stivanin Pacheco" },
+  { ownerId: "89632472", nome: "Maria Eduarda Porto Guimaraes" },
+  { ownerId: "96589066", nome: "Nathalia Pereira" },
 ];
 
 export const B2B_TEAM_IDS = new Set(B2B_TEAM.map((m) => m.ownerId));
