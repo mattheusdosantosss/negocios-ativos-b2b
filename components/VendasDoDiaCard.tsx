@@ -37,12 +37,19 @@ function dayLabel(key: string): string {
 // Cor do valor por pipeline (B2B azul, B2C laranja — identidade PSA).
 const VALUE = { b2b: "text-psa-blue", b2c: "text-psa-orange" } as const;
 
+// Bloco de valor com rótulo em cima (Bruto / Líquido / Margem), pra bater o olho.
+function Valor({ label, value, strong, caiu }: { label: string; value: string; strong?: string; caiu?: boolean }) {
+  return (
+    <div className="flex flex-col leading-tight">
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-psa-muted">{label}</span>
+      <span className={`text-sm font-bold tabular-nums ${caiu ? "text-red-400 line-through" : strong || "text-psa-ink"}`}>{value}</span>
+    </div>
+  );
+}
+
 function Venda({ v }: { v: VendaItem }) {
   const caiu = v.status === "caiu";
-  const tags: string[] = [];
-  if (v.evento) tags.push(`Evento ${fmtDate(v.evento)}`);
-  if (v.produto) tags.push(v.produto);
-  if (v.turma) tags.push(`Turma ${v.turma}`);
+  const temMargem = v.liquido !== v.bruto; // B2B: bruto ≠ líquido
   return (
     <a
       href={v.url}
@@ -55,30 +62,42 @@ function Venda({ v }: { v: VendaItem }) {
       }`}
       title={caiu ? `Saiu do ganho · agora em "${v.currentStage}"` : "Abrir negócio no HubSpot"}
     >
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* Título do negócio */}
+      <div className="flex items-start gap-2">
         {caiu && (
-          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700">⚠ Caiu</span>
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700">⚠ Caiu</span>
         )}
-        <span className={`text-sm font-bold tabular-nums ${caiu ? "text-red-400 line-through" : VALUE[v.seg]}`}>{fmtK(v.bruto)}</span>
-        {v.liquido !== v.bruto && (
-          <span className={`text-[11px] tabular-nums whitespace-nowrap ${caiu ? "text-red-300 line-through" : "text-psa-muted"}`}>líq {fmtK(v.liquido)} · {pctLiq(v.liquido, v.bruto)}</span>
-        )}
-        <span className="text-[12px] text-psa-muted truncate">{v.closer}</span>
-        {caiu && <span className="text-[11px] text-red-600 font-medium">→ {v.currentStage}</span>}
+        <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate ${caiu ? "text-psa-ink-soft" : "text-psa-ink"}`}>{v.dealname}</span>
       </div>
-      <div className={`mt-1.5 text-[13px] font-medium truncate ${caiu ? "text-psa-ink-soft" : "text-psa-ink"}`}>{v.dealname}</div>
-      {v.sdrFarmer && (
-        <div className="mt-0.5 text-[11px] text-psa-ink-soft">
-          SDR/Farmer: <b className="text-psa-ink font-medium">{v.sdrFarmer}</b>
-        </div>
-      )}
-      {(tags.length > 0 || v.palestrante) && (
+
+      {/* Valores discriminados */}
+      <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-1.5">
+        <Valor label={temMargem ? "Bruto" : "Valor"} value={fmtK(v.bruto)} strong={VALUE[v.seg]} caiu={caiu} />
+        {temMargem && <Valor label="Líquido" value={fmtK(v.liquido)} caiu={caiu} />}
+        {temMargem && <Valor label="Margem" value={pctLiq(v.liquido, v.bruto)} caiu={caiu} />}
+        {caiu && <span className="text-[11px] text-red-600 font-medium self-center">→ {v.currentStage}</span>}
+      </div>
+
+      {/* Quem vendeu */}
+      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-psa-ink-soft">
+        <span>Closer: <b className="text-psa-ink font-medium">{v.closer}</b></span>
+        {v.sdrFarmer && <span>SDR/Farmer: <b className="text-psa-ink font-medium">{v.sdrFarmer}</b></span>}
+      </div>
+
+      {/* Palestrante / evento / produto */}
+      {(v.palestrante || v.evento || v.produto || v.turma) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {tags.map((t, i) => (
-            <span key={i} className="text-[10px] text-psa-ink-soft bg-psa-surface border border-psa-line rounded px-1.5 py-0.5 truncate max-w-full">{t}</span>
-          ))}
           {v.palestrante && (
             <span className="text-[10px] font-medium text-psa-orange bg-psa-orange/10 rounded px-1.5 py-0.5 truncate max-w-full">🎤 {v.palestrante}</span>
+          )}
+          {v.evento && (
+            <span className="text-[10px] text-psa-ink-soft bg-psa-surface border border-psa-line rounded px-1.5 py-0.5">📅 Evento {fmtDate(v.evento)}</span>
+          )}
+          {v.produto && (
+            <span className="text-[10px] text-psa-ink-soft bg-psa-surface border border-psa-line rounded px-1.5 py-0.5 truncate max-w-full">{v.produto}</span>
+          )}
+          {v.turma && (
+            <span className="text-[10px] text-psa-ink-soft bg-psa-surface border border-psa-line rounded px-1.5 py-0.5 truncate max-w-full">Turma {v.turma}</span>
           )}
         </div>
       )}
