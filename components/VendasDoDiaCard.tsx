@@ -58,7 +58,9 @@ function Venda({ v }: { v: VendaItem }) {
           <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700">⚠ Caiu</span>
         )}
         <span className={`text-sm font-bold tabular-nums ${caiu ? "text-red-400 line-through" : VALUE[v.seg]}`}>{fmtK(v.bruto)}</span>
-        <span className={`text-[11px] tabular-nums whitespace-nowrap ${caiu ? "text-red-300 line-through" : "text-psa-muted"}`}>líq {fmtK(v.liquido)}</span>
+        {v.liquido !== v.bruto && (
+          <span className={`text-[11px] tabular-nums whitespace-nowrap ${caiu ? "text-red-300 line-through" : "text-psa-muted"}`}>líq {fmtK(v.liquido)}</span>
+        )}
         <span className="text-[12px] text-psa-muted truncate">{v.closer}</span>
         {caiu && <span className="text-[11px] text-red-600 font-medium">→ {v.currentStage}</span>}
       </div>
@@ -115,7 +117,7 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
           Vendas do dia
           {produto !== "all" && (
             <span className="ml-2 text-psa-orange normal-case tracking-normal font-semibold">
-              · {view.count} {view.count === 1 ? "venda" : "vendas"} de {produto} · {fmtK(view.total)} <span className="text-psa-muted font-normal">(líq {fmtK(view.totalLiq)})</span>
+              · {view.count} {view.count === 1 ? "venda" : "vendas"} de {produto} · {fmtK(view.total)}{view.totalLiq !== view.total && <span className="text-psa-muted font-normal"> (líq {fmtK(view.totalLiq)})</span>}
             </span>
           )}
         </div>
@@ -153,7 +155,7 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
                 </span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
                   <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1">
-                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)} <span className="font-normal opacity-70">líq {fmtK(dia.totalLiq)}</span>
+                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}{dia.totalLiq !== dia.total && <span className="font-normal opacity-70"> líq {fmtK(dia.totalLiq)}</span>}
                   </span>
                   {caiu > 0 && (
                     <span className="text-[11px] font-semibold text-red-700 bg-red-100 rounded-full px-2.5 py-1">{caiu} caiu</span>

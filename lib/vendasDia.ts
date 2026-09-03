@@ -60,7 +60,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   config.wonStageIds.forEach((id) => stageLabel.set(id, "Ganho"));
 
   const props = [
-    "dealname", "amount", "valor_total_do_contrato__bruto___ganho_", "valor_liquido_b2c_10",
+    "dealname", "amount", "valor_total_do_contrato__bruto___ganho_",
     "hubspot_owner_id", "closedate", "dealstage", stampProp,
     "sdrfarmer_responsavel", "data_prevista_do_evento", "palestrante_principal_correta",
     "produto_de_interesse", "turma_the_best_weekend_", "turma_the_best_weekend", "turma_tbw_s",
@@ -110,10 +110,10 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; bruto: number; liquido: number } => {
     const amount = Number(p.amount) || 0;
     const brutoGanho = Number(p.valor_total_do_contrato__bruto___ganho_) || 0;
-    const liqB2c = Number(p.valor_liquido_b2c_10) || 0;
-    // B2B: bruto = contrato bruto (ganho), líquido = amount. B2C: bruto = amount, líquido = -10%.
-    const bruto = seg === "b2b" ? (brutoGanho > 0 ? brutoGanho : amount) : amount;
-    const liquido = seg === "b2b" ? amount : (liqB2c > 0 ? liqB2c : amount);
+    // Bruto = valor total do contrato (ganho); Líquido = "Valor" (amount). Quando não
+    // há contrato bruto (ex.: B2C), bruto = amount → sem distinção (mostra só um valor).
+    const bruto = brutoGanho > 0 ? brutoGanho : amount;
+    const liquido = amount;
     const isWon = wonSet.has(p.dealstage);
     return {
       bruto, liquido, isWon,
