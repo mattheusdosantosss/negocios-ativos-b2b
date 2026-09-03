@@ -151,7 +151,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     checkoutStages: [],
     // B2C quase não usa "Data Prevista do Evento" — bloco de Evento fica fora.
     hasEvento: false,
-    hasCloseTime: true,
+    hasCloseTime: false, // card "Tempo da reunião ao fechamento" removido do B2C
     hasMacroTema: false,
     hasPropostaMeeting: false,
     hasLostReasons: true,

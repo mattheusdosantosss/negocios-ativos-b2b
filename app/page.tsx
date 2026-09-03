@@ -687,9 +687,9 @@ export default function Page() {
         </SectionCard>
       )}
 
-      {/* Tempo da reunião ao fechamento — dias da 1ª reunião concluída com o
-          closer até o negócio virar Ganho/Perdido (só negócios dos closers). Fora do B2C. */}
-      {data && data.closeTime && segment !== "b2c" && (
+      {/* Tempo da reunião ao fechamento — só nos segmentos com hasCloseTime
+          (removido do B2C via config). */}
+      {data && data.closeTime && (
         <SectionCard
           title="Tempo da reunião ao fechamento"
           subtitle={
