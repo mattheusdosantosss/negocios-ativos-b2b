@@ -595,24 +595,19 @@ export async function fetchSalesByCloser(
 ): Promise<{ sold: number; count: number; byCloser: MonthGoalCloser[] }> {
   const startMs = opts.from ? brStartOfDayMs(opts.from) : brStartOfCurrentMonthMs();
   const endMs = opts.to ? brEndOfDayMs(opts.to) : Date.now();
-  const ownerFilter = opts.owner ? [{ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner }] : [];
-  // Conta pela ENTRADA na etapa de Ganho (quando de fato vendeu), NÃO pela closedate
-  // — que pode ser retroativa (ex.: vendeu 01/09 com closedate 31/08). Igual ao Vendas
-  // do Dia. Um grupo (OR) por etapa de ganho, filtrando pelo carimbo de entrada.
-  const filterGroups = config.wonStageIds.map((stage) => ({
-    filters: [
-      { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
-      { propertyName: "dealstage", operator: "EQ", value: stage },
-      { propertyName: `hs_v2_date_entered_${stage}`, operator: "GTE", value: String(startMs) },
-      { propertyName: `hs_v2_date_entered_${stage}`, operator: "LTE", value: String(endMs) },
-      ...ownerFilter,
-    ],
-  }));
+  // Meta do mês = MÊS FECHADO (calendário), por data de fechamento (closedate).
+  const filters = [
+    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
+    { propertyName: "dealstage", operator: "IN", values: config.wonStageIds },
+    { propertyName: "closedate", operator: "GTE", value: String(startMs) },
+    { propertyName: "closedate", operator: "LTE", value: String(endMs) },
+  ];
+  if (opts.owner) filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
   const deals: Deal[] = [];
   let after: string | undefined;
   do {
     const body: Record<string, unknown> = {
-      filterGroups,
+      filterGroups: [{ filters }],
       properties: ["amount", "hubspot_owner_id", "dealname"],
       limit: 200,
     };

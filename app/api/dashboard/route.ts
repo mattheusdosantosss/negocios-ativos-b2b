@@ -243,7 +243,7 @@ const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: string, o
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v5-wonstamp", config.id, from || "cur", to || "cur", owner || "all"],
+    ["month-goal-v6-closedate", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();
 
