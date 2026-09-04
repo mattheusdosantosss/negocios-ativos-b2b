@@ -58,6 +58,20 @@ export type DealLite = {
 const LEONARDO_DEMANDA_EMAIL = "leonardo.gomes@profissionaissa.com";
 const LEONARDO_DEMANDA_CUTOFF = "2026-08-17"; // inclusive (YYYY-MM-DD)
 
+// Closers B2B que também aparecem como criadores: pra eles é normal criar um
+// negócio e mantê-lo (frente de Closers B2B), então NÃO devem contar no card
+// "Com o Criador". OwnerIds (o bucket compara sdrfarmer===dono, ambos ownerId).
+const CRIADOR_EXCLUI_OWNERS = new Set<string>([
+  "80454577", // Daniel Bento Sias
+  "79760745", // Thiago Berto Souza
+  "87159365", // João Lucas Backmann
+  "89632472", // Maria Eduarda Porto Guimaraes
+  "81033487", // Gustavo Stivanin Pacheco
+  "85002012", // Bruna Machado
+  "96589066", // Nathalia Pereira
+  "94028856", // Andrei Felippe Freitas de Mello ("Felippe Freitas")
+]);
+
 /**
  * Reuniões por EMPRESA ÚNICA (mesma base do card de empresas únicas):
  *  - agendadas: empresas com ≥1 demanda que tem reunião associada ao negócio
@@ -467,7 +481,7 @@ export function aggregate(input: {
     const cardBucket: DealLite["cardBucket"] =
       lead === ORIGEM_ACAO_CRM_CARTEIRA // só "Ação de CRM (Carteira)"; a origem "Ação de CRM" pura é B2C/SDR, não é a ação do farmer
         ? "acao_crm"
-        : sdrf && sdrf === owner
+        : sdrf && sdrf === owner && !CRIADOR_EXCLUI_OWNERS.has(owner)
         ? "criador"
         : deal.properties.pipeline === "725182862" && deal.properties.origem_da_qualificacao === ORIGEM_QUALIF_CARTEIRA
         ? "b2c" // funil B2C + qual=Farmer; inclui perdido (o "Fora do MOA" já é excluído globalmente, ver foraMoa)
