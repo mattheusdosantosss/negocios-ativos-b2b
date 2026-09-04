@@ -93,8 +93,26 @@ async function mapLimit<T, R>(items: T[], lim: number, fn: (item: T) => Promise<
   return out;
 }
 
+// Portão de RITMO global: espaça o início das requisições HubSpot em HS_MIN_GAP_MS
+// entre si. Sem ele, os ~8 fetches paginados do dashboard disparam juntos (~150
+// requisições), estouram o rate-limit (search ~4/s), tomam 429 e caem no backoff
+// exponencial (até ~63s cada) — empilhando além do teto de 60s da Vercel. Com o
+// espaçamento, o tráfego fica sob o limite e o 429 vira raro. ~150ms ≈ 6-7 req/s
+// (o retry de 429 cobre eventual pico do search). JS é single-thread, então a
+// reserva do próximo slot é atômica. Vale pra todas as rotas do mesmo token.
+const HS_MIN_GAP_MS = 150;
+let hsNextStart = 0;
+async function hsGate() {
+  const now = Date.now();
+  const start = Math.max(now, hsNextStart);
+  hsNextStart = start + HS_MIN_GAP_MS;
+  const wait = start - now;
+  if (wait > 0) await sleep(wait);
+}
+
 export async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
   assertToken();
+  await hsGate();
   const res = await fetch(`${HUBSPOT_API}${path}`, {
     ...init,
     headers: {
