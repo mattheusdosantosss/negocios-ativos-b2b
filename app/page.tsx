@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import KpiCard from "@/components/KpiCard";
 import TemperatureStacked, { PERFIL_STYLE, TASK_STYLE } from "@/components/TemperatureStacked";
 import CloserOpenDeals from "@/components/CloserOpenDeals";
@@ -111,11 +111,24 @@ export default function Page() {
     return qs.toString();
   }, [segment, period.from, period.to, leadSource, closer]);
 
-  async function load() {
+  // Cache em memória por query: trocar de aba/filtro e voltar reusa o payload
+  // sem refazer o round-trip. TTL curto (o servidor já cacheia o pesado 6h) e o
+  // botão Atualizar força fresh (bypassa o cache). Vive só na sessão da aba.
+  const cacheRef = useRef<Map<string, { data: DashboardData; at: number }>>(new Map());
+  const CACHE_TTL = 90_000;
+
+  async function load(force = false) {
+    const hit = cacheRef.current.get(queryString);
+    if (!force && hit && Date.now() - hit.at < CACHE_TTL) {
+      setData(hit.data);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/dashboard?${queryString}`);
+      const res = await fetch(`/api/dashboard?${queryString}`, force ? { cache: "no-store" } : undefined);
       const text = await res.text();
       let json: DashboardData & { error?: string };
       try {
@@ -126,6 +139,7 @@ export default function Page() {
       }
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
       setData(json as DashboardData);
+      cacheRef.current.set(queryString, { data: json as DashboardData, at: Date.now() });
     } catch (e) {
       setError(e instanceof Error ? e.message : "erro desconhecido");
       setData(null);
@@ -364,7 +378,7 @@ export default function Page() {
 
                 <button
                   type="button"
-                  onClick={load}
+                  onClick={() => load(true)}
                   disabled={loading}
                   className="inline-flex items-center justify-center gap-2 w-full whitespace-nowrap px-4 py-2 rounded-lg bg-white/[0.05] text-[13px] font-semibold text-white/85 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-60 disabled:cursor-wait"
                   title="Rebuscar os dados no HubSpot agora"

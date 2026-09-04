@@ -266,9 +266,22 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [owners, deals, checkoutDeals, won, closeRaw, vendasDiaRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw] = await Promise.all([
+    // Deals ativos e as TAREFAS deles (que só dependem de `deals`) correm juntos:
+    // encadeia a busca de tarefas na de deals e joga no mesmo Promise.all, pra os
+    // round-trips de tarefas ficarem embaixo dos outros fetches em vez de somar na
+    // cauda. Não-fatal: falha vira warning e o painel segue sem tarefas.
+    const dealsP = fetchActiveDeals(config, { from, to, origem, owner });
+    const tasksP = dealsP.then(async (ds): Promise<{ due: Map<string, number> | null; warning?: string }> => {
+      try {
+        return { due: await fetchNextOpenTaskByDeal(ds.map((d) => d.id)) };
+      } catch (e) {
+        return { due: null, warning: e instanceof Error ? e.message : "erro ao carregar tarefas" };
+      }
+    });
+
+    const [owners, deals, checkoutDeals, won, closeRaw, vendasDiaRaw, convRaw, propMeetRaw, motivosRaw, goalRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw, tasksRaw] = await Promise.all([
       fetchAllOwners(),
-      fetchActiveDeals(config, { from, to, origem, owner }),
+      dealsP,
       fetchCheckoutDeals(config, { from, to, owner }),
       getWonAggregateCached(config, origemId, origem, owner),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
@@ -283,6 +296,7 @@ export async function GET(req: NextRequest) {
       config.hasTempoProposta ? getTempoPropostaCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasGanhoCards ? getGanhosAtributosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasGanhoCards ? getLeadTimeGanhosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
+      tasksP,
     ]);
     const { stages, tempStages, totals, closers, checkout } = aggregate(
       deals,
@@ -294,15 +308,12 @@ export async function GET(req: NextRequest) {
 
     const closeTime = closeRaw?.data;
 
-    // Tarefas por etapa dos negócios ativos (não cacheado — muda toda hora; a
-    // leitura de tarefas do escopo ativo é rápida). Se falhar, guarda o aviso.
+    // Tarefas por etapa dos negócios ativos — já buscadas em paralelo (tasksP),
+    // encadeadas no fetch de deals. Aqui só monta a matriz com o resultado.
     let tasks: DashboardData["tasks"];
-    let taskWarning: string | undefined;
-    try {
-      const dueByDeal = await fetchNextOpenTaskByDeal(deals.map((d) => d.id));
-      tasks = taskMatrix(deals, dueByDeal, owners, tempStagesOf(config), Date.now());
-    } catch (e) {
-      taskWarning = e instanceof Error ? e.message : "erro ao carregar tarefas";
+    const taskWarning = tasksRaw.warning;
+    if (tasksRaw.due) {
+      tasks = taskMatrix(deals, tasksRaw.due, owners, tempStagesOf(config), Date.now());
     }
 
     const data: DashboardData = {

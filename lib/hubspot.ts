@@ -136,17 +136,31 @@ export async function hsFetch<T>(path: string, init?: RequestInit, attempt = 0):
 
 type OwnersResponse = { results: Owner[]; paging?: { next?: { after: string } } };
 
-export async function fetchAllOwners(): Promise<Map<string, Owner>> {
-  const map = new Map<string, Owner>();
-  let after: string | undefined;
-  do {
-    const qs = new URLSearchParams({ limit: "100" });
-    if (after) qs.set("after", after);
-    const data: OwnersResponse = await hsFetch(`/crm/v3/owners?${qs}`);
-    for (const o of data.results) map.set(o.id, o);
-    after = data.paging?.next?.after;
-  } while (after);
-  return map;
+// Owners quase não mudam e são pedidos ~6× por request (topo + funções
+// cacheadas). Memoiza a PROMISE: as chamadas concorrentes do mesmo request
+// pegam o mesmo fetch em voo, e requests quentes reusam por 10 min. Cachear o
+// Map direto no unstable_cache não serviria (Map não sobrevive ao JSON).
+let ownersInflight: { at: number; p: Promise<Map<string, Owner>> } | null = null;
+const OWNERS_TTL_MS = 10 * 60 * 1000;
+
+export function fetchAllOwners(): Promise<Map<string, Owner>> {
+  if (ownersInflight && Date.now() - ownersInflight.at < OWNERS_TTL_MS) return ownersInflight.p;
+  const p = (async () => {
+    const map = new Map<string, Owner>();
+    let after: string | undefined;
+    do {
+      const qs = new URLSearchParams({ limit: "100" });
+      if (after) qs.set("after", after);
+      const data: OwnersResponse = await hsFetch(`/crm/v3/owners?${qs}`);
+      for (const o of data.results) map.set(o.id, o);
+      after = data.paging?.next?.after;
+    } while (after);
+    return map;
+  })();
+  // Se falhar, limpa o cache pra não fixar uma promise rejeitada por 10 min.
+  p.catch(() => { if (ownersInflight?.p === p) ownersInflight = null; });
+  ownersInflight = { at: Date.now(), p };
+  return p;
 }
 
 export function ownerDisplayName(owner?: Owner): string {
@@ -440,44 +454,6 @@ export async function fetchFirstCloserMeeting(
     if (earliestIso) result.set(dealId, earliestIso);
   }
   return result;
-}
-
-/**
- * Negócios que ENTRARAM na etapa "Proposta enviada | 1° Follow" (base da taxa
- * de conversão Proposta → Ganho). Usa hs_v2_date_entered_<etapa> (HAS_PROPERTY).
- * Traz createdate + as datas de entrada em Ganho (pra marcar quem converteu).
- * Respeita origem e closer. Paginado, todo o histórico.
- */
-export async function fetchConversionDeals(
-  config: SegmentConfig,
-  opts?: { origem?: string[]; owner?: string }
-): Promise<Deal[]> {
-  const propostaProp = `hs_v2_date_entered_${config.propostaStageId}`;
-  const wonProps = config.wonStageIds.map((w) => `hs_v2_date_entered_${w}`);
-  const filters: Array<{ propertyName: string; operator: string; value?: string; values?: string[] }> = [
-    { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
-    { propertyName: propostaProp, operator: "HAS_PROPERTY" },
-  ];
-  if (opts?.origem && opts.origem.length > 0) {
-    filters.push({ propertyName: "origem_do_lead", operator: "IN", values: opts.origem });
-  }
-  if (opts?.owner) {
-    filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
-  }
-  const properties = ["createdate"];
-  const all: Deal[] = [];
-  let after: string | undefined;
-  do {
-    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties, limit: 200 };
-    if (after) body.after = after;
-    const data: SearchResponse<Deal> = await hsFetch(`/crm/v3/objects/deals/search`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    all.push(...data.results);
-    after = data.paging?.next?.after;
-  } while (after);
-  return all;
 }
 
 export type ConversionCounts = {
