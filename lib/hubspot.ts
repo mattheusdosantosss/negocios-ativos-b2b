@@ -694,16 +694,13 @@ export async function fetchLostReasons(
     after = data.paging?.next?.after;
   } while (after && deals.length < 9800); // blindagem contra o teto de 10k
 
-  // Janela fiscal 16→15 (bate com a Taxa de conversão): dia ≥16 cai no bucket do
-  // mês SEGUINTE (ex.: 20/08 → set/26 = janela 16/08–15/09); dia ≤15 no mês atual.
+  // Motivos de Perda = MÊS CALENDÁRIO (mês do fechamento, fuso BR). Só a Taxa de
+  // Conversão usa a janela comercial 16→15 — aqui NÃO. Ex.: 20/08 → ago/26.
   const monthKey = (iso?: string) => {
     const t = iso ? new Date(iso).getTime() : NaN;
     if (!Number.isFinite(t)) return "sem-data";
     const d = new Date(t - BR_OFFSET_MS);
-    let fy = d.getUTCFullYear();
-    let fm = d.getUTCMonth(); // 0-based
-    if (d.getUTCDate() >= 16) { fm += 1; if (fm > 11) { fm = 0; fy += 1; } }
-    return `${fy}-${String(fm + 1).padStart(2, "0")}`;
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   };
   // Por motivo, os perdidos ficam separados entre COM e SEM proposta anexada.
   type Bucket = { com: MotivosItem[]; sem: MotivosItem[] };

@@ -101,7 +101,7 @@ export const getLostReasonsCached = (config: SegmentConfig, origemId: string, or
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar motivos de perda" };
       }
     },
-    ["lost-reasons-v13-whitelist", config.id, origemId, owner || "all"],
+    ["lost-reasons-v14-mescalendario", config.id, origemId, owner || "all"],
     { revalidate: 3600 }
   )();
 
