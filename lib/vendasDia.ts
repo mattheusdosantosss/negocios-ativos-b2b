@@ -41,22 +41,15 @@ export type VendaItem = {
 export type VendaDia = { key: string; count: number; total: number; totalLiq: number; vendas: VendaItem[] };
 export type VendasDoDiaData = { dias: VendaDia[]; total: number; totalLiq: number; count: number };
 
-// Override pontual: negócios cujo GANHO foi registrado no dia seguinte, mas que
-// devem contar como venda do dia do FECHAMENTO (closedate). Entram sob a closedate,
-// nunca sob a entrada real no ganho. (Ajuste manual pedido — remover quando não fizer sentido.)
-const VENDA_DIA_OVERRIDE = new Set([
-  "64338523747", "62028951388", "64410607418", "62738508899", "63774100134",
-  "63222202772", // Priscilla Bencke | Caleidoscópio (closedate 31/08, ganho 01/09)
-  "64263748533", // Leonardo Vianna Gomes | ESCALA - TBW DEZEMBRO (closedate 31/08, ganho 01/09)
-  "64516388506", // Rodrigo Santos Paz - The Best Weeks (closedate 31/08, ganho 01/09)
-]);
-
 export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: string; to?: string }, owners: Map<string, Owner>): Promise<VendasDoDiaData> {
   const startMs = startOf(opts.from);
   const endMs = endOf(opts.to);
   const pipe = config.id === "b2c" ? "725182862" : "default";
   const wonSet = new Set(config.wonStageIds);
-  const stampProp = `hs_v2_date_entered_${config.wonStageIds[0]}`; // entrada na etapa de ganho principal
+  // Folga na busca: cobre o drift entre a 1ª data de fechamento e a entrada no
+  // ganho (ex.: fechou 31/08, ganho carimbado 01/09). Depois filtramos pela 1ª
+  // data de fechamento real, então a folga só amplia o conjunto de candidatos.
+  const PAD_MS = 10 * 86_400_000;
 
   // Mapa etapa → rótulo (pra mostrar onde a venda foi parar quando cai).
   const stageLabel = new Map<string, string>();
@@ -66,30 +59,65 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
 
   const props = [
     "dealname", "amount", "valor_total_do_contrato__bruto___ganho_",
-    "hubspot_owner_id", "closedate", "dealstage", stampProp,
+    "hubspot_owner_id", "closedate", "dealstage",
     "sdrfarmer_responsavel", "data_prevista_do_evento", "palestrante_principal_correta",
     "produto_de_interesse", "turma_the_best_weekend_", "turma_the_best_weekend", "turma_tbw_s",
   ];
-  // Entraram na etapa de GANHO no período (carimbo), qualquer etapa atual.
-  const filters = [
-    { propertyName: "pipeline", operator: "EQ", value: pipe },
-    { propertyName: stampProp, operator: "GTE", value: String(startMs) },
-    { propertyName: stampProp, operator: "LTE", value: String(endMs) },
-  ];
+  // Candidatos: entraram em QUALQUER etapa de ganho numa janela com folga (OR
+  // entre as etapas de ganho). O dia real da venda sai da 1ª data de fechamento
+  // (histórico), apurada logo abaixo — a busca só delimita quem olhar.
+  const filterGroups = config.wonStageIds.map((sid) => ({
+    filters: [
+      { propertyName: "pipeline", operator: "EQ", value: pipe },
+      { propertyName: `hs_v2_date_entered_${sid}`, operator: "GTE", value: String(startMs - PAD_MS) },
+      { propertyName: `hs_v2_date_entered_${sid}`, operator: "LTE", value: String(endMs + PAD_MS) },
+    ],
+  }));
 
-  const raw: { id: string; properties: Record<string, string> }[] = [];
+  const rawById = new Map<string, { id: string; properties: Record<string, string> }>();
   let after: string | undefined;
   do {
-    const body: Record<string, unknown> = { filterGroups: [{ filters }], properties: props, sorts: [{ propertyName: stampProp, direction: "DESCENDING" }], limit: 200 };
+    const body: Record<string, unknown> = { filterGroups, properties: props, sorts: [{ propertyName: "closedate", direction: "DESCENDING" }], limit: 200 };
     if (after) body.after = after;
     const data = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[]; paging?: { next?: { after?: string } } }>(
       `/crm/v3/objects/deals/search`,
       { method: "POST", body: JSON.stringify(body) }
     );
-    raw.push(...(data.results ?? []));
+    for (const d of data.results ?? []) rawById.set(d.id, d); // dedup (grupos OR podem repetir)
     after = data.paging?.next?.after;
     if (after) await sleep(120);
-  } while (after && raw.length < 9800);
+  } while (after && rawById.size < 9800);
+  const raw = [...rawById.values()];
+
+  // DATA DE FECHAMENTO que o card lista, apurada do HISTÓRICO do closedate:
+  //  - se um HUMANO editou (sourceType CRM_UI), vale a edição MANUAL mais recente
+  //    (a correção do usuário — imune a bump posterior da automação);
+  //  - senão, vale o valor ORIGINAL (mais antigo), a data em que fechou de fato.
+  // Assim os negócios com closedate corrigido na mão seguem a MESMA regra, sem
+  // lista de exceções. batch/read com histórico: máx 50 inputs por chamada.
+  const closeMs = new Map<string, number>();
+  const ids = raw.map((d) => d.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const res = await hsFetch<{ results?: { id: string; propertiesWithHistory?: { closedate?: { value: string; timestamp: string; sourceType?: string }[] } }[] }>(
+      `/crm/v3/objects/deals/batch/read`,
+      { method: "POST", body: JSON.stringify({ propertiesWithHistory: ["closedate"], inputs: chunk.map((id) => ({ id })) }) }
+    );
+    for (const d of res.results ?? []) {
+      const hist = (d.propertiesWithHistory?.closedate ?? [])
+        .filter((h) => h.value) // ignora quando o closedate foi limpo
+        .map((h) => ({ v: h.value, t: Date.parse(h.timestamp), manual: h.sourceType === "CRM_UI" }))
+        .filter((h) => Number.isFinite(h.t));
+      if (!hist.length) continue;
+      const manual = hist.filter((h) => h.manual);
+      const chosen = manual.length
+        ? manual.reduce((a, b) => (b.t > a.t ? b : a)) // edição manual mais recente
+        : hist.reduce((a, b) => (b.t < a.t ? b : a)); // valor original (mais antigo)
+      const ms = toMs(chosen.v);
+      if (ms != null) closeMs.set(d.id, ms);
+    }
+    if (i + 50 < ids.length) await sleep(120);
+  }
 
   const name = (id?: string) => (id ? ownerDisplayName(owners.get(id)) : "");
   const clean = (v?: string) => (v && v.trim() ? v.trim() : undefined);
@@ -153,23 +181,10 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   };
 
   for (const d of raw) {
-    if (VENDA_DIA_OVERRIDE.has(d.id)) continue; // tratado abaixo, pela closedate
-    const saleMs = toMs(d.properties[stampProp]) ?? toMs(d.properties.closedate);
-    if (saleMs != null) push(saleMs, d.id, d.properties);
-  }
-
-  // Override: esses IDs entram pela closedate (não pela entrada no ganho), se a
-  // data cair no período visto. Assim aparecem no dia do fechamento (ex.: 31/08).
-  if (VENDA_DIA_OVERRIDE.size > 0) {
-    const ov = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[] }>(
-      `/crm/v3/objects/deals/batch/read`,
-      { method: "POST", body: JSON.stringify({ properties: [...props, "pipeline"], inputs: [...VENDA_DIA_OVERRIDE].map((id) => ({ id })) }) }
-    );
-    for (const d of ov.results ?? []) {
-      if (d.properties.pipeline !== pipe) continue; // só no segmento do negócio
-      const saleMs = toMs(d.properties.closedate);
-      if (saleMs != null && saleMs >= startMs && saleMs <= endMs) push(saleMs, d.id, d.properties);
-    }
+    // Dia da venda = data de fechamento apurada (manual mais recente ou original);
+    // fallback pro closedate atual só se o histórico não vier. Filtra ao período.
+    const saleMs = closeMs.get(d.id) ?? toMs(d.properties.closedate);
+    if (saleMs != null && saleMs >= startMs && saleMs <= endMs) push(saleMs, d.id, d.properties);
   }
 
   const dias = [...byDay.values()].sort((a, b) => (a.key < b.key ? 1 : -1));
