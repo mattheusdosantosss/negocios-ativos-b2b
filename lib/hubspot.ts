@@ -724,6 +724,8 @@ export async function fetchLostReasons(
       const v = (p[prop] || "").trim();
       if (v) { reason = v; break; }
     }
+    // Whitelist do segmento (B2B): ignora motivos fora da lista (SDR/B2C/ruído).
+    if (config.lostReasonsWhitelist && !config.lostReasonsWhitelist.includes(reason)) continue;
     const hasProp = p.tem_proposta_anexada === "true";
     const oid = p.hubspot_owner_id || "";
     const closer = teamName.get(oid) || ownerDisplayName(owners?.get(oid));

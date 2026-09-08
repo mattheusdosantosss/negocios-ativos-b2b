@@ -65,6 +65,9 @@ export type SegmentConfig = {
   /** Propriedades onde mora o motivo da perda, em ordem de prioridade (o 1º
    *  preenchido vence). B2B usa closed_lost_reason + motivo_de_sinalizacao_de_perda. */
   lostReasonProps: string[];
+  /** Se preenchido, o card "Motivos de perda" lista SÓ esses motivos (whitelist,
+   *  match exato pelo valor). null = mostra todos. */
+  lostReasonsWhitelist: string[] | null;
   /** Filtro único do denominador da conversão (B2B: tem_proposta_anexada=true;
    *  B2C: dealstage IN Ganho+Perdido). null quando se usa conversionDenomAnyOf. */
   conversionDenomFilter: { propertyName: string; operator: string; value?: string; values?: string[] } | null;
@@ -120,6 +123,19 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasTempoProposta: true,
     hasGanhoCards: false,
     lostReasonProps: ["closed_lost_reason", "motivo_de_sinalizacao_de_perda"],
+    // B2B mostra só os motivos relevantes ao funil (esconde SDR/B2C/ruído).
+    lostReasonsWhitelist: [
+      "Parou de responder",
+      "Desistiu do evento",
+      "Fora do MOA",
+      "Evento não é prioridade no momento",
+      "Fechou direto com o palestrante",
+      "Fechou com parceiro (GRATUITO)",
+      "Fechou com a Concorrência (outro curso)",
+      "Achou Caro",
+      "Fora do tempo de compra",
+      "Palestrante Insubstituível (Palestrante sem data)",
+    ],
     conversionDenomFilter: { propertyName: "tem_proposta_anexada", operator: "EQ", value: "true" },
     conversionDenomAnyOf: null,
     conversionDenomLabel: "só negócios com proposta anexada",
@@ -159,6 +175,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     hasTempoProposta: false,
     hasGanhoCards: true,
     lostReasonProps: ["closed_lost_reason"],
+    lostReasonsWhitelist: null, // B2C mostra todos os motivos
     // Conversão 100%: ganhos ÷ (ganhos + perdidos), todos os fechados. Os motivos
     // de perda (card "Motivos de perda") explicam o porquê das perdas.
     conversionDenomFilter: { propertyName: "dealstage", operator: "IN", values: ["1105295876", "1059939760"] },
