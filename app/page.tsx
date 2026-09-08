@@ -116,9 +116,14 @@ export default function Page() {
   // botão Atualizar força fresh (bypassa o cache). Vive só na sessão da aba.
   const cacheRef = useRef<Map<string, { data: DashboardData; at: number }>>(new Map());
   const CACHE_TTL = 90_000;
+  // Query atual, pra descartar respostas de uma query antiga (trocou de aba/
+  // filtro no meio do fetch) — evita que o merge de analytics polua o segmento novo.
+  const queryStringRef = useRef(queryString);
+  queryStringRef.current = queryString;
 
   async function load(force = false) {
-    const hit = cacheRef.current.get(queryString);
+    const q = queryString;
+    const hit = cacheRef.current.get(q);
     if (!force && hit && Date.now() - hit.at < CACHE_TTL) {
       setData(hit.data);
       setError(null);
@@ -127,8 +132,13 @@ export default function Page() {
     }
     setLoading(true);
     setError(null);
+    const opts = force ? { cache: "no-store" as const } : undefined;
+    // Dispara núcleo e analytics EM PARALELO: o núcleo pinta rápido (KPIs,
+    // temperatura, closers, meta), os cards pesados entram no merge quando chegam.
+    const coreFetch = fetch(`/api/dashboard?${q}`, opts);
+    const analyticsFetch = fetch(`/api/dashboard/analytics?${q}`, opts);
     try {
-      const res = await fetch(`/api/dashboard?${queryString}`, force ? { cache: "no-store" } : undefined);
+      const res = await coreFetch;
       const text = await res.text();
       let json: DashboardData & { error?: string };
       try {
@@ -138,12 +148,25 @@ export default function Page() {
         throw new Error("O servidor está recalculando (pode levar alguns segundos). Clique em Atualizar de novo.");
       }
       if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+      if (queryStringRef.current !== q) return; // query mudou — descarta
       setData(json as DashboardData);
-      cacheRef.current.set(queryString, { data: json as DashboardData, at: Date.now() });
+      setLoading(false);
+      cacheRef.current.set(q, { data: json as DashboardData, at: Date.now() });
+
+      // 2ª fase: cards analíticos (não-fatal — se falhar, o núcleo segue).
+      analyticsFetch
+        .then((r) => (r.ok ? r.json() : null))
+        .then((a) => {
+          if (!a || a.error || queryStringRef.current !== q) return;
+          const merged = { ...(json as DashboardData), ...a };
+          setData(merged);
+          cacheRef.current.set(q, { data: merged, at: Date.now() });
+        })
+        .catch(() => {});
     } catch (e) {
+      if (queryStringRef.current !== q) return;
       setError(e instanceof Error ? e.message : "erro desconhecido");
       setData(null);
-    } finally {
       setLoading(false);
     }
   }

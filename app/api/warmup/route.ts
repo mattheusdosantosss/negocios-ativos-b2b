@@ -19,7 +19,13 @@ export async function GET(req: NextRequest) {
 
   const origin = new URL(req.url).origin;
   // View padrão dos dois segmentos = o que 99% dos acessos abrem primeiro.
-  const targets = ["/api/dashboard?segment=b2b", "/api/dashboard?segment=b2c"];
+  // Núcleo + analytics dos dois (cada um cacheado por endpoint).
+  const targets = [
+    "/api/dashboard?segment=b2b",
+    "/api/dashboard?segment=b2c",
+    "/api/dashboard/analytics?segment=b2b",
+    "/api/dashboard/analytics?segment=b2c",
+  ];
 
   const started = Date.now();
   const warmed = await Promise.allSettled(
