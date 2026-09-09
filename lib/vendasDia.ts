@@ -25,8 +25,8 @@ export type VendaItem = {
   seg: "b2b" | "b2c";
   status: "ganho" | "caiu";
   currentStage?: string; // etapa atual quando caiu (ex.: "Perdido")
-  // B2B: bruto = valor total do contrato (ganho), líquido = amount.
-  // B2C: bruto = amount, líquido = valor líquido -10%.
+  // Bruto por segmento: B2B = valor_total_do_contrato (ganho), B2C = valor_bruto.
+  // Líquido = amount nos dois. Sem bruto preenchido → bruto = amount (valor único).
   bruto: number;
   liquido: number;
   closer: string;
@@ -58,7 +58,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   config.wonStageIds.forEach((id) => stageLabel.set(id, "Ganho"));
 
   const props = [
-    "dealname", "amount", "valor_total_do_contrato__bruto___ganho_",
+    "dealname", "amount", "valor_total_do_contrato__bruto___ganho_", "valor_bruto",
     "hubspot_owner_id", "closedate", "dealstage",
     "sdrfarmer_responsavel", "data_prevista_do_evento", "palestrante_principal_correta",
     "produto_de_interesse", "turma_the_best_weekend_", "turma_the_best_weekend", "turma_tbw_s",
@@ -142,9 +142,12 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
 
   const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; bruto: number; liquido: number } => {
     const amount = Number(p.amount) || 0;
-    const brutoGanho = Number(p.valor_total_do_contrato__bruto___ganho_) || 0;
-    // Bruto = valor total do contrato (ganho); Líquido = "Valor" (amount). Quando não
-    // há contrato bruto (ex.: B2C), bruto = amount → sem distinção (mostra só um valor).
+    // Bruto por segmento: B2B usa "valor total do contrato (ganho)"; B2C usa
+    // "valor_bruto". Líquido = "Valor" (amount) nos dois. Quando o bruto não vem
+    // preenchido, bruto = amount → sem distinção (mostra só um valor).
+    const brutoGanho = seg === "b2c"
+      ? Number(p.valor_bruto) || 0
+      : Number(p.valor_total_do_contrato__bruto___ganho_) || 0;
     const bruto = brutoGanho > 0 ? brutoGanho : amount;
     const liquido = amount;
     const isWon = wonSet.has(p.dealstage);

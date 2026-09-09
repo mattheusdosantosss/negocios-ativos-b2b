@@ -70,7 +70,8 @@ function Venda({ v }: { v: VendaItem }) {
         <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate ${caiu ? "text-psa-ink-soft" : "text-psa-ink"}`}>{v.dealname}</span>
       </div>
 
-      {/* Valores discriminados — destaque no LÍQUIDO (B2B); B2C mostra só o valor. */}
+      {/* Valores discriminados — destaque no LÍQUIDO quando há bruto (B2B e B2C
+          com valor_bruto); sem bruto preenchido, mostra só o valor. */}
       <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-1.5">
         {temMargem ? (
           <>
