@@ -1,6 +1,7 @@
 // ============================================================
-// Vendas do Dia — ganhos do segmento agrupados por dia (pela ENTRADA na etapa
-// de ganho). Vendas que "caíram" (saíram do ganho) ficam sinalizadas, não somem.
+// Vendas do Dia — ganhos do segmento agrupados por dia pela DATA DE FECHAMENTO
+// ATUAL do negócio (a que aparece no HubSpot). Vendas que "caíram" (saíram do
+// ganho) ficam sinalizadas, não somem.
 // ============================================================
 
 import { hsFetch, sleep, dealUrl, ownerDisplayName, type Owner } from "./hubspot";
@@ -46,10 +47,6 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const endMs = endOf(opts.to);
   const pipe = config.id === "b2c" ? "725182862" : "default";
   const wonSet = new Set(config.wonStageIds);
-  // Folga na busca: cobre o drift entre a 1ª data de fechamento e a entrada no
-  // ganho (ex.: fechou 31/08, ganho carimbado 01/09). Depois filtramos pela 1ª
-  // data de fechamento real, então a folga só amplia o conjunto de candidatos.
-  const PAD_MS = 10 * 86_400_000;
 
   // Mapa etapa → rótulo (pra mostrar onde a venda foi parar quando cai).
   const stageLabel = new Map<string, string>();
@@ -63,14 +60,15 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     "sdrfarmer_responsavel", "data_prevista_do_evento", "palestrante_principal_correta",
     "produto_de_interesse", "turma_the_best_weekend_", "turma_the_best_weekend", "turma_tbw_s",
   ];
-  // Candidatos: entraram em QUALQUER etapa de ganho numa janela com folga (OR
-  // entre as etapas de ganho). O dia real da venda sai da 1ª data de fechamento
-  // (histórico), apurada logo abaixo — a busca só delimita quem olhar.
+  // Candidatos: negócios que ENTRARAM em alguma etapa de ganho (won-stamp existe
+  // → ganhos + os que "caíram") E cuja DATA DE FECHAMENTO atual cai no período.
+  // OR entre as etapas de ganho. O dia da venda = closedate atual (ver loop).
   const filterGroups = config.wonStageIds.map((sid) => ({
     filters: [
       { propertyName: "pipeline", operator: "EQ", value: pipe },
-      { propertyName: `hs_v2_date_entered_${sid}`, operator: "GTE", value: String(startMs - PAD_MS) },
-      { propertyName: `hs_v2_date_entered_${sid}`, operator: "LTE", value: String(endMs + PAD_MS) },
+      { propertyName: `hs_v2_date_entered_${sid}`, operator: "HAS_PROPERTY" },
+      { propertyName: "closedate", operator: "GTE", value: String(startMs) },
+      { propertyName: "closedate", operator: "LTE", value: String(endMs) },
     ],
   }));
 
@@ -88,36 +86,6 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     if (after) await sleep(120);
   } while (after && rawById.size < 9800);
   const raw = [...rawById.values()];
-
-  // DATA DE FECHAMENTO que o card lista, apurada do HISTÓRICO do closedate:
-  //  - se um HUMANO editou (sourceType CRM_UI), vale a edição MANUAL mais recente
-  //    (a correção do usuário — imune a bump posterior da automação);
-  //  - senão, vale o valor ORIGINAL (mais antigo), a data em que fechou de fato.
-  // Assim os negócios com closedate corrigido na mão seguem a MESMA regra, sem
-  // lista de exceções. batch/read com histórico: máx 50 inputs por chamada.
-  const closeMs = new Map<string, number>();
-  const ids = raw.map((d) => d.id);
-  for (let i = 0; i < ids.length; i += 50) {
-    const chunk = ids.slice(i, i + 50);
-    const res = await hsFetch<{ results?: { id: string; propertiesWithHistory?: { closedate?: { value: string; timestamp: string; sourceType?: string }[] } }[] }>(
-      `/crm/v3/objects/deals/batch/read`,
-      { method: "POST", body: JSON.stringify({ propertiesWithHistory: ["closedate"], inputs: chunk.map((id) => ({ id })) }) }
-    );
-    for (const d of res.results ?? []) {
-      const hist = (d.propertiesWithHistory?.closedate ?? [])
-        .filter((h) => h.value) // ignora quando o closedate foi limpo
-        .map((h) => ({ v: h.value, t: Date.parse(h.timestamp), manual: h.sourceType === "CRM_UI" }))
-        .filter((h) => Number.isFinite(h.t));
-      if (!hist.length) continue;
-      const manual = hist.filter((h) => h.manual);
-      const chosen = manual.length
-        ? manual.reduce((a, b) => (b.t > a.t ? b : a)) // edição manual mais recente
-        : hist.reduce((a, b) => (b.t < a.t ? b : a)); // valor original (mais antigo)
-      const ms = toMs(chosen.v);
-      if (ms != null) closeMs.set(d.id, ms);
-    }
-    if (i + 50 < ids.length) await sleep(120);
-  }
 
   const name = (id?: string) => (id ? ownerDisplayName(owners.get(id)) : "");
   const clean = (v?: string) => (v && v.trim() ? v.trim() : undefined);
@@ -184,9 +152,8 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   };
 
   for (const d of raw) {
-    // Dia da venda = data de fechamento apurada (manual mais recente ou original);
-    // fallback pro closedate atual só se o histórico não vier. Filtra ao período.
-    const saleMs = closeMs.get(d.id) ?? toMs(d.properties.closedate);
+    // Dia da venda = Data de Fechamento ATUAL do negócio (a que aparece no HubSpot).
+    const saleMs = toMs(d.properties.closedate);
     if (saleMs != null && saleMs >= startMs && saleMs <= endMs) push(saleMs, d.id, d.properties);
   }
 
