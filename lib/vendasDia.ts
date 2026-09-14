@@ -17,6 +17,22 @@ const toMs = (v?: string): number | null => {
   const t = Date.parse(v);
   return Number.isNaN(t) ? null : t;
 };
+// valor_bruto (B2C) é TEXTO livre, preenchido em formatos variados: "5000",
+// "R$ 22.000", "R$ 1.347,30". Parse robusto de moeda BR: vírgula = decimal,
+// ponto = milhar (quando seguido de 3 dígitos). Retorna 0 se não der número.
+// ponytail: assume formatação BR; um "4500.5" (ponto decimal sem vírgula) fica
+// como 4500.5 — não vira 45005, pois só tiro ponto de milhar (3 dígitos).
+const parseBRL = (v?: string): number => {
+  if (!v) return 0;
+  let s = v.replace(/[^\d.,]/g, ""); // tira "R$", espaços, etc.
+  if (s.includes(",")) {
+    s = s.replace(/\./g, "").replace(",", "."); // vírgula decimal → ponto milhar fora
+  } else {
+    s = s.replace(/\.(?=\d{3}(\D|$))/g, ""); // ponto de milhar (3 dígitos) → remove
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
 const dayKey = (ms: number): string => {
   const d = new Date(ms - BR_OFFSET_MS);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
@@ -114,7 +130,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     // "valor_bruto". Líquido = "Valor" (amount) nos dois. Quando o bruto não vem
     // preenchido, bruto = amount → sem distinção (mostra só um valor).
     const brutoGanho = seg === "b2c"
-      ? Number(p.valor_bruto) || 0
+      ? parseBRL(p.valor_bruto) // texto BR ("R$ 22.000")
       : Number(p.valor_total_do_contrato__bruto___ganho_) || 0;
     const bruto = brutoGanho > 0 ? brutoGanho : amount;
     const liquido = amount;
