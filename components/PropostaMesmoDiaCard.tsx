@@ -44,7 +44,8 @@ export default function PropostaMesmoDiaCard({ data }: { data: PropostaMesmoDiaD
         </div>
         <p className="text-[11px] text-psa-ink-soft mt-1">
           Propostas enviadas no mesmo dia — <b className="text-psa-ink-soft">sem reunião</b> conta no dia da qualificação;{" "}
-          <b className="text-psa-ink-soft">com reunião</b>, no dia da reunião. Por closer. (1ª proposta anexada)
+          <b className="text-psa-ink-soft">com reunião</b>, no dia da reunião. Por closer. (1ª proposta anexada) ·{" "}
+          <span className="text-psa-muted">clique no número pra ver os negócios</span>
         </p>
         <div className="mt-1.5 text-[11px] text-psa-muted">
           Total: <b className="text-psa-ink tabular-nums">{num(data.totalSem)}</b> sem reunião ·{" "}
@@ -66,7 +67,7 @@ export default function PropostaMesmoDiaCard({ data }: { data: PropostaMesmoDiaD
         {data.closers.map((c) => (
           <div key={c.ownerId} className="rounded-lg border border-psa-line overflow-hidden">
             <div className="flex items-center gap-3 px-3 py-2">
-              <span className="flex-1 text-[13px] font-medium text-psa-ink truncate" title={c.nome}>{c.nome}</span>
+              <span className="flex-1 min-w-0 text-[13px] font-medium text-psa-ink truncate" title={c.nome}>{c.nome}</span>
               <button type="button" disabled={c.sem === 0} onClick={() => toggle(c.ownerId + ":sem")} className={numCls}>
                 {num(c.sem)}
               </button>
