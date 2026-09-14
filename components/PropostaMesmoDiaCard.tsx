@@ -8,7 +8,7 @@ const num = (n: number) => n.toLocaleString("pt-BR");
 function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
   return (
     <div className="border-t border-psa-line bg-psa-canvas/40 px-3 py-2">
-      <div className="text-[10px] font-bold uppercase tracking-wide text-psa-muted mb-1">{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wide text-psa-ink-soft mb-1">{label}</div>
       <ul className="space-y-0.5">
         {deals.map((d, i) => (
           <li key={i}>
