@@ -17,6 +17,7 @@ import {
 } from "@/lib/hubspot";
 import { fetchGanhosAtributos, fetchLeadTimeGanhos } from "@/lib/b2cCards";
 import { fetchVendasDoDia } from "@/lib/vendasDia";
+import { fetchPropostaMesmoDia } from "@/lib/propostaMesmoDia";
 import {
   closeTimeMatrix,
   conversionFromCounts,
@@ -175,6 +176,22 @@ export const getLeadTimeGanhosCached = (config: SegmentConfig, origemId: string,
     },
     ["lead-time-ganhos-v1", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
+  )();
+
+// "Proposta no mesmo dia" (B2B): por closer, propostas enviadas no mesmo dia da
+// qualificação (sem reunião) / da reunião (com reunião). Segue o filtro de tempo.
+export const getPropostaMesmoDiaCached = (config: SegmentConfig, origemId: string, owner: string | undefined, from?: string, to?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["propostaMesmoDia"]; warning?: string }> => {
+      try {
+        const owners = await fetchAllOwners();
+        return { data: await fetchPropostaMesmoDia(config, { from, to, owner }, owners, nomeMap(config)) };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar proposta no mesmo dia" };
+      }
+    },
+    ["proposta-mesmo-dia-v1", config.id, origemId, owner || "all", from || "cur", to || "cur"],
+    { revalidate: 600 }
   )();
 
 // "Vendas do Dia": ganhos do segmento agrupados por dia.

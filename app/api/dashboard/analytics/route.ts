@@ -12,6 +12,7 @@ import {
   getGanhosAtributosCached,
   getLeadTimeGanhosCached,
   getVendasDoDiaCached,
+  getPropostaMesmoDiaCached,
 } from "@/lib/dashboardCards";
 
 export const runtime = "nodejs";
@@ -31,6 +32,7 @@ export type AnalyticsData = Pick<
   | "ganhosAtributos"
   | "leadTimeGanhos"
   | "vendasDoDia"
+  | "propostaMesmoDia"
 >;
 
 export async function GET(req: NextRequest) {
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [vendasDiaRaw, convRaw, propMeetRaw, motivosRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw] = await Promise.all([
+    const [vendasDiaRaw, convRaw, propMeetRaw, motivosRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw, propMesmoDiaRaw] = await Promise.all([
       getVendasDoDiaCached(config, from, to),
       getConversionCached(config, origemId, origem, owner).catch(
         (e): { data: ConversionData | undefined; warning?: string } => ({ data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" })
@@ -71,6 +73,7 @@ export async function GET(req: NextRequest) {
       config.hasTempoProposta ? getTempoPropostaCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasGanhoCards ? getGanhosAtributosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasGanhoCards ? getLeadTimeGanhosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
+      config.hasPropostaMeeting ? getPropostaMesmoDiaCached(config, origemId, owner, from, to) : Promise.resolve(null),
     ]);
 
     const data: AnalyticsData = {
@@ -82,6 +85,7 @@ export async function GET(req: NextRequest) {
       ganhosAtributos: ganhosAtribRaw?.data,
       leadTimeGanhos: leadTimeRaw?.data,
       vendasDoDia: vendasDiaRaw?.data,
+      propostaMesmoDia: propMesmoDiaRaw?.data,
     };
 
     return NextResponse.json(data);

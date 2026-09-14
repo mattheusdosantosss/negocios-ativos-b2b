@@ -252,6 +252,8 @@ export type DashboardData = {
   conversion?: ConversionData;
   /** B2B: dos negócios com proposta anexada, quantos tiveram reunião. */
   propostaMeeting?: PropostaMeetingData;
+  /** B2B: propostas enviadas no mesmo dia (qualificação sem reunião / reunião), por closer. */
+  propostaMesmoDia?: import("./propostaMesmoDia").PropostaMesmoDiaData;
   /** B2C: distribuição dos motivos de perda (geral + por mês de fechamento). */
   motivos?: MotivosData;
   /** B2C: reuniões por perfil (agendada/realizada/cancelada/no-show). */

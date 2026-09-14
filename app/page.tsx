@@ -8,6 +8,7 @@ import CloseTimeChart from "@/components/CloseTimeChart";
 import VendasDoDiaCard from "@/components/VendasDoDiaCard";
 import ConversionCard from "@/components/ConversionCard";
 import PropostaMeetingCard from "@/components/PropostaMeetingCard";
+import PropostaMesmoDiaCard from "@/components/PropostaMesmoDiaCard";
 import ReunioesPerfilCard from "@/components/ReunioesPerfilCard";
 import TempoPropostaCard from "@/components/TempoPropostaCard";
 import LeadTimeGanhosCard from "@/components/LeadTimeGanhosCard";
@@ -633,6 +634,12 @@ export default function Page() {
         >
           <PropostaMeetingCard data={data.propostaMeeting} />
         </SectionCard>
+      )}
+
+      {/* Proposta no mesmo dia (B2B) — por closer, propostas enviadas no dia da
+          qualificação (sem reunião) / da reunião (com reunião). */}
+      {data && data.propostaMesmoDia && (data.propostaMesmoDia.totalSem + data.propostaMesmoDia.totalCom) > 0 && (
+        <PropostaMesmoDiaCard data={data.propostaMesmoDia} />
       )}
 
       {/* Tempo até a proposta (B2B) — dias da qualificação até entrar em Proposta */}
