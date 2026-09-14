@@ -385,7 +385,7 @@ const MEETING_OUTCOME_DONE = "COMPLETED";
 
 /** Associações batch (v4) de um tipo de objeto para outro. Lotes de 100, no
  *  máx 5 em paralelo (segura o limite por segundo do HubSpot). */
-async function fetchAssocIds(fromType: string, toType: string, ids: string[]): Promise<Map<string, string[]>> {
+export async function fetchAssocIds(fromType: string, toType: string, ids: string[]): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>();
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));

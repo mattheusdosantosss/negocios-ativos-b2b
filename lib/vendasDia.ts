@@ -4,7 +4,7 @@
 // ganho) ficam sinalizadas, não somem.
 // ============================================================
 
-import { hsFetch, sleep, dealUrl, ownerDisplayName, type Owner } from "./hubspot";
+import { hsFetch, sleep, dealUrl, ownerDisplayName, fetchAssocIds, type Owner } from "./hubspot";
 import type { SegmentConfig } from "./segments";
 
 const BR_OFFSET_MS = 3 * 60 * 60 * 1000; // GMT-3
@@ -73,7 +73,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const props = [
     "dealname", "amount", "valor_total_do_contrato__bruto___ganho_", "valor_bruto",
     "hubspot_owner_id", "closedate", "dealstage",
-    "sdrfarmer_responsavel", "data_prevista_do_evento", "palestrante_principal_correta",
+    "sdrfarmer_responsavel", "data_prevista_do_evento",
     "produto_de_interesse", "turma_the_best_weekend_", "turma_the_best_weekend", "turma_tbw_s",
   ];
   // Candidatos: negócios que ENTRARAM em alguma etapa de ganho (won-stamp existe
@@ -107,21 +107,31 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const clean = (v?: string) => (v && v.trim() ? v.trim() : undefined);
   const seg: "b2b" | "b2c" = config.id === "b2c" ? "b2c" : "b2b";
 
-  // Palestrante vendido (só B2B): mapeia o valor do enum (slug) pro nome legível.
-  // Alguns labels vêm como slug no HubSpot ("rachel-maia") — prettifica pra "Rachel Maia".
-  const prettyPal = (raw: string): string => {
-    const label = raw.replace(/\s+/g, " ").trim();
-    if (!label || label.includes(" ") || !label.includes("-")) return label; // já legível
-    const parts = label.split("-").filter(Boolean);
-    if (parts.length > 1 && /\d/.test(parts[parts.length - 1])) parts.pop(); // dropa sufixo id/hash
-    return parts.map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
-  };
-  const palMap = new Map<string, string>();
-  if (seg === "b2b") {
-    const pj = await hsFetch<{ options?: { value: string; label: string; hidden?: boolean }[] }>(
-      "/crm/v3/properties/deals/palestrante_principal_correta"
-    );
-    for (const o of pj.options ?? []) if (!o.hidden) palMap.set(o.value, prettyPal((o.label || "").trim()));
+  // Palestrante vendido (só B2B): vem dos ITENS DE LINHA do negócio (o `name` do
+  // item = o nome do palestrante; pode haver mais de um). A propriedade
+  // palestrante_principal_correta era corrompida por integração — trocada pelo
+  // item de linha. 2 fases em lote: associação deal→line_items + leitura dos names.
+  const palByDeal = new Map<string, string>();
+  if (seg === "b2b" && raw.length) {
+    const assoc = await fetchAssocIds("deals", "line_items", raw.map((d) => d.id));
+    const allLi = [...new Set([...assoc.values()].flat())];
+    const liName = new Map<string, string>();
+    for (let i = 0; i < allLi.length; i += 100) {
+      const chunk = allLi.slice(i, i + 100);
+      const res = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[] }>(
+        `/crm/v3/objects/line_items/batch/read`,
+        { method: "POST", body: JSON.stringify({ properties: ["name", "hs_product_name"], inputs: chunk.map((id) => ({ id })) }) }
+      );
+      for (const li of res.results ?? []) {
+        const nm = (li.properties.name || li.properties.hs_product_name || "").trim();
+        if (nm) liName.set(li.id, nm);
+      }
+      if (i + 100 < allLi.length) await sleep(120);
+    }
+    for (const [dealId, liIds] of assoc) {
+      const nomes = liIds.map((id) => liName.get(id)).filter(Boolean) as string[];
+      if (nomes.length) palByDeal.set(dealId, nomes.join(", "));
+    }
   }
 
   const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; bruto: number; liquido: number } => {
@@ -147,7 +157,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
         url: dealUrl(id),
         sdrFarmer: clean(name(p.sdrfarmer_responsavel)),
         evento: clean(p.data_prevista_do_evento),
-        palestrante: seg === "b2b" ? (palMap.get((p.palestrante_principal_correta || "").trim()) || undefined) : undefined,
+        palestrante: seg === "b2b" ? (palByDeal.get(id) || undefined) : undefined,
         produto: clean(p.produto_de_interesse),
         turma: clean(p.turma_the_best_weekend_) || clean(p.turma_the_best_weekend) || clean(p.turma_tbw_s),
       },
