@@ -5,18 +5,36 @@ import type { PropostaMesmoDiaData, PMDDeal } from "@/lib/propostaMesmoDia";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 
+// Razão "enviou / tinha": X em destaque (escuro), /Y esmaecido.
+function Ratio({ comp, elig }: { comp: number; elig: number }) {
+  if (elig === 0) return <span className="text-psa-muted">—</span>;
+  return (
+    <span className="tabular-nums">
+      <b className={comp > 0 ? "text-psa-ink" : "text-psa-muted"}>{num(comp)}</b>
+      <span className="text-psa-muted">/{num(elig)}</span>
+    </span>
+  );
+}
+
 function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
   return (
     <div className="border-t border-psa-line bg-psa-surface px-3 py-2">
       <div className="text-[10px] font-bold uppercase tracking-wide text-psa-blue mb-1">{label}</div>
       <ul className="space-y-0.5">
         {deals.map((d, i) => (
-          <li key={i}>
+          <li key={i} className="flex items-center gap-2">
+            <span
+              className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                d.ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+              }`}
+            >
+              {d.ok ? "no dia" : "fora"}
+            </span>
             <a
               href={d.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[12px] text-psa-ink-soft hover:text-psa-blue hover:underline truncate block"
+              className="text-[12px] text-psa-ink-soft hover:text-psa-blue hover:underline truncate"
               title={d.dealname}
             >
               {d.dealname}
@@ -30,7 +48,7 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
 
 export default function PropostaMesmoDiaCard({ data }: { data: PropostaMesmoDiaData }) {
   const [open, setOpen] = useState<string | null>(null); // ownerId aberto
-  const numCls = "w-24 sm:w-28 text-right tabular-nums text-[13px] font-semibold";
+  const ratioCls = "w-24 sm:w-28 text-right text-[13px] font-semibold";
 
   return (
     <section className="rounded-2xl border border-psa-line bg-psa-surface shadow-card overflow-hidden">
@@ -40,13 +58,14 @@ export default function PropostaMesmoDiaCard({ data }: { data: PropostaMesmoDiaD
           <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Proposta no mesmo dia</h2>
         </div>
         <p className="text-[11px] text-psa-ink-soft mt-1">
-          Propostas enviadas no mesmo dia — <b className="text-psa-ink-soft">sem reunião</b> conta no dia da qualificação;{" "}
-          <b className="text-psa-ink-soft">com reunião</b>, no dia da reunião. Por closer. (1ª proposta anexada) ·{" "}
-          <span className="text-psa-muted">clique na linha do closer pra ver os negócios</span>
+          Gatilho de agilidade — <b className="text-psa-ink-soft">enviou / tinha</b>. <b className="text-psa-ink-soft">Sem reunião</b>: das
+          qualificações do período sem reunião, quantas tiveram proposta no dia da qualificação. <b className="text-psa-ink-soft">Com reunião</b>:
+          das reuniões do período, quantas tiveram proposta no dia da reunião. Por closer. (1ª proposta anexada) ·{" "}
+          <span className="text-psa-muted">clique na linha pra ver os negócios</span>
         </p>
         <div className="mt-1.5 text-[11px] text-psa-muted">
-          Total: <b className="text-psa-ink tabular-nums">{num(data.totalSem)}</b> sem reunião ·{" "}
-          <b className="text-psa-ink tabular-nums">{num(data.totalCom)}</b> com reunião
+          Total: <b className="text-psa-ink tabular-nums">{num(data.totalSemComp)}/{num(data.totalSemElig)}</b> sem reunião ·{" "}
+          <b className="text-psa-ink tabular-nums">{num(data.totalComComp)}/{num(data.totalComElig)}</b> com reunião
         </div>
       </div>
 
@@ -58,12 +77,12 @@ export default function PropostaMesmoDiaCard({ data }: { data: PropostaMesmoDiaD
         </div>
 
         {data.closers.length === 0 && (
-          <div className="py-6 text-center text-sm text-psa-ink-soft">Nenhuma proposta no mesmo dia no período.</div>
+          <div className="py-6 text-center text-sm text-psa-ink-soft">Nenhuma qualificação ou reunião no período.</div>
         )}
 
         {data.closers.map((c) => {
           const aberto = open === c.ownerId;
-          const total = c.sem + c.com;
+          const total = c.semElig + c.comElig;
           return (
             <div key={c.ownerId} className="rounded-lg border border-psa-line overflow-hidden">
               <button
@@ -77,13 +96,13 @@ export default function PropostaMesmoDiaCard({ data }: { data: PropostaMesmoDiaD
                   {total > 0 && <span className={`text-psa-blue text-[10px] transition-transform ${aberto ? "" : "-rotate-90"}`}>▼</span>}
                   <span className="truncate">{c.nome}</span>
                 </span>
-                <span className={`${numCls} ${c.sem ? "text-psa-ink" : "text-psa-muted"}`}>{num(c.sem)}</span>
-                <span className={`${numCls} ${c.com ? "text-psa-ink" : "text-psa-muted"}`}>{num(c.com)}</span>
+                <span className={ratioCls}><Ratio comp={c.semComp} elig={c.semElig} /></span>
+                <span className={ratioCls}><Ratio comp={c.comComp} elig={c.comElig} /></span>
               </button>
               {aberto && (
                 <div>
-                  {c.sem > 0 && <DealList deals={c.dealsSem} label="Sem reunião · proposta no dia da qualificação" />}
-                  {c.com > 0 && <DealList deals={c.dealsCom} label="Com reunião · proposta no dia da reunião" />}
+                  {c.semElig > 0 && <DealList deals={c.dealsSem} label="Sem reunião · proposta no dia da qualificação" />}
+                  {c.comElig > 0 && <DealList deals={c.dealsCom} label="Com reunião · proposta no dia da reunião" />}
                 </div>
               )}
             </div>

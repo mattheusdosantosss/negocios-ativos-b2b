@@ -638,7 +638,7 @@ export default function Page() {
 
       {/* Proposta no mesmo dia (B2B) — por closer, propostas enviadas no dia da
           qualificação (sem reunião) / da reunião (com reunião). */}
-      {data && data.propostaMesmoDia && (data.propostaMesmoDia.totalSem + data.propostaMesmoDia.totalCom) > 0 && (
+      {data && data.propostaMesmoDia && (data.propostaMesmoDia.totalSemElig + data.propostaMesmoDia.totalComElig) > 0 && (
         <PropostaMesmoDiaCard data={data.propostaMesmoDia} />
       )}
 
