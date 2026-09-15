@@ -138,6 +138,9 @@ export default function Page() {
     // temperatura, closers, meta), os cards pesados entram no merge quando chegam.
     const coreFetch = fetch(`/api/dashboard?${q}`, opts);
     const analyticsFetch = fetch(`/api/dashboard/analytics?${q}`, opts);
+    // 3ª busca: card "Proposta no mesmo dia" tem endpoint PRÓPRIO (é o mais
+    // pesado) pra não travar os outros cards analíticos.
+    const propMesmoFetch = fetch(`/api/dashboard/proposta-mesmo-dia?${q}`, opts);
     try {
       const res = await coreFetch;
       const text = await res.text();
@@ -154,16 +157,16 @@ export default function Page() {
       setLoading(false);
       cacheRef.current.set(q, { data: json as DashboardData, at: Date.now() });
 
-      // 2ª fase: cards analíticos (não-fatal — se falhar, o núcleo segue).
-      analyticsFetch
-        .then((r) => (r.ok ? r.json() : null))
-        .then((a) => {
-          if (!a || a.error || queryStringRef.current !== q) return;
-          const merged = { ...(json as DashboardData), ...a };
-          setData(merged);
-          cacheRef.current.set(q, { data: merged, at: Date.now() });
-        })
-        .catch(() => {});
+      // Fases seguintes (não-fatais): acumulam no `merged` sem se atropelar.
+      let merged: DashboardData = json as DashboardData;
+      const applyPhase = (part: (Partial<DashboardData> & { error?: string }) | null) => {
+        if (!part || part.error || queryStringRef.current !== q) return;
+        merged = { ...merged, ...part };
+        setData(merged);
+        cacheRef.current.set(q, { data: merged, at: Date.now() });
+      };
+      analyticsFetch.then((r) => (r.ok ? r.json() : null)).then(applyPhase).catch(() => {});
+      propMesmoFetch.then((r) => (r.ok ? r.json() : null)).then(applyPhase).catch(() => {});
     } catch (e) {
       if (queryStringRef.current !== q) return;
       setError(e instanceof Error ? e.message : "erro desconhecido");

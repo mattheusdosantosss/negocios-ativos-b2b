@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     "/api/dashboard?segment=b2c",
     "/api/dashboard/analytics?segment=b2b",
     "/api/dashboard/analytics?segment=b2c",
+    "/api/dashboard/proposta-mesmo-dia?segment=b2b",
   ];
 
   const started = Date.now();
