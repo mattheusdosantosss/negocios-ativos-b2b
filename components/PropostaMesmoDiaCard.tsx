@@ -22,13 +22,15 @@ function Ratio({ comp, elig }: { comp: number; elig: number }) {
   );
 }
 
-const STATUS = {
-  no_dia: { label: "no dia", badge: "bg-emerald-100 text-emerald-700", row: "bg-emerald-50/70", prop: "text-emerald-700" },
-  fora: { label: "fora", badge: "bg-red-100 text-red-700", row: "", prop: "text-psa-ink-soft" },
-  aguardando: { label: "aguardando", badge: "bg-psa-blue-soft text-psa-blue", row: "bg-psa-blue-soft/40", prop: "text-psa-ink-soft" },
-} as const;
+// Rótulo/cores por status. "aguardando" usa rótulo curto conforme o bucket
+// (futura = reunião futura; hoje = qualificado hoje) pra caber na largura fixa.
+function badgeFor(status: PMDDeal["status"], bucket: "sem" | "com") {
+  if (status === "no_dia") return { label: "no dia", badge: "bg-emerald-100 text-emerald-700", row: "bg-emerald-50/70", prop: "text-emerald-700" };
+  if (status === "fora") return { label: "fora", badge: "bg-red-100 text-red-700", row: "", prop: "text-psa-ink-soft" };
+  return { label: bucket === "com" ? "futura" : "hoje", badge: "bg-psa-blue-soft text-psa-blue", row: "bg-psa-blue-soft/40", prop: "text-psa-ink-soft" };
+}
 
-function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
+function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; bucket: "sem" | "com" }) {
   const okN = deals.filter((d) => d.status === "no_dia").length;
   const aguN = deals.filter((d) => d.status === "aguardando").length;
   const testaveis = deals.length - aguN;
@@ -38,20 +40,21 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
         <span className="text-[10px] font-bold uppercase tracking-wide text-psa-blue">{label}</span>
         <span className="text-[10px] text-psa-muted tabular-nums">
           <b className="text-emerald-700">{okN}</b> no dia / {testaveis}
-          {aguN > 0 && <span className="text-psa-blue"> · {aguN} aguardando</span>}
+          {aguN > 0 && <span className="text-psa-blue"> · {aguN} {bucket === "com" ? "futura(s)" : "hoje"}</span>}
         </span>
       </div>
       <div className="flex items-center gap-2 px-1.5 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line">
-        <span className="flex-1 min-w-0">Status · Negócio</span>
+        <span className="w-14 shrink-0" />
+        <span className="flex-1 min-w-0">Negócio</span>
         <span className="w-14 text-right shrink-0">Criado</span>
         <span className="w-14 text-right shrink-0">1ª prop.</span>
       </div>
       <div className="divide-y divide-psa-line/60">
         {deals.map((d, i) => {
-          const st = STATUS[d.status];
+          const st = badgeFor(d.status, bucket);
           return (
             <div key={i} className={`flex items-center gap-2 px-1.5 py-1 ${st.row}`}>
-              <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded whitespace-nowrap ${st.badge}`}>
+              <span className={`w-14 shrink-0 text-center text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded ${st.badge}`}>
                 {st.label}
               </span>
               <a
@@ -165,8 +168,8 @@ export default function PropostaMesmoDiaCard({ segment }: { segment: "b2b" | "b2
                   </button>
                   {aberto && (
                     <div>
-                      {c.dealsSem.length > 0 && <DealList deals={c.dealsSem} label="Sem reunião · proposta no dia da qualificação" />}
-                      {c.dealsCom.length > 0 && <DealList deals={c.dealsCom} label="Com reunião · proposta no dia da reunião" />}
+                      {c.dealsSem.length > 0 && <DealList deals={c.dealsSem} label="Sem reunião · proposta no dia da qualificação" bucket="sem" />}
+                      {c.dealsCom.length > 0 && <DealList deals={c.dealsCom} label="Com reunião · proposta no dia da reunião" bucket="com" />}
                     </div>
                   )}
                 </div>

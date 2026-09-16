@@ -125,7 +125,6 @@ export async function fetchPropostaMesmoDia(
 
   // 4) Classifica por closer.
   const now = Date.now();
-  const todayBR = dayKey(now);
   const nomeOf = (oid: string) => nomeMap.get(oid) || ownerDisplayName(owners.get(oid)) || "Sem closer";
   const byCloser = new Map<string, PMDCloser>();
   const get = (oid: string) => {
@@ -153,12 +152,10 @@ export async function fetchPropostaMesmoDia(
         c.comAgu += 1; c.dealsCom.push(dl("aguardando"));
       }
     } else {
-      // SEM REUNIÃO. Janela = dia da qualificação. Se qualificou HOJE e ainda não
-      // mandou, a janela não fechou → aguardando (não é falha ainda).
+      // SEM REUNIÃO. Janela = dia da qualificação. no_dia se a proposta saiu no
+      // mesmo dia; senão fora.
       const ok = !!propDay && !!qualDay && propDay === qualDay;
-      if (ok) { c.semElig += 1; c.semComp += 1; c.dealsSem.push(dl("no_dia")); }
-      else if (qualDay && qualDay === todayBR) { c.semAgu += 1; c.dealsSem.push(dl("aguardando")); }
-      else { c.semElig += 1; c.dealsSem.push(dl("fora")); }
+      c.semElig += 1; if (ok) c.semComp += 1; c.dealsSem.push(dl(ok ? "no_dia" : "fora"));
     }
   }
 
