@@ -138,9 +138,6 @@ export default function Page() {
     // temperatura, closers, meta), os cards pesados entram no merge quando chegam.
     const coreFetch = fetch(`/api/dashboard?${q}`, opts);
     const analyticsFetch = fetch(`/api/dashboard/analytics?${q}`, opts);
-    // 3ª busca: card "Proposta no mesmo dia" tem endpoint PRÓPRIO (é o mais
-    // pesado) pra não travar os outros cards analíticos.
-    const propMesmoFetch = fetch(`/api/dashboard/proposta-mesmo-dia?${q}`, opts);
     try {
       const res = await coreFetch;
       const text = await res.text();
@@ -166,7 +163,6 @@ export default function Page() {
         cacheRef.current.set(q, { data: merged, at: Date.now() });
       };
       analyticsFetch.then((r) => (r.ok ? r.json() : null)).then(applyPhase).catch(() => {});
-      propMesmoFetch.then((r) => (r.ok ? r.json() : null)).then(applyPhase).catch(() => {});
     } catch (e) {
       if (queryStringRef.current !== q) return;
       setError(e instanceof Error ? e.message : "erro desconhecido");
@@ -702,11 +698,9 @@ export default function Page() {
         </SectionCard>
       )}
 
-      {/* Proposta no mesmo dia (B2B) — por closer, propostas enviadas no dia da
-          qualificação (sem reunião) / da reunião (com reunião). */}
-      {data && data.propostaMesmoDia && (data.propostaMesmoDia.totalSemElig + data.propostaMesmoDia.totalComElig) > 0 && (
-        <PropostaMesmoDiaCard data={data.propostaMesmoDia} />
-      )}
+      {/* Proposta no mesmo dia (B2B) — filtro de tempo PRÓPRIO; o card busca os
+          próprios dados. */}
+      {data && cfg.hasPropostaMeeting && <PropostaMesmoDiaCard segment={segment} />}
 
       {/* Negócios ativos por perfil (mesma lógica da temperatura, dimensão Perfil).
           Só no B2C — no B2B o card não é apresentado. */}
