@@ -11,6 +11,29 @@ const fmtDate = (ms: number | null, utc = false) =>
     ? "—"
     : new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: utc ? "UTC" : "America/Sao_Paulo" });
 
+// Tile de destaque do total por bucket: razão grande + % + barra.
+function StatTile({ label, comp, elig, agu }: { label: string; comp: number; elig: number; agu: number }) {
+  const pct = elig > 0 ? Math.round((comp / elig) * 100) : 0;
+  return (
+    <div className="rounded-xl border border-psa-line bg-psa-canvas/50 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">{label}</span>
+        {agu > 0 && <span className="text-[10px] font-medium text-psa-blue tabular-nums">{agu} {label.includes("Com") ? "futura(s)" : "aguard."}</span>}
+      </div>
+      <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+        <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums leading-none">
+          {num(comp)}<span className="text-psa-muted text-xl font-bold">/{num(elig)}</span>
+        </span>
+        <span className="text-sm font-bold text-emerald-700 tabular-nums">{pct}%</span>
+        <span className="text-[10px] text-psa-muted">no dia</span>
+      </div>
+      <div className="mt-2 h-1.5 rounded-full bg-psa-line overflow-hidden">
+        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 // Razão "enviou / tinha": X em destaque (escuro), /Y esmaecido.
 function Ratio({ comp, elig }: { comp: number; elig: number }) {
   if (elig === 0) return <span className="text-psa-muted">—</span>;
@@ -128,9 +151,9 @@ export default function PropostaMesmoDiaCard({ segment }: { segment: "b2b" | "b2
           </select>
         </div>
         {data && (
-          <div className="mt-1.5 text-[11px] text-psa-muted">
-            Total: <b className="text-psa-ink tabular-nums">{num(data.totalSemComp)}/{num(data.totalSemElig)}</b> sem reunião ·{" "}
-            <b className="text-psa-ink tabular-nums">{num(data.totalComComp)}/{num(data.totalComElig)}</b> com reunião
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <StatTile label="Sem reunião" comp={data.totalSemComp} elig={data.totalSemElig} agu={data.totalSemAgu} />
+            <StatTile label="Com reunião" comp={data.totalComComp} elig={data.totalComElig} agu={data.totalComAgu} />
           </div>
         )}
       </div>
