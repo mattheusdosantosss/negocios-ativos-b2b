@@ -639,10 +639,36 @@ export default function Page() {
         </SectionCard>
       )}
 
-      {/* Proposta no mesmo dia (B2B) — por closer, propostas enviadas no dia da
-          qualificação (sem reunião) / da reunião (com reunião). */}
-      {data && data.propostaMesmoDia && (data.propostaMesmoDia.totalSemElig + data.propostaMesmoDia.totalComElig) > 0 && (
-        <PropostaMesmoDiaCard data={data.propostaMesmoDia} />
+      {/* Tarefas por etapa do funil — situação da próxima tarefa aberta dos
+          negócios ativos (mesmo componente de barras da temperatura). */}
+      {data && data.tasks && data.tasks.total > 0 && (
+        <SectionCard
+          title="Tarefas por etapa do funil"
+          subtitle={
+            <>
+              {num(data.tasks.total)} ativos ·{" "}
+              <b className="text-psa-ink">{num(data.tasks.totals.atrasada)}</b> com tarefa atrasada ·{" "}
+              <b className="text-psa-ink">{num(data.tasks.totals.sem_tarefa)}</b> sem tarefa
+            </>
+          }
+        >
+          <TemperatureStacked
+            stages={data.tasks.stages}
+            matrix={data.tasks.matrix}
+            categories={TASK_CATEGORIES}
+            styleMap={TASK_STYLE}
+            rightStat={(stageId) => {
+              const r = data.tasks!.matrix[stageId] ?? {};
+              return (
+                <>
+                  <b className="text-psa-ink">{num(r.atrasada ?? 0)}</b> atrasada{(r.atrasada ?? 0) === 1 ? "" : "s"} ·{" "}
+                  <b className="text-psa-ink">{num(r.sem_tarefa ?? 0)}</b> sem tarefa
+                </>
+              );
+            }}
+            onOpen={(stageId, catId) => setModal({ mode: "task-agg", stageId, catId })}
+          />
+        </SectionCard>
       )}
 
       {/* Tempo até a proposta (B2B) — dias da qualificação até entrar em Proposta */}
@@ -676,36 +702,10 @@ export default function Page() {
         </SectionCard>
       )}
 
-      {/* Tarefas por etapa do funil — situação da próxima tarefa aberta dos
-          negócios ativos (mesmo componente de barras da temperatura). */}
-      {data && data.tasks && data.tasks.total > 0 && (
-        <SectionCard
-          title="Tarefas por etapa do funil"
-          subtitle={
-            <>
-              {num(data.tasks.total)} ativos ·{" "}
-              <b className="text-psa-ink">{num(data.tasks.totals.atrasada)}</b> com tarefa atrasada ·{" "}
-              <b className="text-psa-ink">{num(data.tasks.totals.sem_tarefa)}</b> sem tarefa
-            </>
-          }
-        >
-          <TemperatureStacked
-            stages={data.tasks.stages}
-            matrix={data.tasks.matrix}
-            categories={TASK_CATEGORIES}
-            styleMap={TASK_STYLE}
-            rightStat={(stageId) => {
-              const r = data.tasks!.matrix[stageId] ?? {};
-              return (
-                <>
-                  <b className="text-psa-ink">{num(r.atrasada ?? 0)}</b> atrasada{(r.atrasada ?? 0) === 1 ? "" : "s"} ·{" "}
-                  <b className="text-psa-ink">{num(r.sem_tarefa ?? 0)}</b> sem tarefa
-                </>
-              );
-            }}
-            onOpen={(stageId, catId) => setModal({ mode: "task-agg", stageId, catId })}
-          />
-        </SectionCard>
+      {/* Proposta no mesmo dia (B2B) — por closer, propostas enviadas no dia da
+          qualificação (sem reunião) / da reunião (com reunião). */}
+      {data && data.propostaMesmoDia && (data.propostaMesmoDia.totalSemElig + data.propostaMesmoDia.totalComElig) > 0 && (
+        <PropostaMesmoDiaCard data={data.propostaMesmoDia} />
       )}
 
       {/* Negócios ativos por perfil (mesma lógica da temperatura, dimensão Perfil).
