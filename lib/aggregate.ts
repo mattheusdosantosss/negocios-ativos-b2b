@@ -334,8 +334,8 @@ const TASK_CAT_IDS = TASK_CATEGORIES.map((c) => c.id);
 /** Classifica um negócio pela data (ms) da próxima tarefa aberta (ou ausência). */
 function taskCategory(now: number, dueMs?: number): string {
   if (dueMs == null || !Number.isFinite(dueMs)) return "sem_tarefa";
-  if (dueMs < now - 86_400_000) return "atrasada"; // vencida há mais de 24h
-  if (dueMs <= now + 86_400_000) return "prox24"; // janela de ±24h (inclui vencida < 24h)
+  if (dueMs < now) return "atrasada"; // vencida (qualquer atraso, não só >24h)
+  if (dueMs <= now + 86_400_000) return "prox24"; // vence nas próximas 24h
   return "mais24";
 }
 
