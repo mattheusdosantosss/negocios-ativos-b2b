@@ -42,8 +42,7 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
         </span>
       </div>
       <div className="flex items-center gap-2 px-1.5 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line">
-        <span className="w-11 shrink-0" />
-        <span className="flex-1 min-w-0">Negócio</span>
+        <span className="flex-1 min-w-0">Status · Negócio</span>
         <span className="w-14 text-right shrink-0">Criado</span>
         <span className="w-14 text-right shrink-0">1ª prop.</span>
       </div>
@@ -52,7 +51,7 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
           const st = STATUS[d.status];
           return (
             <div key={i} className={`flex items-center gap-2 px-1.5 py-1 ${st.row}`}>
-              <span className={`w-11 shrink-0 text-center text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded ${st.badge}`}>
+              <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded whitespace-nowrap ${st.badge}`}>
                 {st.label}
               </span>
               <a
