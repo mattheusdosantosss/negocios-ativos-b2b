@@ -22,14 +22,23 @@ function Ratio({ comp, elig }: { comp: number; elig: number }) {
   );
 }
 
+const STATUS = {
+  no_dia: { label: "no dia", badge: "bg-emerald-100 text-emerald-700", row: "bg-emerald-50/70", prop: "text-emerald-700" },
+  fora: { label: "fora", badge: "bg-red-100 text-red-700", row: "", prop: "text-psa-ink-soft" },
+  aguardando: { label: "aguardando", badge: "bg-psa-blue-soft text-psa-blue", row: "bg-psa-blue-soft/40", prop: "text-psa-ink-soft" },
+} as const;
+
 function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
-  const okN = deals.filter((d) => d.ok).length;
+  const okN = deals.filter((d) => d.status === "no_dia").length;
+  const aguN = deals.filter((d) => d.status === "aguardando").length;
+  const testaveis = deals.length - aguN;
   return (
     <div className="border-t border-psa-line bg-psa-surface px-3 py-2.5">
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-[10px] font-bold uppercase tracking-wide text-psa-blue">{label}</span>
         <span className="text-[10px] text-psa-muted tabular-nums">
-          <b className="text-emerald-700">{okN}</b> no dia / {deals.length}
+          <b className="text-emerald-700">{okN}</b> no dia / {testaveis}
+          {aguN > 0 && <span className="text-psa-blue"> · {aguN} aguardando</span>}
         </span>
       </div>
       <div className="flex items-center gap-2 px-1.5 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line">
@@ -39,30 +48,27 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
         <span className="w-14 text-right shrink-0">1ª prop.</span>
       </div>
       <div className="divide-y divide-psa-line/60">
-        {deals.map((d, i) => (
-          <div key={i} className={`flex items-center gap-2 px-1.5 py-1 ${d.ok ? "bg-emerald-50/70" : ""}`}>
-            <span
-              className={`w-11 shrink-0 text-center text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded ${
-                d.ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-              }`}
-            >
-              {d.ok ? "no dia" : "fora"}
-            </span>
-            <a
-              href={d.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 min-w-0 truncate text-[12px] text-psa-ink hover:text-psa-blue hover:underline"
-              title={d.dealname}
-            >
-              {d.dealname}
-            </a>
-            <span className="w-14 text-right shrink-0 text-[11px] tabular-nums text-psa-ink-soft">{fmtDate(d.criadoMs)}</span>
-            <span className={`w-14 text-right shrink-0 text-[11px] tabular-nums font-semibold ${d.ok ? "text-emerald-700" : "text-psa-ink-soft"}`}>
-              {fmtDate(d.propMs)}
-            </span>
-          </div>
-        ))}
+        {deals.map((d, i) => {
+          const st = STATUS[d.status];
+          return (
+            <div key={i} className={`flex items-center gap-2 px-1.5 py-1 ${st.row}`}>
+              <span className={`w-11 shrink-0 text-center text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded ${st.badge}`}>
+                {st.label}
+              </span>
+              <a
+                href={d.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 min-w-0 truncate text-[12px] text-psa-ink hover:text-psa-blue hover:underline"
+                title={d.dealname}
+              >
+                {d.dealname}
+              </a>
+              <span className="w-14 text-right shrink-0 text-[11px] tabular-nums text-psa-ink-soft">{fmtDate(d.criadoMs)}</span>
+              <span className={`w-14 text-right shrink-0 text-[11px] tabular-nums font-semibold ${st.prop}`}>{fmtDate(d.propMs)}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -141,7 +147,7 @@ export default function PropostaMesmoDiaCard({ segment }: { segment: "b2b" | "b2
             </div>
             {closers.map((c) => {
               const aberto = open === c.ownerId;
-              const total = c.semElig + c.comElig;
+              const total = c.semElig + c.comElig + c.semAgu + c.comAgu;
               return (
                 <div key={c.ownerId} className="rounded-lg border border-psa-line overflow-hidden">
                   <button
@@ -160,8 +166,8 @@ export default function PropostaMesmoDiaCard({ segment }: { segment: "b2b" | "b2
                   </button>
                   {aberto && (
                     <div>
-                      {c.semElig > 0 && <DealList deals={c.dealsSem} label="Sem reunião · proposta no dia da qualificação" />}
-                      {c.comElig > 0 && <DealList deals={c.dealsCom} label="Com reunião · proposta no dia da reunião" />}
+                      {c.dealsSem.length > 0 && <DealList deals={c.dealsSem} label="Sem reunião · proposta no dia da qualificação" />}
+                      {c.dealsCom.length > 0 && <DealList deals={c.dealsCom} label="Com reunião · proposta no dia da reunião" />}
                     </div>
                   )}
                 </div>
