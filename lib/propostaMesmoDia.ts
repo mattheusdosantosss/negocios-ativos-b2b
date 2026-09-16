@@ -77,7 +77,7 @@ export async function fetchPropostaMesmoDia(
     { propertyName: "pipedrive___data_de_qualificacao", operator: "LTE", value: String(endMs) },
   ];
   if (opts.owner) qualFilters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
-  const qualDeals = await searchAll(`/crm/v3/objects/deals/search`, qualFilters, ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao"]);
+  const qualDeals = await searchAll(`/crm/v3/objects/deals/search`, qualFilters, ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealstage"]);
 
   // 2) Reuniões no período → negócios com reunião no período (candidatos do #2).
   const meets = await searchAll(`/crm/v3/objects/meetings/search`,
@@ -109,7 +109,7 @@ export async function fetchPropostaMesmoDia(
     const chunk = allIds.slice(i, i + 50);
     const res = await hsFetch<{ results?: { id: string; properties: Record<string, string>; propertiesWithHistory?: { data_de_envio_da_ultima_proposta?: { value: string; timestamp: string }[] } }[] }>(
       `/crm/v3/objects/deals/batch/read`,
-      { method: "POST", body: JSON.stringify({ properties: ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "pipeline"], propertiesWithHistory: ["data_de_envio_da_ultima_proposta"], inputs: chunk.map((id) => ({ id })) }) }
+      { method: "POST", body: JSON.stringify({ properties: ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "pipeline", "dealstage"], propertiesWithHistory: ["data_de_envio_da_ultima_proposta"], inputs: chunk.map((id) => ({ id })) }) }
     );
     for (const d of res.results ?? []) {
       if (missing.includes(d.id)) dealProps.set(d.id, d.properties);
@@ -128,7 +128,10 @@ export async function fetchPropostaMesmoDia(
   // 5) Reuniões (existência) de todos os candidatos — pro #1 exigir SEM reunião.
   const anyMeet = await fetchAssocIds("deals", "meetings", allIds); // dealId → meetingIds
 
-  // 6) Classifica por closer.
+  // 6) Classifica por closer. Ignora negócios já FECHADOS (ganho/perdido — o
+  //    gatilho de agilidade é do funil ativo) e donos com usuário DESATIVADO
+  //    (owner arquivado no HubSpot).
+  const terminal = new Set([...config.wonStageIds, ...config.lostStageIds]);
   const nomeOf = (oid: string) => nomeMap.get(oid) || ownerDisplayName(owners.get(oid)) || "Sem closer";
   const byCloser = new Map<string, PMDCloser>();
   const get = (oid: string) => {
@@ -138,8 +141,12 @@ export async function fetchPropostaMesmoDia(
   for (const id of allIds) {
     const p = dealProps.get(id);
     if (!p || (p.pipeline && p.pipeline !== pipe)) continue; // só B2B
+    if (terminal.has(p.dealstage)) continue; // ignora ganho/perdido
     if (opts.owner && p.hubspot_owner_id !== opts.owner) continue;
     const oid = p.hubspot_owner_id || "";
+    // Usuário DESATIVADO: o endpoint de owners só traz ativos, então owner fora
+    // do map = arquivado/removido → não conta.
+    if (!oid || !owners.has(oid)) continue;
     const propDay = dayKey(firstProp.get(id) ?? null);
     const qualMs = toMs(p.pipedrive___data_de_qualificacao);
     const qualDay = dayKey(qualMs);
