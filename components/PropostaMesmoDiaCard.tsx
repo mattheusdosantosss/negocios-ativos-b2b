@@ -4,8 +4,7 @@ import { useState } from "react";
 import type { PropostaMesmoDiaData, PMDDeal } from "@/lib/propostaMesmoDia";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
-// Proposta/qualificação são campos DATE (meia-noite UTC) → formata em UTC pra
-// mostrar o dia armazenado. Criação é datetime → fuso BR.
+// Criação e 1ª proposta (flag) são datetimes → fuso BR. `utc` só p/ campos DATE.
 const fmtDate = (ms: number | null, utc = false) =>
   ms == null
     ? "—"
@@ -60,7 +59,7 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
             </a>
             <span className="w-14 text-right shrink-0 text-[11px] tabular-nums text-psa-ink-soft">{fmtDate(d.criadoMs)}</span>
             <span className={`w-14 text-right shrink-0 text-[11px] tabular-nums font-semibold ${d.ok ? "text-emerald-700" : "text-psa-ink-soft"}`}>
-              {fmtDate(d.propMs, true)}
+              {fmtDate(d.propMs)}
             </span>
           </div>
         ))}

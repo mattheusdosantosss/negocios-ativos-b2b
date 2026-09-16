@@ -106,26 +106,28 @@ export async function fetchPropostaMesmoDia(
   for (const d of qualDeals) dealProps.set(d.id, d.properties);
   const allIds = [...new Set([...qualDeals.map((d) => d.id), ...dealMeetInPeriod.keys()])];
 
-  // 4) Lê props (pipeline/owner/qual) + 1ª data da proposta (histórico) dos que
-  //    faltam (os que vieram só via reunião). batch/read c/ histórico: máx 50.
+  // 4) Lê props (pipeline/owner/qual/etapa) + a DATA DA 1ª PROPOSTA ANEXADA dos
+  //    candidatos. Essa data = o 1º instante em que `tem_proposta_anexada` virou
+  //    "true" (do histórico) — sinal confiável e sempre presente quando há
+  //    proposta. NÃO usar data_de_envio_da_ultima_proposta (preenchida na mão,
+  //    falha muito). batch/read c/ histórico: máx 50 inputs.
   const missing = allIds.filter((id) => !dealProps.has(id));
   const firstProp = new Map<string, number>();
   for (let i = 0; i < allIds.length; i += 50) {
     const chunk = allIds.slice(i, i + 50);
-    const res = await hsFetch<{ results?: { id: string; properties: Record<string, string>; propertiesWithHistory?: { data_de_envio_da_ultima_proposta?: { value: string; timestamp: string }[] } }[] }>(
+    const res = await hsFetch<{ results?: { id: string; properties: Record<string, string>; propertiesWithHistory?: { tem_proposta_anexada?: { value: string; timestamp: string }[] } }[] }>(
       `/crm/v3/objects/deals/batch/read`,
-      { method: "POST", body: JSON.stringify({ properties: ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "pipeline", "dealstage", "createdate"], propertiesWithHistory: ["data_de_envio_da_ultima_proposta"], inputs: chunk.map((id) => ({ id })) }) }
+      { method: "POST", body: JSON.stringify({ properties: ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "pipeline", "dealstage", "createdate"], propertiesWithHistory: ["tem_proposta_anexada"], inputs: chunk.map((id) => ({ id })) }) }
     );
     for (const d of res.results ?? []) {
       if (missing.includes(d.id)) dealProps.set(d.id, d.properties);
-      let best: { v: string; t: number } | null = null;
-      for (const h of d.propertiesWithHistory?.data_de_envio_da_ultima_proposta ?? []) {
-        if (!h.value) continue;
+      let firstTrue: number | null = null;
+      for (const h of d.propertiesWithHistory?.tem_proposta_anexada ?? []) {
+        if (h.value !== "true") continue;
         const t = Date.parse(h.timestamp);
-        if (Number.isFinite(t) && (!best || t < best.t)) best = { v: h.value, t };
+        if (Number.isFinite(t) && (firstTrue == null || t < firstTrue)) firstTrue = t; // 1ª vez que ficou true
       }
-      const ms = best ? toMs(best.v) : null;
-      if (ms != null) firstProp.set(d.id, ms);
+      if (firstTrue != null) firstProp.set(d.id, firstTrue);
     }
     if (i + 50 < allIds.length) await sleep(120);
   }
@@ -151,9 +153,9 @@ export async function fetchPropostaMesmoDia(
     // Usuário DESATIVADO: o endpoint de owners só traz ativos, então owner fora
     // do map = arquivado/removido → não conta.
     if (!oid || !owners.has(oid)) continue;
-    const propDay = dayUTC(firstProp.get(id) ?? null); // campo DATE → dia UTC
+    const propDay = dayKey(firstProp.get(id) ?? null); // timestamp da flag → dia BR
     const qualMs = toMs(p.pipedrive___data_de_qualificacao);
-    const qualDay = dayUTC(qualMs); // campo DATE → dia UTC
+    const qualDay = dayUTC(qualMs); // campo DATE → dia UTC (é a data-calendário)
     const hasMeeting = (anyMeet.get(id)?.length ?? 0) > 0;
     const meetDays = dealMeetInPeriod.get(id); // reuniões no período
     const criadoMs = toMs(p.createdate);
