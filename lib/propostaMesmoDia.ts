@@ -18,13 +18,18 @@ const toMs = (v?: string): number | null => {
   const ms = Number.isNaN(n) ? Date.parse(v) : n;
   return Number.isFinite(ms) ? ms : null;
 };
+// Reunião é DATETIME (instante real) → dia no fuso BR.
 const dayKey = (ms: number | null): string | null => {
   if (ms == null) return null;
   const d = new Date(ms - BR_OFFSET_MS);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 };
+// Qualificação e proposta são campos DATE (meia-noite UTC, sem hora) → o dia é a
+// própria data UTC. Aplicar o fuso BR aqui jogaria pro dia anterior (off-by-one).
+const dayUTC = (ms: number | null): string | null => (ms == null ? null : new Date(ms).toISOString().slice(0, 10));
 
-export type PMDDeal = { dealname: string; url: string; ok: boolean }; // ok = mandou proposta no mesmo dia
+// ok = mandou proposta no mesmo dia; criadoMs = criação do negócio; propMs = 1ª proposta anexada.
+export type PMDDeal = { dealname: string; url: string; ok: boolean; criadoMs: number | null; propMs: number | null };
 export type PMDCloser = {
   ownerId: string;
   nome: string;
@@ -77,7 +82,7 @@ export async function fetchPropostaMesmoDia(
     { propertyName: "pipedrive___data_de_qualificacao", operator: "LTE", value: String(endMs) },
   ];
   if (opts.owner) qualFilters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
-  const qualDeals = await searchAll(`/crm/v3/objects/deals/search`, qualFilters, ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealstage"]);
+  const qualDeals = await searchAll(`/crm/v3/objects/deals/search`, qualFilters, ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "dealstage", "createdate"]);
 
   // 2) Reuniões no período → negócios com reunião no período (candidatos do #2).
   const meets = await searchAll(`/crm/v3/objects/meetings/search`,
@@ -109,7 +114,7 @@ export async function fetchPropostaMesmoDia(
     const chunk = allIds.slice(i, i + 50);
     const res = await hsFetch<{ results?: { id: string; properties: Record<string, string>; propertiesWithHistory?: { data_de_envio_da_ultima_proposta?: { value: string; timestamp: string }[] } }[] }>(
       `/crm/v3/objects/deals/batch/read`,
-      { method: "POST", body: JSON.stringify({ properties: ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "pipeline", "dealstage"], propertiesWithHistory: ["data_de_envio_da_ultima_proposta"], inputs: chunk.map((id) => ({ id })) }) }
+      { method: "POST", body: JSON.stringify({ properties: ["dealname", "hubspot_owner_id", "pipedrive___data_de_qualificacao", "pipeline", "dealstage", "createdate"], propertiesWithHistory: ["data_de_envio_da_ultima_proposta"], inputs: chunk.map((id) => ({ id })) }) }
     );
     for (const d of res.results ?? []) {
       if (missing.includes(d.id)) dealProps.set(d.id, d.properties);
@@ -128,10 +133,9 @@ export async function fetchPropostaMesmoDia(
   // 5) Reuniões (existência) de todos os candidatos — pro #1 exigir SEM reunião.
   const anyMeet = await fetchAssocIds("deals", "meetings", allIds); // dealId → meetingIds
 
-  // 6) Classifica por closer. Ignora negócios já FECHADOS (ganho/perdido — o
-  //    gatilho de agilidade é do funil ativo) e donos com usuário DESATIVADO
-  //    (owner arquivado no HubSpot).
-  const terminal = new Set([...config.wonStageIds, ...config.lostStageIds]);
+  // 6) Classifica por closer. SOMENTE etapas ATIVAS (nada de ganho/perdido nem
+  //    qualquer etapa fora do funil ativo) e donos com usuário ATIVO.
+  const ativas = new Set(config.stages.map((s) => s.id));
   const nomeOf = (oid: string) => nomeMap.get(oid) || ownerDisplayName(owners.get(oid)) || "Sem closer";
   const byCloser = new Map<string, PMDCloser>();
   const get = (oid: string) => {
@@ -141,18 +145,20 @@ export async function fetchPropostaMesmoDia(
   for (const id of allIds) {
     const p = dealProps.get(id);
     if (!p || (p.pipeline && p.pipeline !== pipe)) continue; // só B2B
-    if (terminal.has(p.dealstage)) continue; // ignora ganho/perdido
+    if (!ativas.has(p.dealstage)) continue; // SÓ etapas ativas (exclui ganho/perdido e outras)
     if (opts.owner && p.hubspot_owner_id !== opts.owner) continue;
     const oid = p.hubspot_owner_id || "";
     // Usuário DESATIVADO: o endpoint de owners só traz ativos, então owner fora
     // do map = arquivado/removido → não conta.
     if (!oid || !owners.has(oid)) continue;
-    const propDay = dayKey(firstProp.get(id) ?? null);
+    const propDay = dayUTC(firstProp.get(id) ?? null); // campo DATE → dia UTC
     const qualMs = toMs(p.pipedrive___data_de_qualificacao);
-    const qualDay = dayKey(qualMs);
+    const qualDay = dayUTC(qualMs); // campo DATE → dia UTC
     const hasMeeting = (anyMeet.get(id)?.length ?? 0) > 0;
     const meetDays = dealMeetInPeriod.get(id); // reuniões no período
-    const dl = (ok: boolean): PMDDeal => ({ dealname: p.dealname || `Negócio ${id}`, url: dealUrl(id), ok });
+    const criadoMs = toMs(p.createdate);
+    const propMs = firstProp.get(id) ?? null;
+    const dl = (ok: boolean): PMDDeal => ({ dealname: p.dealname || `Negócio ${id}`, url: dealUrl(id), ok, criadoMs, propMs });
 
     // #2 COM REUNIÃO: reunião no período → elegível; enviou se proposta no dia da reunião.
     if (meetDays && meetDays.size > 0) {

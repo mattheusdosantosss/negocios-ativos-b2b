@@ -4,6 +4,12 @@ import { useState } from "react";
 import type { PropostaMesmoDiaData, PMDDeal } from "@/lib/propostaMesmoDia";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
+// Proposta/qualificação são campos DATE (meia-noite UTC) → formata em UTC pra
+// mostrar o dia armazenado. Criação é datetime → fuso BR.
+const fmtDate = (ms: number | null, utc = false) =>
+  ms == null
+    ? "—"
+    : new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: utc ? "UTC" : "America/Sao_Paulo" });
 
 // Razão "enviou / tinha": X em destaque (escuro), /Y esmaecido.
 function Ratio({ comp, elig }: { comp: number; elig: number }) {
@@ -22,7 +28,7 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
       <div className="text-[10px] font-bold uppercase tracking-wide text-psa-blue mb-1">{label}</div>
       <ul className="space-y-0.5">
         {deals.map((d, i) => (
-          <li key={i} className="flex items-center gap-2">
+          <li key={i} className="flex items-center gap-2 flex-wrap">
             <span
               className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
                 d.ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
@@ -34,11 +40,15 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
               href={d.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[12px] text-psa-ink-soft hover:text-psa-blue hover:underline truncate"
+              className="text-[12px] text-psa-ink-soft hover:text-psa-blue hover:underline truncate min-w-0 flex-1"
               title={d.dealname}
             >
               {d.dealname}
             </a>
+            <span className="shrink-0 text-[10px] text-psa-muted tabular-nums whitespace-nowrap">
+              Criado <b className="text-psa-ink-soft">{fmtDate(d.criadoMs)}</b> · 1ª proposta{" "}
+              <b className="text-psa-ink-soft">{fmtDate(d.propMs, true)}</b>
+            </span>
           </li>
         ))}
       </ul>
