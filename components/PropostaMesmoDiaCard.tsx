@@ -81,10 +81,9 @@ export default function PropostaMesmoDiaCard({ data }: { data: PropostaMesmoDiaD
           <h2 className="font-display text-sm font-bold uppercase tracking-[0.1em] text-psa-ink">Proposta no mesmo dia</h2>
         </div>
         <p className="text-[11px] text-psa-ink-soft mt-1">
-          Gatilho de agilidade — <b className="text-psa-ink-soft">enviou / tinha</b>. <b className="text-psa-ink-soft">Sem reunião</b>: das
-          qualificações do período sem reunião, quantas tiveram proposta no dia da qualificação. <b className="text-psa-ink-soft">Com reunião</b>:
-          das reuniões do período, quantas tiveram proposta no dia da reunião. Por closer. (1ª proposta anexada) ·{" "}
-          <span className="text-psa-muted">clique na linha pra ver os negócios</span>
+          Agilidade por closer: de quantas oportunidades ele mandou a proposta no mesmo dia (<b className="text-psa-ink-soft">enviou / teve</b>).{" "}
+          <b className="text-psa-ink-soft">Sem reunião</b> conta pelo dia da qualificação; <b className="text-psa-ink-soft">com reunião</b>, pelo dia da reunião.{" "}
+          <span className="text-psa-muted">Clique numa linha pra ver os negócios.</span>
         </p>
         <div className="mt-1.5 text-[11px] text-psa-muted">
           Total: <b className="text-psa-ink tabular-nums">{num(data.totalSemComp)}/{num(data.totalSemElig)}</b> sem reunião ·{" "}
