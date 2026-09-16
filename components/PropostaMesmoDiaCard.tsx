@@ -23,14 +23,27 @@ function Ratio({ comp, elig }: { comp: number; elig: number }) {
 }
 
 function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
+  const okN = deals.filter((d) => d.ok).length;
   return (
-    <div className="border-t border-psa-line bg-psa-surface px-3 py-2">
-      <div className="text-[10px] font-bold uppercase tracking-wide text-psa-blue mb-1">{label}</div>
-      <ul className="space-y-0.5">
+    <div className="border-t border-psa-line bg-psa-surface px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-psa-blue">{label}</span>
+        <span className="text-[10px] text-psa-muted tabular-nums">
+          <b className="text-emerald-700">{okN}</b> no dia / {deals.length}
+        </span>
+      </div>
+      {/* Cabeçalho das colunas */}
+      <div className="flex items-center gap-2 px-1.5 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line">
+        <span className="w-11 shrink-0" />
+        <span className="flex-1 min-w-0">Negócio</span>
+        <span className="w-14 text-right shrink-0">Criado</span>
+        <span className="w-14 text-right shrink-0">1ª prop.</span>
+      </div>
+      <div className="divide-y divide-psa-line/60">
         {deals.map((d, i) => (
-          <li key={i} className="flex items-center gap-2 flex-wrap">
+          <div key={i} className={`flex items-center gap-2 px-1.5 py-1 ${d.ok ? "bg-emerald-50/70" : ""}`}>
             <span
-              className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+              className={`w-11 shrink-0 text-center text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded ${
                 d.ok ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
               }`}
             >
@@ -40,18 +53,18 @@ function DealList({ deals, label }: { deals: PMDDeal[]; label: string }) {
               href={d.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[12px] text-psa-ink-soft hover:text-psa-blue hover:underline truncate min-w-0 flex-1"
+              className="flex-1 min-w-0 truncate text-[12px] text-psa-ink hover:text-psa-blue hover:underline"
               title={d.dealname}
             >
               {d.dealname}
             </a>
-            <span className="shrink-0 text-[10px] text-psa-muted tabular-nums whitespace-nowrap">
-              Criado <b className="text-psa-ink-soft">{fmtDate(d.criadoMs)}</b> · 1ª proposta{" "}
-              <b className="text-psa-ink-soft">{fmtDate(d.propMs, true)}</b>
+            <span className="w-14 text-right shrink-0 text-[11px] tabular-nums text-psa-ink-soft">{fmtDate(d.criadoMs)}</span>
+            <span className={`w-14 text-right shrink-0 text-[11px] tabular-nums font-semibold ${d.ok ? "text-emerald-700" : "text-psa-ink-soft"}`}>
+              {fmtDate(d.propMs, true)}
             </span>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
