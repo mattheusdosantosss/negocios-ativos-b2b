@@ -31,7 +31,7 @@ const dayUTC = (ms: number | null): string | null => (ms == null ? null : new Da
 // status: no_dia = mandou no dia; fora = não mandou (janela já passou);
 // aguardando = a janela ainda não chegou (reunião futura, ou qualificação hoje).
 export type PMDStatus = "no_dia" | "fora" | "aguardando";
-export type PMDDeal = { dealname: string; url: string; status: PMDStatus; criadoMs: number | null; propMs: number | null };
+export type PMDDeal = { dealname: string; url: string; status: PMDStatus; criadoMs: number | null; propMs: number | null; reuniaoMs: number | null };
 export type PMDCloser = {
   ownerId: string;
   nome: string;
@@ -139,7 +139,8 @@ export async function fetchPropostaMesmoDia(
     const qualDay = dayUTC(toMs(d.properties.pipedrive___data_de_qualificacao)); // campo DATE → dia UTC
     const meets = (assoc.get(d.id) ?? []).map((m) => mInfo.get(m)).filter(Boolean) as { ms: number; day: string }[];
     const criadoMs = toMs(d.properties.createdate);
-    const dl = (status: PMDStatus): PMDDeal => ({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), status, criadoMs, propMs });
+    const reuniaoMs = meets.length ? Math.min(...meets.map((m) => m.ms)) : null; // 1ª reunião do negócio
+    const dl = (status: PMDStatus): PMDDeal => ({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), status, criadoMs, propMs, reuniaoMs });
     const c = get(oid);
     if (meets.length > 0) {
       // COM REUNIÃO. Só reuniões que JÁ ocorreram (ms < agora) testam o gatilho;

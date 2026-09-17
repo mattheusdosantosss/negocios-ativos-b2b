@@ -70,6 +70,7 @@ function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; b
         <span className="w-14 shrink-0" />
         <span className="flex-1 min-w-0">Negócio</span>
         <span className="w-14 text-right shrink-0">Criado</span>
+        {bucket === "com" && <span className="w-14 text-right shrink-0">Reunião</span>}
         <span className="w-14 text-right shrink-0">1ª prop.</span>
       </div>
       <div className="divide-y divide-psa-line/60">
@@ -90,6 +91,7 @@ function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; b
                 {d.dealname}
               </a>
               <span className="w-14 text-right shrink-0 text-[11px] tabular-nums text-psa-ink-soft">{fmtDate(d.criadoMs)}</span>
+              {bucket === "com" && <span className="w-14 text-right shrink-0 text-[11px] tabular-nums text-psa-ink-soft">{fmtDate(d.reuniaoMs)}</span>}
               <span className={`w-14 text-right shrink-0 text-[11px] tabular-nums font-semibold ${st.prop}`}>{fmtDate(d.propMs)}</span>
             </div>
           );
