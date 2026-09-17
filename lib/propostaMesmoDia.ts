@@ -54,13 +54,14 @@ export async function fetchPropostaMesmoDia(
   nomeMap: Map<string, string>
 ): Promise<PropostaMesmoDiaData> {
   const pipe = config.id === "b2c" ? "725182862" : "default";
-  // 1) Negócios em ETAPAS ATIVAS, filtrados por Data de criação (filtro do topo).
+  // 1) TODOS os negócios em ETAPAS ATIVAS (universo = funil ativo). O filtro de
+  //    tempo é aplicado depois, pela data do EVENTO: qualificação (sem reunião)
+  //    ou reunião (com reunião) — não pela data de criação. Assim "Ontem" mostra
+  //    quem qualificou/teve reunião ontem (evento passado, sem "futura").
   const filters: Filter[] = [
     { propertyName: "pipeline", operator: "EQ", value: pipe },
     { propertyName: "dealstage", operator: "IN", values: config.stages.map((s) => s.id) },
   ];
-  if (opts.from) filters.push({ propertyName: "createdate", operator: "GTE", value: String(new Date(opts.from).getTime() + BR_OFFSET_MS) });
-  if (opts.to) filters.push({ propertyName: "createdate", operator: "LTE", value: String(new Date(opts.to).getTime() + BR_OFFSET_MS + 86_400_000 - 1) });
   if (opts.owner) filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
 
   const deals: { id: string; properties: Record<string, string> }[] = [];
@@ -123,8 +124,12 @@ export async function fetchPropostaMesmoDia(
     if (i + 100 < allM.length) await sleep(120);
   }
 
-  // 4) Classifica por closer.
+  // 4) Classifica por closer. Filtro de tempo pela data do EVENTO (dias
+  //    "YYYY-MM-DD"; sem filtro = tudo).
   const now = Date.now();
+  const fromDay = opts.from || null;
+  const toDay = opts.to || null;
+  const inPeriod = (day: string | null) => !!day && (!fromDay || (day >= fromDay && (!toDay || day <= toDay)));
   const nomeOf = (oid: string) => nomeMap.get(oid) || ownerDisplayName(owners.get(oid)) || "Sem closer";
   const byCloser = new Map<string, PMDCloser>();
   const get = (oid: string) => {
@@ -143,9 +148,12 @@ export async function fetchPropostaMesmoDia(
     const dl = (status: PMDStatus): PMDDeal => ({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), status, criadoMs, propMs, reuniaoMs });
     const c = get(oid);
     if (meets.length > 0) {
-      // COM REUNIÃO. Só reuniões que JÁ ocorreram (ms < agora) testam o gatilho;
-      // se todas são FUTURAS, a janela não chegou → aguardando (não é falha).
-      const pastDays = new Set(meets.filter((m) => m.ms < now).map((m) => m.day));
+      // COM REUNIÃO. Só entram as reuniões DENTRO do período (data da reunião).
+      const meetsWin = meets.filter((m) => inPeriod(m.day));
+      if (meetsWin.length === 0) continue; // reunião fora do período → não é evento deste recorte
+      // Só reuniões que JÁ ocorreram (ms < agora) testam o gatilho; se as do
+      // período são todas FUTURAS, a janela não chegou → aguardando.
+      const pastDays = new Set(meetsWin.filter((m) => m.ms < now).map((m) => m.day));
       if (pastDays.size > 0) {
         const ok = !!propDay && pastDays.has(propDay);
         c.comElig += 1; if (ok) c.comComp += 1; c.dealsCom.push(dl(ok ? "no_dia" : "fora"));
@@ -153,9 +161,10 @@ export async function fetchPropostaMesmoDia(
         c.comAgu += 1; c.dealsCom.push(dl("aguardando"));
       }
     } else {
-      // SEM REUNIÃO. Janela = dia da qualificação. no_dia se a proposta saiu no
-      // mesmo dia; senão fora.
-      const ok = !!propDay && !!qualDay && propDay === qualDay;
+      // SEM REUNIÃO. Evento = qualificação; só entra se a qualificação está no
+      // período. no_dia se a proposta saiu no mesmo dia; senão fora.
+      if (!inPeriod(qualDay)) continue;
+      const ok = !!propDay && propDay === qualDay;
       c.semElig += 1; if (ok) c.semComp += 1; c.dealsSem.push(dl(ok ? "no_dia" : "fora"));
     }
   }

@@ -2,7 +2,7 @@
 // "all" (padrão) = sem filtro de data, mostra o snapshot completo de
 // negócios ativos, igual ao comportamento original do painel.
 
-export type PeriodPreset = "all" | "today" | "this_week" | "this_month" | "last_month" | "7d" | "30d" | "custom";
+export type PeriodPreset = "all" | "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "7d" | "30d" | "custom";
 
 export type PeriodValue = {
   preset: PeriodPreset;
@@ -28,6 +28,8 @@ export function computePeriod(preset: PeriodPreset, fallback?: { from: string; t
       return { preset, from: "", to: "" };
     case "today":
       return { preset, from: fmt(today), to: fmt(today) };
+    case "yesterday":
+      return { preset, from: fmt(daysAgo(1)), to: fmt(daysAgo(1)) };
     case "this_week": {
       // segunda como início da semana (getDay: 0=dom..6=sáb)
       const dow = today.getDay();
@@ -59,6 +61,7 @@ export function computePeriod(preset: PeriodPreset, fallback?: { from: string; t
 export const PRESET_LABELS: Record<PeriodPreset, string> = {
   all: "Todo o período",
   today: "Hoje",
+  yesterday: "Ontem",
   this_week: "Esta semana",
   this_month: "Este mês",
   last_month: "Mês passado",
@@ -70,6 +73,7 @@ export const PRESET_LABELS: Record<PeriodPreset, string> = {
 export const PRESET_OPTIONS: PeriodPreset[] = [
   "all",
   "today",
+  "yesterday",
   "this_week",
   "this_month",
   "last_month",
