@@ -582,6 +582,17 @@ function brStartOfCurrentMonthMs(): number {
  * (valor bruto) e devolve o histórico por closer (nome via roster do time,
  * fallback owner do HubSpot). Total do time (não sofre filtro de closer).
  */
+// valor_bruto (B2C) é TEXTO livre em BRL ("5000", "R$ 22.000", "R$ 1.347,30").
+// vírgula = decimal; ponto = milhar (quando seguido de 3 dígitos).
+const parseBRL = (v?: string): number => {
+  if (!v) return 0;
+  let s = v.replace(/[^\d.,]/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  else s = s.replace(/\.(?=\d{3}(\D|$))/g, "");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
 export async function fetchSalesByCloser(
   config: SegmentConfig,
   opts: { from?: string; to?: string; owner?: string },
@@ -602,7 +613,7 @@ export async function fetchSalesByCloser(
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: ["amount", "valor_total_do_contrato__bruto___ganho_", "hubspot_owner_id", "dealname"],
+      properties: ["amount", "valor_total_do_contrato__bruto___ganho_", "valor_bruto", "hubspot_owner_id", "dealname"],
       limit: 200,
     };
     if (after) body.after = after;
@@ -623,7 +634,10 @@ export async function fetchSalesByCloser(
     if (!byId.has(oid)) byId.set(oid, { name, sold: 0, count: 0, sales: [] });
     const c = byId.get(oid)!;
     const amount = Number(d.properties.amount || 0);
-    const brutoRaw = Number((d.properties as Record<string, string>).valor_total_do_contrato__bruto___ganho_ || 0);
+    // Bruto por segmento: B2B = valor_total_do_contrato (número); B2C = valor_bruto
+    // (texto BR). Sem bruto → usa amount (sem margem).
+    const p = d.properties as Record<string, string>;
+    const brutoRaw = config.id === "b2c" ? parseBRL(p.valor_bruto) : Number(p.valor_total_do_contrato__bruto___ganho_ || 0);
     const bruto = brutoRaw > 0 ? brutoRaw : amount; // bruto = contrato; líquido = amount
     c.sold += amount;
     c.count += 1;
