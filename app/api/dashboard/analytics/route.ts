@@ -7,7 +7,6 @@ import {
   getConversionCached,
   getPropostaMeetingCached,
   getLostReasonsCached,
-  getReunioesPerfilCached,
   getTempoPropostaCached,
   getGanhosAtributosCached,
   getLeadTimeGanhosCached,
@@ -26,7 +25,6 @@ export type AnalyticsData = Pick<
   | "conversion"
   | "propostaMeeting"
   | "motivos"
-  | "reunioesPerfil"
   | "tempoProposta"
   | "ganhosAtributos"
   | "leadTimeGanhos"
@@ -50,7 +48,6 @@ export async function GET(req: NextRequest) {
       conversion: s.conversion,
       propostaMeeting: s.propostaMeeting,
       motivos: s.motivos,
-      reunioesPerfil: s.reunioesPerfil,
       tempoProposta: s.tempoProposta,
       ganhosAtributos: s.ganhosAtributos,
       leadTimeGanhos: s.leadTimeGanhos,
@@ -60,14 +57,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [vendasDiaRaw, convRaw, propMeetRaw, motivosRaw, reunioesPerfilRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw] = await Promise.all([
+    const [vendasDiaRaw, convRaw, propMeetRaw, motivosRaw, tempoPropRaw, ganhosAtribRaw, leadTimeRaw] = await Promise.all([
       getVendasDoDiaCached(config, from, to),
       getConversionCached(config, origemId, origem, owner).catch(
         (e): { data: ConversionData | undefined; warning?: string } => ({ data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão" })
       ),
       config.hasPropostaMeeting ? getPropostaMeetingCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasLostReasons ? getLostReasonsCached(config, origemId, origem, owner) : Promise.resolve(null),
-      config.hasReunioesPerfil ? getReunioesPerfilCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasTempoProposta ? getTempoPropostaCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasGanhoCards ? getGanhosAtributosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
       config.hasGanhoCards ? getLeadTimeGanhosCached(config, origemId, origem, owner, from, to) : Promise.resolve(null),
@@ -77,7 +73,6 @@ export async function GET(req: NextRequest) {
       conversion: convRaw?.data,
       propostaMeeting: propMeetRaw?.data,
       motivos: motivosRaw?.data,
-      reunioesPerfil: reunioesPerfilRaw?.data,
       tempoProposta: tempoPropRaw?.data,
       ganhosAtributos: ganhosAtribRaw?.data,
       leadTimeGanhos: leadTimeRaw?.data,

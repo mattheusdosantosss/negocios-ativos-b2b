@@ -8,6 +8,7 @@ import type {
   ReunioesPerfilData,
   ReunioesStatusId,
 } from "@/lib/hubspot";
+import { PRESET_OPTIONS, PRESET_LABELS, computePeriod, type PeriodValue, type PeriodPreset } from "@/lib/periods";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -49,26 +50,45 @@ function collect(
 
 type Sel = { closer: ReunioesCloser; perfilId: string | null; perfilLabel: string | null; outcome: ReunioesOutcomeId } | null;
 
-type Props = { data: ReunioesPerfilData };
-
 /**
  * Reuniões dos closers B2C (dono da reunião) em barras empilhadas por resultado
  * (Realizada/Agendada/Reprogramada/Cancelada/No-show), no padrão do painel. Uma
  * barra por closer, expansível pro detalhe por perfil. Sem recorte por status do
  * negócio — é um card de reuniões, não de vendas. Cada segmento abre o popup.
+ *
+ * FILTRO DE TEMPO PRÓPRIO (independente do topo): busca os dados no
+ * /api/dashboard/reunioes-perfil conforme o período escolhido no próprio card.
  */
-export default function ReunioesPerfilCard({ data }: Props) {
+export default function ReunioesPerfilCard({ segment }: { segment: "b2b" | "b2c" }) {
+  const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
+  const [data, setData] = useState<ReunioesPerfilData | null>(null);
+  const [loading, setLoading] = useState(true);
   // Todos os closers começam fechados (dropdown); rastreamos os abertos.
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [sel, setSel] = useState<Sel>(null);
-  const perfilIds = data.perfis.map((p) => p.id);
+
+  useEffect(() => {
+    const qs = new URLSearchParams({ segment });
+    if (period.from) qs.set("from", period.from);
+    if (period.to) qs.set("to", period.to);
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/dashboard/reunioes-perfil?${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) { setData(j?.reunioesPerfil ?? null); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setData(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [segment, period.preset, period.from, period.to]);
+
+  const perfilIds = data?.perfis.map((p) => p.id) ?? [];
 
   const counts = (closer: ReunioesCloser, perfilId: string | null) =>
     OUTCOMES.map((o) => ({ o, n: collect(closer, perfilId, perfilIds, o.id).length }));
   const totalOf = (closer: ReunioesCloser, perfilId: string | null) =>
     counts(closer, perfilId).reduce((s, c) => s + c.n, 0);
 
-  const teamTotal = data.closers.reduce((s, c) => s + totalOf(c, null), 0);
+  const closersList = data?.closers ?? [];
+  const teamTotal = closersList.reduce((s, c) => s + totalOf(c, null), 0);
 
   const toggle = (id: string) =>
     setOpen((prev) => {
@@ -117,6 +137,17 @@ export default function ReunioesPerfilCard({ data }: Props) {
             <span className="text-sm text-psa-ink-soft">reuniões · por data da reunião no período</span>
           </div>
         </div>
+        {/* Filtro de tempo PRÓPRIO deste card */}
+        <select
+          value={period.preset}
+          onChange={(e) => setPeriod(computePeriod(e.target.value as PeriodPreset))}
+          className="shrink-0 rounded-lg border border-psa-line bg-psa-surface px-2.5 py-1.5 text-xs text-psa-ink focus:outline-none focus:border-psa-orange focus:ring-2 focus:ring-psa-orange/10"
+          title="Período deste card"
+        >
+          {PRESET_OPTIONS.filter((p) => p !== "custom").map((p) => (
+            <option key={p} value={p}>{PRESET_LABELS[p]}</option>
+          ))}
+        </select>
       </div>
 
       {/* Legenda */}
@@ -132,7 +163,11 @@ export default function ReunioesPerfilCard({ data }: Props) {
       {/* Barras por closer — cada um num card com borda (estilo do "Histórico de
           vendas" da Meta do mês), pra separar bem os closers. */}
       <div className="mt-4 space-y-4">
-        {data.closers.map((c) => {
+        {loading ? (
+          <div className="py-8 text-center text-sm text-psa-ink-soft">Carregando…</div>
+        ) : closersList.length === 0 ? (
+          <div className="py-6 text-center text-sm text-psa-ink-soft">Nenhuma reunião no período.</div>
+        ) : closersList.map((c) => {
           const total = totalOf(c, null);
           const realizada = counts(c, null).find((x) => x.o.id === "realizada")?.n ?? 0;
           const isOpen = open.has(c.ownerId);
@@ -158,7 +193,7 @@ export default function ReunioesPerfilCard({ data }: Props) {
 
               {isOpen && (
                 <div className="pl-4 space-y-3">
-                  {data.perfis.map((p) => {
+                  {(data?.perfis ?? []).map((p) => {
                     const t = totalOf(c, p.id);
                     if (t === 0) return null;
                     return (

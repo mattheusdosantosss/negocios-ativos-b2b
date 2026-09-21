@@ -503,10 +503,8 @@ export default function Page() {
         />
       )}
 
-      {/* Reuniões por perfil — só B2C */}
-      {data && cfg.hasReunioesPerfil && data.reunioesPerfil && data.reunioesPerfil.total > 0 && (
-        <ReunioesPerfilCard data={data.reunioesPerfil} />
-      )}
+      {/* Reuniões por closer — só B2C. Filtro de tempo próprio (busca sozinho). */}
+      {cfg.hasReunioesPerfil && <ReunioesPerfilCard segment={segment} />}
 
       {/* Cards de ganhos — só B2C (Ganhos por atributo vai dentro do card de conversão) */}
       {data && cfg.hasGanhoCards && data.leadTimeGanhos && data.leadTimeGanhos.comData > 0 && (
