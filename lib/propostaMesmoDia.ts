@@ -127,6 +127,7 @@ export async function fetchPropostaMesmoDia(
   // 4) Classifica por closer. Filtro de tempo pela data do EVENTO (dias
   //    "YYYY-MM-DD"; sem filtro = tudo).
   const now = Date.now();
+  const todayKey = dayKey(now); // dia BR de hoje (janela ainda aberta)
   const fromDay = opts.from || null;
   const toDay = opts.to || null;
   const inPeriod = (day: string | null) => !!day && (!fromDay || (day >= fromDay && (!toDay || day <= toDay)));
@@ -170,10 +171,17 @@ export async function fetchPropostaMesmoDia(
       }
     } else {
       // SEM REUNIÃO. Evento = qualificação; só entra se a qualificação está no
-      // período. no_dia se a proposta saiu no mesmo dia; senão fora.
+      // período. no_dia se a proposta saiu no mesmo dia. Se qualificou HOJE e
+      // ainda não mandou, o dia não acabou → aguardando (janela aberta), não fora.
       if (!inPeriod(qualDay)) continue;
       const ok = !!propDay && propDay === qualDay;
-      c.semElig += 1; if (ok) c.semComp += 1; c.dealsSem.push(dl(ok ? "no_dia" : "fora"));
+      if (ok) {
+        c.semElig += 1; c.semComp += 1; c.dealsSem.push(dl("no_dia"));
+      } else if (qualDay === todayKey) {
+        c.semAgu += 1; c.dealsSem.push(dl("aguardando"));
+      } else {
+        c.semElig += 1; c.dealsSem.push(dl("fora"));
+      }
     }
   }
 

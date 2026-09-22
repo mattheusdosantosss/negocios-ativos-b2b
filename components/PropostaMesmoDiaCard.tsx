@@ -18,7 +18,7 @@ function StatTile({ label, comp, elig, agu }: { label: string; comp: number; eli
     <div className="rounded-xl border border-psa-line bg-psa-canvas/50 p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">{label}</span>
-        {agu > 0 && <span className="text-[10px] font-medium text-psa-blue tabular-nums">{agu} {label.includes("Com") ? "futura(s)" : "aguard."}</span>}
+        {agu > 0 && <span className="text-[10px] font-medium text-psa-blue tabular-nums">{agu} {label.includes("Com") ? "futura(s)" : "em dia"}</span>}
       </div>
       <div className="mt-1 flex items-baseline gap-2 flex-wrap">
         <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums leading-none">
@@ -50,7 +50,7 @@ function Ratio({ comp, elig }: { comp: number; elig: number }) {
 function badgeFor(status: PMDDeal["status"], bucket: "sem" | "com") {
   if (status === "no_dia") return { label: "no dia", badge: "bg-emerald-100 text-emerald-700", row: "bg-emerald-50/70", prop: "text-emerald-700" };
   if (status === "fora") return { label: "fora", badge: "bg-red-100 text-red-700", row: "", prop: "text-psa-ink-soft" };
-  return { label: bucket === "com" ? "futura" : "hoje", badge: "bg-psa-blue-soft text-psa-blue", row: "bg-psa-blue-soft/40", prop: "text-psa-ink-soft" };
+  return { label: bucket === "com" ? "futura" : "em dia", badge: "bg-psa-blue-soft text-psa-blue", row: "bg-psa-blue-soft/40", prop: "text-psa-ink-soft" };
 }
 
 function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; bucket: "sem" | "com" }) {
@@ -63,7 +63,7 @@ function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; b
         <span className="text-[10px] font-bold uppercase tracking-wide text-psa-blue">{label}</span>
         <span className="text-[10px] text-psa-muted tabular-nums">
           <b className="text-emerald-700">{okN}</b> no dia / {testaveis}
-          {aguN > 0 && <span className="text-psa-blue"> · {aguN} {bucket === "com" ? "futura(s)" : "hoje"}</span>}
+          {aguN > 0 && <span className="text-psa-blue"> · {aguN} {bucket === "com" ? "futura(s)" : "em dia"}</span>}
         </span>
       </div>
       <div className="flex items-center gap-2 px-1.5 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line">
