@@ -9,7 +9,7 @@
 // Data da proposta = 1º instante em que tem_proposta_anexada virou "true".
 // Ignora usuário desativado (owner fora do map de ativos).
 // ============================================================
-import { hsFetch, sleep, dealUrl, ownerDisplayName, fetchAssocIds, type Owner } from "./hubspot";
+import { hsFetch, sleep, dealUrl, ownerDisplayName, fetchAssocIds, REUNIOES_TIPOS_VENDA_LISTA, type Owner } from "./hubspot";
 import type { SegmentConfig } from "./segments";
 
 const BR_OFFSET_MS = 3 * 60 * 60 * 1000; // GMT-3
@@ -109,20 +109,33 @@ export async function fetchPropostaMesmoDia(
   //    reunião (pra saber se já ocorreu ou é futura).
   const assoc = await fetchAssocIds("deals", "meetings", ids);
   const allM = [...new Set([...assoc.values()].flat())];
-  const mInfo = new Map<string, { ms: number; day: string }>();
+  const mInfo = new Map<string, { ms: number; day: string; tipo: string }>();
   for (let i = 0; i < allM.length; i += 100) {
     const chunk = allM.slice(i, i + 100);
     const mr = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[] }>(
       `/crm/v3/objects/meetings/batch/read`,
-      { method: "POST", body: JSON.stringify({ properties: ["hs_meeting_start_time"], inputs: chunk.map((id) => ({ id })) }) }
+      { method: "POST", body: JSON.stringify({ properties: ["hs_meeting_start_time", "hs_activity_type"], inputs: chunk.map((id) => ({ id })) }) }
     );
     for (const m of mr.results ?? []) {
       const ms = toMs(m.properties.hs_meeting_start_time);
       const dk = dayKey(ms);
-      if (ms != null && dk) mInfo.set(m.id, { ms, day: dk });
+      if (ms != null && dk) mInfo.set(m.id, { ms, day: dk, tipo: (m.properties.hs_activity_type || "").trim() });
     }
     if (i + 100 < allM.length) await sleep(120);
   }
+
+  // Só REUNIÃO DE VENDA conta: tipo de venda do segmento, OU sem tipo desde que
+  // seja a 1ª reunião do negócio (assume-se a de venda não-etiquetada). Tipos
+  // não-venda (Relacionamento, FollowUp, CRM…) são ignorados.
+  const salesTypes: Set<string> = config.id === "b2c"
+    ? new Set(REUNIOES_TIPOS_VENDA_LISTA)
+    : new Set(["B2B | Reunião de Venda", "B2B | Marcação IA"]);
+  const meetsDeVendaDoNegocio = (dealId: string): { ms: number; day: string }[] => {
+    const all = (assoc.get(dealId) ?? []).map((m) => mInfo.get(m)).filter(Boolean) as { ms: number; day: string; tipo: string }[];
+    if (all.length === 0) return [];
+    const firstMs = Math.min(...all.map((m) => m.ms));
+    return all.filter((m) => salesTypes.has(m.tipo) || (m.tipo === "" && m.ms === firstMs));
+  };
 
   // 4) Classifica por closer. Filtro de tempo pela data do EVENTO (dias
   //    "YYYY-MM-DD"; sem filtro = tudo).
@@ -143,7 +156,7 @@ export async function fetchPropostaMesmoDia(
     const propMs = firstProp.get(d.id) ?? null;
     const propDay = dayKey(propMs); // flag = datetime → dia BR
     const qualDay = dayUTC(toMs(d.properties.pipedrive___data_de_qualificacao)); // campo DATE → dia UTC
-    const meets = (assoc.get(d.id) ?? []).map((m) => mInfo.get(m)).filter(Boolean) as { ms: number; day: string }[];
+    const meets = meetsDeVendaDoNegocio(d.id);
     const criadoMs = toMs(d.properties.createdate);
     const firstMeetMs = meets.length ? Math.min(...meets.map((m) => m.ms)) : null; // 1ª reunião do negócio
     const dl = (status: PMDStatus, reuniaoMs: number | null = firstMeetMs): PMDDeal => ({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), status, criadoMs, propMs, reuniaoMs });
