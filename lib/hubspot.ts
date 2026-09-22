@@ -983,18 +983,16 @@ export type ReunioesPerfilData = {
 
 const emptyCell = (): ReunioesCell => ({ agendada: [], reprogramada: [], realizada: [], cancelada: [], noshow: [] });
 
-// Tipos de reunião (hs_activity_type) que contam como VENDA B2C. Só venda —
-// fora: Relacionamento, Mentoria, Partner, Patrocínio, CRM, B2B, Reprogramada
-// (tipo), Whatsapp/Instagram. Onboarding é filtrado à parte, pelo título.
+// Tipos de reunião (hs_activity_type) que contam como VENDA B2C. Lista enxuta
+// (set/26): só as reuniões de venda "de primeira" — fora FollowUp, Merlin,
+// Remarcação IA (No-show) e todo o resto (relacionamento, mentoria, B2B…).
+// Onboarding é filtrado à parte, pelo título.
 const REUNIOES_TIPOS_VENDA = new Set([
   "B2C | Reunião de Venda (marcada pelo SDR)",
   "B2C | Reunião de Venda (marcada pelo Closer)",
   "B2C | Reunião de Venda (marcada por Farmer)",
-  "B2C | Reunião de FollowUp",
-  "B2C | Reunião SDR",
   "B2C | Marcação IA",
-  "B2C | Marcação Merlin",
-  "B2C | Remarcação IA (No-show)",
+  "B2C | Reunião SDR",
 ]);
 
 const REUNIOES_PERFIS: Array<{ id: string; label: string; raw: string | null }> = [
