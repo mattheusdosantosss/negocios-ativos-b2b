@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       fetchAllOwners(),
       dealsP,
       fetchCheckoutDeals(config, { from, to, owner }),
-      getWonAggregateCached(config, origemId, origem, owner),
+      getWonAggregateCached(config, origemId, origem, owner, from, to),
       config.hasCloseTime ? getCloseTimeCached(config, origemId, origem, owner) : Promise.resolve(null),
       config.monthGoal != null ? getMonthGoalCached(config, from, to, owner) : Promise.resolve(null),
       tasksP,

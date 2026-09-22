@@ -27,13 +27,13 @@ import {
 } from "@/lib/aggregate";
 import { type SegmentConfig } from "@/lib/segments";
 
-// Ticket médio de ganho é sobre TODOS os ganhos (não sofre o filtro de
-// período). Agregado histórico — quase não muda; cacheia 6h.
-export const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
+// Ticket médio de ganho — segue o filtro de tempo (por data de fechamento).
+// Sem from/to = todo o histórico. Cacheia 10min (mês corrente muda ao longo do dia).
+export const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string, from?: string, to?: string) =>
   unstable_cache(
-    () => fetchWonAggregate(config, { origem, owner }),
-    ["won-aggregate", config.id, origemId, owner || "all"],
-    { revalidate: 21600 }
+    () => fetchWonAggregate(config, { origem, owner, from, to }),
+    ["won-aggregate-v2-periodo", config.id, origemId, owner || "all", from || "all", to || "all"],
+    { revalidate: 600 }
   )();
 
 // "Tempo da reunião ao fechamento": fechados dos closers + 1ª reunião concluída.

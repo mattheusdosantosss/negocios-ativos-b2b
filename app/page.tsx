@@ -77,7 +77,7 @@ export default function Page() {
     | null;
   const [modal, setModal] = useState<ModalState>(null);
   const [showCloserSummary, setShowCloserSummary] = useState(false);
-  const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("all"));
+  const [period, setPeriod] = useState<PeriodValue>(() => computePeriod("this_month"));
   const [leadSource, setLeadSource] = useState<LeadSourceId>("all");
   const [closer, setCloser] = useState<string>("all"); // ownerId do roster ou "all"
 
@@ -201,6 +201,16 @@ export default function Page() {
   // Ticket médio de ganho = valor dos negócios ganhos ÷ nº de ganhos.
   const ticketMedioGanho =
     data && data.totals.ganhoCount > 0 ? data.totals.ganhoValor / data.totals.ganhoCount : 0;
+
+  // Rótulo do período do ticket (segue a header). "all" = todo o histórico.
+  const ticketPeriodLabel =
+    period.preset === "all"
+      ? "todo o histórico"
+      : period.preset === "this_month"
+      ? "mês atual"
+      : period.preset === "last_month"
+      ? "mês passado"
+      : formatPeriodRange(period.from, period.to);
 
   const modalDeals = useMemo(() => {
     if (!modal || !data) return [];
@@ -480,7 +490,7 @@ export default function Page() {
           accent="ink"
           hint={
             data
-              ? `${num(data.totals.ganhoCount)} ganhos (todo o histórico) · valor bruto`
+              ? `${num(data.totals.ganhoCount)} ganhos · ${ticketPeriodLabel} · valor bruto`
               : "Valor dos ganhos ÷ nº de ganhos"
           }
           loading={loading}
