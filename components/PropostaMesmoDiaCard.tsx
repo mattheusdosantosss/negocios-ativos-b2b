@@ -11,24 +11,65 @@ const fmtDate = (ms: number | null, utc = false) =>
     ? "—"
     : new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: utc ? "UTC" : "America/Sao_Paulo" });
 
-// Tile de destaque do total por bucket: razão grande + % + barra.
-function StatTile({ label, comp, elig, agu }: { label: string; comp: number; elig: number; agu: number }) {
-  const pct = elig > 0 ? Math.round((comp / elig) * 100) : 0;
+// Detalhamento de um bucket (sem/com reunião): quebra os leads do período em
+// no dia / fora / em dia / futura. em dia e futura são pendentes (janela aberta),
+// fora do denominador da taxa. Total em destaque pra não parecer que houve poucos leads.
+type Breakdown = { noDia: number; fora: number; emDia: number; futura: number; total: number };
+function breakdownOf(closers: PropostaMesmoDiaData["closers"], bucket: "sem" | "com"): Breakdown {
+  const b: Breakdown = { noDia: 0, fora: 0, emDia: 0, futura: 0, total: 0 };
+  const now = Date.now();
+  for (const c of closers) {
+    for (const s of bucket === "sem" ? c.dealsSem : c.dealsCom) {
+      if (s.status === "no_dia") b.noDia += 1;
+      else if (s.status === "fora") b.fora += 1;
+      else if (bucket === "com" && s.reuniaoMs != null && s.reuniaoMs > now) b.futura += 1;
+      else b.emDia += 1;
+    }
+  }
+  b.total = b.noDia + b.fora + b.emDia + b.futura;
+  return b;
+}
+
+const SEGS: { key: keyof Breakdown; label: string; bar: string; dot: string; text: string }[] = [
+  { key: "noDia", label: "no dia", bar: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700" },
+  { key: "fora", label: "fora", bar: "bg-red-400", dot: "bg-red-400", text: "text-red-600" },
+  { key: "emDia", label: "em dia", bar: "bg-psa-blue", dot: "bg-psa-blue", text: "text-psa-blue" },
+  { key: "futura", label: "futura", bar: "bg-violet-400", dot: "bg-violet-400", text: "text-violet-600" },
+];
+
+function StatTile({ label, bucket, bd }: { label: string; bucket: "sem" | "com"; bd: Breakdown }) {
+  const testaveis = bd.noDia + bd.fora; // denominador da taxa (janela já fechou)
+  const pct = testaveis > 0 ? Math.round((bd.noDia / testaveis) * 100) : 0;
+  const segs = SEGS.filter((s) => bucket === "com" || s.key !== "futura");
   return (
     <div className="rounded-xl border border-psa-line bg-psa-canvas/50 p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">{label}</span>
-        {agu > 0 && <span className="text-[10px] font-medium text-psa-blue tabular-nums">{agu} {label.includes("Com") ? "pendente(s)" : "em dia"}</span>}
-      </div>
-      <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-        <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums leading-none">
-          {num(comp)}<span className="text-psa-muted text-xl font-bold">/{num(elig)}</span>
+        <span className="text-[11px] tabular-nums">
+          <b className="text-emerald-700">{pct}%</b> <span className="text-psa-muted">no dia · {num(bd.noDia)}/{num(testaveis)}</span>
         </span>
-        <span className="text-sm font-bold text-emerald-700 tabular-nums">{pct}%</span>
-        <span className="text-[10px] text-psa-muted">no dia</span>
       </div>
-      <div className="mt-2 h-1.5 rounded-full bg-psa-line overflow-hidden">
-        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+      <div className="mt-1 flex items-baseline gap-2">
+        <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums leading-none">{num(bd.total)}</span>
+        <span className="text-[10px] text-psa-muted">{bd.total === 1 ? "lead no período" : "leads no período"}</span>
+      </div>
+      {/* Barra segmentada com todas as categorias */}
+      <div className="mt-2 flex h-2 rounded-full overflow-hidden bg-psa-line">
+        {segs.map((s) =>
+          bd[s.key] === 0 ? null : (
+            <div key={s.key} className={`${s.bar} transition-all`} style={{ width: `${(bd[s.key] / bd.total) * 100}%` }} title={`${bd[s.key]} ${s.label}`} />
+          )
+        )}
+      </div>
+      {/* Legenda discriminada */}
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+        {segs.map((s) => (
+          <span key={s.key} className="inline-flex items-center gap-1 text-[11px] tabular-nums">
+            <span className={`inline-block w-2 h-2 rounded-[2px] ${s.dot}`} />
+            <b className={bd[s.key] > 0 ? s.text : "text-psa-muted"}>{num(bd[s.key])}</b>
+            <span className="text-psa-muted">{s.label}</span>
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -156,8 +197,8 @@ export default function PropostaMesmoDiaCard({ segment }: { segment: "b2b" | "b2
         </div>
         {data && (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <StatTile label="Sem reunião" comp={data.totalSemComp} elig={data.totalSemElig} agu={data.totalSemAgu} />
-            <StatTile label="Com reunião" comp={data.totalComComp} elig={data.totalComElig} agu={data.totalComAgu} />
+            <StatTile label="Sem reunião" bucket="sem" bd={breakdownOf(closers, "sem")} />
+            <StatTile label="Com reunião" bucket="com" bd={breakdownOf(closers, "com")} />
           </div>
         )}
       </div>
