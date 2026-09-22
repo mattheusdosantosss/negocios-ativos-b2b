@@ -10,6 +10,7 @@ import ConversionCard from "@/components/ConversionCard";
 import PropostaMeetingCard from "@/components/PropostaMeetingCard";
 import PropostaMesmoDiaCard from "@/components/PropostaMesmoDiaCard";
 import ReunioesPerfilCard from "@/components/ReunioesPerfilCard";
+import ConversaoVendaCard from "@/components/ConversaoVendaCard";
 import TempoPropostaCard from "@/components/TempoPropostaCard";
 import LeadTimeGanhosCard from "@/components/LeadTimeGanhosCard";
 import SectionCard from "@/components/SectionCard";
@@ -519,6 +520,9 @@ export default function Page() {
 
       {/* Reuniões por closer — só B2C. Filtro de tempo próprio (busca sozinho). */}
       {cfg.hasReunioesPerfil && <ReunioesPerfilCard segment={segment} />}
+
+      {/* Conversão de reunião → venda — só B2C, abaixo do card de reuniões. */}
+      {cfg.hasReunioesPerfil && <ConversaoVendaCard segment={segment} />}
 
       {/* Cards de ganhos — só B2C (Ganhos por atributo vai dentro do card de conversão) */}
       {data && cfg.hasGanhoCards && data.leadTimeGanhos && data.leadTimeGanhos.comData > 0 && (

@@ -987,13 +987,14 @@ const emptyCell = (): ReunioesCell => ({ agendada: [], reprogramada: [], realiza
 // (set/26): só as reuniões de venda "de primeira" — fora FollowUp, Merlin,
 // Remarcação IA (No-show) e todo o resto (relacionamento, mentoria, B2B…).
 // Onboarding é filtrado à parte, pelo título.
-const REUNIOES_TIPOS_VENDA = new Set([
+export const REUNIOES_TIPOS_VENDA_LISTA = [
   "B2C | Reunião de Venda (marcada pelo SDR)",
   "B2C | Reunião de Venda (marcada pelo Closer)",
   "B2C | Reunião de Venda (marcada por Farmer)",
   "B2C | Marcação IA",
   "B2C | Reunião SDR",
-]);
+];
+const REUNIOES_TIPOS_VENDA = new Set(REUNIOES_TIPOS_VENDA_LISTA);
 
 const REUNIOES_PERFIS: Array<{ id: string; label: string; raw: string | null }> = [
   { id: "escala", label: "Escala", raw: "Escala" },

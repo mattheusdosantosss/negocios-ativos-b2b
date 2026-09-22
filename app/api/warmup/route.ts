@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     "/api/dashboard/analytics?segment=b2c",
     "/api/dashboard/proposta-mesmo-dia?segment=b2b",
     "/api/dashboard/reunioes-perfil?segment=b2c",
+    "/api/dashboard/conversao-venda?segment=b2c",
   ];
 
   const started = Date.now();

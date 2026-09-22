@@ -19,6 +19,7 @@ import {
 import { fetchGanhosAtributos, fetchLeadTimeGanhos } from "@/lib/b2cCards";
 import { fetchVendasDoDia } from "@/lib/vendasDia";
 import { fetchPropostaMesmoDia } from "@/lib/propostaMesmoDia";
+import { fetchConversaoVenda } from "@/lib/conversaoVenda";
 import {
   closeTimeMatrix,
   conversionFromCounts,
@@ -143,6 +144,24 @@ export const getReunioesPerfilCached = (
     },
     ["reunioes-perfil-v8-tipos5", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
+  )();
+
+// "Conversão de reunião → venda" (B2C): vendas do mês (enquadradas) ÷ reuniões
+// de venda realizadas no mês, atribuídas ao dono do negócio. Cacheia 10min.
+export const getConversaoVendaCached = (config: SegmentConfig, from?: string, to?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: import("@/lib/conversaoVenda").ConversaoVendaData | undefined; warning?: string }> => {
+      try {
+        const owners = await fetchAllOwners();
+        const nomeMap = new Map(config.team.map((m) => [m.ownerId, m.nome]));
+        return { data: await fetchConversaoVenda(config, { from, to }, owners, nomeMap) };
+      } catch (e) {
+        console.error("[conversao-venda]", e instanceof Error ? e.stack || e.message : e);
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar conversão de venda" };
+      }
+    },
+    ["conversao-venda-v1", config.id, from || "cur", to || "cur"],
+    { revalidate: 600 }
   )();
 
 // "Tempo até proposta" (B2B).
