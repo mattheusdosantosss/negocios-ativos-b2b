@@ -90,6 +90,28 @@ export default function ReunioesPerfilCard({ segment }: { segment: "b2b" | "b2c"
   const closersList = data?.closers ?? [];
   const teamTotal = closersList.reduce((s, c) => s + totalOf(c, null), 0);
 
+  // Reuniões REALIZADAS de um closer (opcionalmente só de um status do negócio).
+  const realizadasDe = (c: ReunioesCloser, status?: ReunioesStatusId) => {
+    const sts = status ? [status] : ALL_STATUS;
+    let n = 0;
+    for (const st of sts) for (const pid of perfilIds) {
+      const cell = c.cube[st][pid];
+      if (cell) n += cell.realizada.length;
+    }
+    return n;
+  };
+  // Taxa de conversão em venda: das reuniões realizadas, quantas o negócio virou
+  // Ganho. Por reunião realizada (um negócio ganho com 2 realizadas conta 2).
+  const convVendaDe = (c: ReunioesCloser) => {
+    const real = realizadasDe(c);
+    const ganho = realizadasDe(c, "ganho");
+    return { real, ganho, pct: real > 0 ? (ganho / real) * 100 : 0 };
+  };
+  const teamReal = closersList.reduce((s, c) => s + realizadasDe(c), 0);
+  const teamGanho = closersList.reduce((s, c) => s + realizadasDe(c, "ganho"), 0);
+  const teamConvPct = teamReal > 0 ? (teamGanho / teamReal) * 100 : 0;
+  const pct1 = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
   const toggle = (id: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -136,6 +158,13 @@ export default function ReunioesPerfilCard({ segment }: { segment: "b2b" | "b2c"
             <span className="font-display text-4xl font-extrabold text-psa-orange tabular-nums">{num(teamTotal)}</span>
             <span className="text-sm text-psa-ink-soft">reuniões · por data da reunião no período</span>
           </div>
+          {teamReal > 0 && (
+            <div className="mt-1.5 text-[11px] text-psa-ink-soft">
+              Conversão em venda:{" "}
+              <b className="text-emerald-700 tabular-nums">{pct1(teamConvPct)}%</b>{" "}
+              <span className="text-psa-muted">({num(teamGanho)} ganhos de {num(teamReal)} realizadas)</span>
+            </div>
+          )}
         </div>
         {/* Filtro de tempo PRÓPRIO deste card */}
         <select
@@ -184,8 +213,20 @@ export default function ReunioesPerfilCard({ segment }: { segment: "b2b" | "b2c"
                   <span className="group-hover:underline underline-offset-2 decoration-psa-orange/50">{c.nome}</span>{" "}
                   <span className="text-psa-ink-soft font-normal">{num(total)} reuniões</span>
                 </button>
-                <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
-                  realizada <b className="text-psa-ink">{total > 0 ? ((realizada / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "0"}%</b>
+                <span className="text-[11px] text-psa-ink-soft whitespace-nowrap flex items-center gap-2">
+                  <span>realizada <b className="text-psa-ink">{total > 0 ? pct1((realizada / total) * 100) : "0"}%</b></span>
+                  {(() => {
+                    const cv = convVendaDe(c);
+                    return (
+                      <span
+                        className="rounded-md bg-emerald-50 border border-emerald-200 px-1.5 py-0.5"
+                        title={`${cv.ganho} negócios ganhos de ${cv.real} reuniões realizadas`}
+                      >
+                        venda <b className="text-emerald-700 tabular-nums">{pct1(cv.pct)}%</b>{" "}
+                        <span className="text-psa-muted">({num(cv.ganho)}/{num(cv.real)})</span>
+                      </span>
+                    );
+                  })()}
                 </span>
               </div>
               {/* Fechado: barra agregada do closer. Aberto: detalhe por perfil. */}
