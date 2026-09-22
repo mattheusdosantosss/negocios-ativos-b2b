@@ -946,34 +946,44 @@ function MonthGoalCard({ data, period, segment }: { data: NonNullable<DashboardD
                       {c.count === 1 ? "venda" : "vendas"}
                     </span>
                   </div>
-                  <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1">
-                    {c.sales.map((s, i) => (
-                      <li key={i} className="text-[11px]">
-                        <div className="flex items-center justify-between gap-3">
-                          <a
-                            href={s.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="truncate text-psa-ink-soft hover:text-psa-orange hover:underline"
-                            title={s.dealname}
-                          >
-                            {s.dealname}
-                          </a>
-                          <span className="shrink-0 tabular-nums text-psa-ink-soft">
-                            {brl(s.amount)}
-                            {s.bruto > s.amount && (
-                              <span className="ml-1.5 text-psa-muted">· margem {Math.round((s.amount / s.bruto) * 100)}%</span>
-                            )}
-                          </span>
+                  {(() => {
+                    const gridCls = segment === "b2c"
+                      ? "grid grid-cols-[1fr_4.75rem_4.75rem_auto] items-center gap-x-3"
+                      : "grid grid-cols-[1fr_auto] items-center gap-x-3";
+                    return (
+                      <div className="mt-2">
+                        <div className={`${gridCls} px-2 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line`}>
+                          <span>Negócio</span>
+                          {segment === "b2c" && <span className="text-right">Criado</span>}
+                          {segment === "b2c" && <span className="text-right">Qualif.</span>}
+                          <span className="text-right">Valor</span>
                         </div>
-                        {segment === "b2c" && (
-                          <div className="text-[10px] text-psa-muted tabular-nums">
-                            criado {fmtDay(s.criadoMs)} · qualif. {fmtDay(s.qualMs, true)}
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                        <ul className="divide-y divide-psa-line/50">
+                          {c.sales.map((s, i) => (
+                            <li key={i} className={`${gridCls} px-2 py-1 text-[11px]`}>
+                              <a
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="truncate text-psa-ink hover:text-psa-orange hover:underline"
+                                title={s.dealname}
+                              >
+                                {s.dealname}
+                              </a>
+                              {segment === "b2c" && <span className="text-right tabular-nums text-psa-ink-soft">{fmtDay(s.criadoMs)}</span>}
+                              {segment === "b2c" && <span className="text-right tabular-nums text-psa-ink-soft">{fmtDay(s.qualMs, true)}</span>}
+                              <span className="text-right shrink-0 whitespace-nowrap tabular-nums font-medium text-psa-ink">
+                                {brl(s.amount)}
+                                {s.bruto > s.amount && (
+                                  <span className="ml-1.5 font-normal text-psa-muted">{Math.round((s.amount / s.bruto) * 100)}%</span>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
