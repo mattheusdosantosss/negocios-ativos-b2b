@@ -946,44 +946,40 @@ function MonthGoalCard({ data, period, segment }: { data: NonNullable<DashboardD
                       {c.count === 1 ? "venda" : "vendas"}
                     </span>
                   </div>
-                  {(() => {
-                    const gridCls = segment === "b2c"
-                      ? "grid grid-cols-[1fr_4.75rem_4.75rem_auto] items-center gap-x-3"
-                      : "grid grid-cols-[1fr_auto] items-center gap-x-3";
-                    return (
-                      <div className="mt-2">
-                        <div className={`${gridCls} px-2 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line`}>
-                          <span>Negócio</span>
-                          {segment === "b2c" && <span className="text-right">Criado</span>}
-                          {segment === "b2c" && <span className="text-right">Qualif.</span>}
-                          <span className="text-right">Valor</span>
-                        </div>
-                        <ul className="divide-y divide-psa-line/50">
-                          {c.sales.map((s, i) => (
-                            <li key={i} className={`${gridCls} px-2 py-1 text-[11px]`}>
-                              <a
-                                href={s.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="truncate text-psa-ink hover:text-psa-orange hover:underline"
-                                title={s.dealname}
-                              >
-                                {s.dealname}
-                              </a>
-                              {segment === "b2c" && <span className="text-right tabular-nums text-psa-ink-soft">{fmtDay(s.criadoMs)}</span>}
-                              {segment === "b2c" && <span className="text-right tabular-nums text-psa-ink-soft">{fmtDay(s.qualMs, true)}</span>}
-                              <span className="text-right shrink-0 whitespace-nowrap tabular-nums font-medium text-psa-ink">
-                                {brl(s.amount)}
-                                {s.bruto > s.amount && (
-                                  <span className="ml-1.5 font-normal text-psa-muted">{Math.round((s.amount / s.bruto) * 100)}%</span>
-                                )}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  })()}
+                  <table className="mt-2 w-full table-auto border-collapse text-[11px]">
+                    <thead>
+                      <tr className="border-b border-psa-line text-[9px] font-bold uppercase tracking-wide text-psa-muted">
+                        <th className="w-full py-1 pr-2 text-left font-bold">Negócio</th>
+                        {segment === "b2c" && <th className="py-1 px-2 text-right font-bold whitespace-nowrap">Criado</th>}
+                        {segment === "b2c" && <th className="py-1 px-2 text-right font-bold whitespace-nowrap">Qualif.</th>}
+                        <th className="py-1 pl-2 text-right font-bold whitespace-nowrap">Valor</th>
+                        <th className="py-1 pl-2 text-right font-bold whitespace-nowrap">Margem</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-psa-line/50">
+                      {c.sales.map((s, i) => (
+                        <tr key={i}>
+                          <td className="py-1 pr-2 max-w-0">
+                            <a
+                              href={s.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block truncate text-psa-ink hover:text-psa-orange hover:underline"
+                              title={s.dealname}
+                            >
+                              {s.dealname}
+                            </a>
+                          </td>
+                          {segment === "b2c" && <td className="py-1 px-2 text-right tabular-nums text-psa-ink-soft whitespace-nowrap">{fmtDay(s.criadoMs)}</td>}
+                          {segment === "b2c" && <td className="py-1 px-2 text-right tabular-nums text-psa-ink-soft whitespace-nowrap">{fmtDay(s.qualMs, true)}</td>}
+                          <td className="py-1 pl-2 text-right tabular-nums font-medium text-psa-ink whitespace-nowrap">{brl(s.amount)}</td>
+                          <td className="py-1 pl-2 text-right tabular-nums text-psa-muted whitespace-nowrap">
+                            {s.bruto > s.amount ? `${Math.round((s.amount / s.bruto) * 100)}%` : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ))}
             </div>
