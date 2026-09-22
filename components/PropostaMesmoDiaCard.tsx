@@ -18,7 +18,7 @@ function StatTile({ label, comp, elig, agu }: { label: string; comp: number; eli
     <div className="rounded-xl border border-psa-line bg-psa-canvas/50 p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">{label}</span>
-        {agu > 0 && <span className="text-[10px] font-medium text-psa-blue tabular-nums">{agu} {label.includes("Com") ? "futura(s)" : "em dia"}</span>}
+        {agu > 0 && <span className="text-[10px] font-medium text-psa-blue tabular-nums">{agu} {label.includes("Com") ? "pendente(s)" : "em dia"}</span>}
       </div>
       <div className="mt-1 flex items-baseline gap-2 flex-wrap">
         <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums leading-none">
@@ -45,12 +45,14 @@ function Ratio({ comp, elig }: { comp: number; elig: number }) {
   );
 }
 
-// Rótulo/cores por status. "aguardando" usa rótulo curto conforme o bucket
-// (futura = reunião futura; hoje = qualificado hoje) pra caber na largura fixa.
-function badgeFor(status: PMDDeal["status"], bucket: "sem" | "com") {
-  if (status === "no_dia") return { label: "no dia", badge: "bg-emerald-100 text-emerald-700", row: "bg-emerald-50/70", prop: "text-emerald-700" };
-  if (status === "fora") return { label: "fora", badge: "bg-red-100 text-red-700", row: "", prop: "text-psa-ink-soft" };
-  return { label: bucket === "com" ? "futura" : "em dia", badge: "bg-psa-blue-soft text-psa-blue", row: "bg-psa-blue-soft/40", prop: "text-psa-ink-soft" };
+// Rótulo/cores por status. "aguardando" = janela ainda aberta: "futura" quando a
+// reunião ainda não ocorreu; "em dia" quando o evento (reunião/qualificação) é
+// hoje e o dia não acabou. Rótulo curto pra caber na largura fixa.
+function badgeFor(d: PMDDeal, bucket: "sem" | "com") {
+  if (d.status === "no_dia") return { label: "no dia", badge: "bg-emerald-100 text-emerald-700", row: "bg-emerald-50/70", prop: "text-emerald-700" };
+  if (d.status === "fora") return { label: "fora", badge: "bg-red-100 text-red-700", row: "", prop: "text-psa-ink-soft" };
+  const futura = bucket === "com" && d.reuniaoMs != null && d.reuniaoMs > Date.now();
+  return { label: futura ? "futura" : "em dia", badge: "bg-psa-blue-soft text-psa-blue", row: "bg-psa-blue-soft/40", prop: "text-psa-ink-soft" };
 }
 
 function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; bucket: "sem" | "com" }) {
@@ -63,7 +65,7 @@ function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; b
         <span className="text-[10px] font-bold uppercase tracking-wide text-psa-blue">{label}</span>
         <span className="text-[10px] text-psa-muted tabular-nums">
           <b className="text-emerald-700">{okN}</b> no dia / {testaveis}
-          {aguN > 0 && <span className="text-psa-blue"> · {aguN} {bucket === "com" ? "futura(s)" : "em dia"}</span>}
+          {aguN > 0 && <span className="text-psa-blue"> · {aguN} {bucket === "com" ? "pendente(s)" : "em dia"}</span>}
         </span>
       </div>
       <div className="flex items-center gap-2 px-1.5 pb-1 text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line">
@@ -75,7 +77,7 @@ function DealList({ deals, label, bucket }: { deals: PMDDeal[]; label: string; b
       </div>
       <div className="divide-y divide-psa-line/60">
         {deals.map((d, i) => {
-          const st = badgeFor(d.status, bucket);
+          const st = badgeFor(d, bucket);
           return (
             <div key={i} className={`flex items-center gap-2 px-1.5 py-1 ${st.row}`}>
               <span className={`w-14 shrink-0 text-center text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded ${st.badge}`}>

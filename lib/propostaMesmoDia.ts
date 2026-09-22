@@ -160,13 +160,16 @@ export async function fetchPropostaMesmoDia(
       if (match) {
         c.comElig += 1; c.comComp += 1; c.dealsCom.push(dl("no_dia", match.ms));
       } else {
-        // Sem casar: se há reunião do período já realizada → fora; se as do
-        // período são todas FUTURAS, a janela ainda não chegou → aguardando.
+        // Sem casar. "fora" só se houve reunião do período num dia que JÁ ACABOU
+        // (day < hoje) sem proposta no dia. Reunião de HOJE (mesmo já ocorrida) ou
+        // futura → janela ainda aberta → aguardando (tag EM DIA / futura).
         const winPast = meetsWin.filter((m) => m.ms < now);
-        if (winPast.length > 0) {
-          c.comElig += 1; c.dealsCom.push(dl("fora", Math.min(...winPast.map((m) => m.ms))));
+        const endedNoMatch = winPast.filter((m) => (m.day as string) < (todayKey as string));
+        if (endedNoMatch.length > 0) {
+          c.comElig += 1; c.dealsCom.push(dl("fora", Math.min(...endedNoMatch.map((m) => m.ms))));
         } else {
-          c.comAgu += 1; c.dealsCom.push(dl("aguardando", Math.min(...meetsWin.map((m) => m.ms))));
+          const refMs = winPast.length ? Math.min(...winPast.map((m) => m.ms)) : Math.min(...meetsWin.map((m) => m.ms));
+          c.comAgu += 1; c.dealsCom.push(dl("aguardando", refMs));
         }
       }
     } else {

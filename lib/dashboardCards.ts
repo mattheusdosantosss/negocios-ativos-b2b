@@ -208,7 +208,7 @@ export const getPropostaMesmoDiaCached = (config: SegmentConfig, origemId: strin
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar proposta no mesmo dia" };
       }
     },
-    ["proposta-mesmo-dia-v11-emdia", config.id, origemId, owner || "all", from || "cur", to || "cur"],
+    ["proposta-mesmo-dia-v12-emdiacom", config.id, origemId, owner || "all", from || "cur", to || "cur"],
     { revalidate: 600 }
   )();
 
