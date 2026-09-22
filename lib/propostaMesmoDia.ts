@@ -54,14 +54,15 @@ export async function fetchPropostaMesmoDia(
   nomeMap: Map<string, string>
 ): Promise<PropostaMesmoDiaData> {
   const pipe = config.id === "b2c" ? "725182862" : "default";
-  // 1) TODOS os negócios em ETAPAS ATIVAS (universo = funil ativo). O filtro de
-  //    tempo é aplicado depois, pela data do EVENTO: qualificação (sem reunião)
-  //    ou reunião (com reunião) — não pela data de criação. Assim "Ontem" mostra
-  //    quem qualificou/teve reunião ontem (evento passado, sem "futura").
+  // 1) Negócios em ETAPAS ATIVAS filtrados por DATA DE CRIAÇÃO (createdate) — o
+  //    mesmo filtro de tempo do resto do painel. O status (no dia / fora / em dia
+  //    / futura) é calculado depois, independente do período.
   const filters: Filter[] = [
     { propertyName: "pipeline", operator: "EQ", value: pipe },
     { propertyName: "dealstage", operator: "IN", values: config.stages.map((s) => s.id) },
   ];
+  if (opts.from) filters.push({ propertyName: "createdate", operator: "GTE", value: String(new Date(opts.from).getTime() + BR_OFFSET_MS) });
+  if (opts.to) filters.push({ propertyName: "createdate", operator: "LTE", value: String(new Date(opts.to).getTime() + BR_OFFSET_MS + 86_400_000 - 1) });
   if (opts.owner) filters.push({ propertyName: "hubspot_owner_id", operator: "EQ", value: opts.owner });
 
   const deals: { id: string; properties: Record<string, string> }[] = [];
@@ -137,13 +138,10 @@ export async function fetchPropostaMesmoDia(
     return all.filter((m) => salesTypes.has(m.tipo) || (m.tipo === "" && m.ms === firstMs));
   };
 
-  // 4) Classifica por closer. Filtro de tempo pela data do EVENTO (dias
-  //    "YYYY-MM-DD"; sem filtro = tudo).
+  // 4) Classifica por closer. O período JÁ foi aplicado na busca (createdate);
+  //    aqui só se calcula o status, independente do recorte.
   const now = Date.now();
   const todayKey = dayKey(now); // dia BR de hoje (janela ainda aberta)
-  const fromDay = opts.from || null;
-  const toDay = opts.to || null;
-  const inPeriod = (day: string | null) => !!day && (!fromDay || (day >= fromDay && (!toDay || day <= toDay)));
   const nomeOf = (oid: string) => nomeMap.get(oid) || ownerDisplayName(owners.get(oid)) || "Sem closer";
   const byCloser = new Map<string, PMDCloser>();
   const get = (oid: string) => {
@@ -162,34 +160,29 @@ export async function fetchPropostaMesmoDia(
     const dl = (status: PMDStatus, reuniaoMs: number | null = firstMeetMs): PMDDeal => ({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), status, criadoMs, propMs, reuniaoMs });
     const c = get(oid);
     if (meets.length > 0) {
-      // COM REUNIÃO. O período seleciona o negócio pela data da reunião (entra se
-      // tem reunião no recorte); mas o "no dia" é AGILIDADE REAL: a proposta saiu
-      // no mesmo dia de QUALQUER reunião já realizada do negócio (não só a do
-      // período). Exibe a reunião que casou com a proposta.
-      const meetsWin = meets.filter((m) => inPeriod(m.day));
-      if (meetsWin.length === 0) continue; // nenhuma reunião no período → fora do recorte
+      // COM REUNIÃO. "no dia" = a proposta saiu no mesmo dia de QUALQUER reunião
+      // já realizada (agilidade real). Senão: "fora" se alguma reunião de um dia
+      // que JÁ ACABOU ficou sem proposta no dia; se a reunião é de hoje (já
+      // ocorrida) ou futura, a janela ainda está aberta → aguardando (em dia/futura).
       const pastMeets = meets.filter((m) => m.ms < now);
       const match = propDay ? pastMeets.find((m) => m.day === propDay) : undefined;
       if (match) {
         c.comElig += 1; c.comComp += 1; c.dealsCom.push(dl("no_dia", match.ms));
       } else {
-        // Sem casar. "fora" só se houve reunião do período num dia que JÁ ACABOU
-        // (day < hoje) sem proposta no dia. Reunião de HOJE (mesmo já ocorrida) ou
-        // futura → janela ainda aberta → aguardando (tag EM DIA / futura).
-        const winPast = meetsWin.filter((m) => m.ms < now);
-        const endedNoMatch = winPast.filter((m) => (m.day as string) < (todayKey as string));
+        const endedNoMatch = pastMeets.filter((m) => (m.day as string) < (todayKey as string));
         if (endedNoMatch.length > 0) {
           c.comElig += 1; c.dealsCom.push(dl("fora", Math.min(...endedNoMatch.map((m) => m.ms))));
         } else {
-          const refMs = winPast.length ? Math.min(...winPast.map((m) => m.ms)) : Math.min(...meetsWin.map((m) => m.ms));
+          // reunião de hoje já ocorrida (em dia) ou só futuras (futura).
+          const todayPast = pastMeets.filter((m) => m.day === todayKey);
+          const refMs = todayPast.length ? Math.min(...todayPast.map((m) => m.ms)) : Math.min(...meets.map((m) => m.ms));
           c.comAgu += 1; c.dealsCom.push(dl("aguardando", refMs));
         }
       }
     } else {
-      // SEM REUNIÃO. Evento = qualificação; só entra se a qualificação está no
-      // período. no_dia se a proposta saiu no mesmo dia. Se qualificou HOJE e
-      // ainda não mandou, o dia não acabou → aguardando (janela aberta), não fora.
-      if (!inPeriod(qualDay)) continue;
+      // SEM REUNIÃO. Evento = qualificação. no_dia se a proposta saiu no mesmo
+      // dia da qualificação; qualificou HOJE sem proposta → janela aberta (em dia);
+      // qualificação passou sem proposta no dia → fora.
       const ok = !!propDay && propDay === qualDay;
       if (ok) {
         c.semElig += 1; c.semComp += 1; c.dealsSem.push(dl("no_dia"));
