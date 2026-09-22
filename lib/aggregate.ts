@@ -270,6 +270,9 @@ export type DashboardData = {
   monthGoal?: MonthGoalData;
   /** Feed de vendas do dia (ganhos B2B+B2C agrupados por dia). Cross-pipeline. */
   vendasDoDia?: VendasDoDiaData;
+  /** Negócios em Forecast (temperatura), SEMPRE todo o período (ignora o filtro
+   *  de data de criação da header). Alimenta o card "Valor previsto (Forecast)". */
+  forecast?: AggregatedDealItem[];
 };
 
 // Taxa de conversão Proposta → Ganho, por mês de criação.
@@ -908,6 +911,15 @@ export function dealsForecast(closers: CloserRow[]): AggregatedDealItem[] {
       .filter((d) => d.temp === "forecast")
       .map((d) => ({ ...d, ownerName: c.nome }))
   );
+}
+
+/** Constrói a lista de negócios em Forecast a partir de deals crus (all-period),
+ *  reusando o mesmo mapeamento das demais listagens. A busca já filtra
+ *  temperatura_atual = "Forecast"; o filtro por temp aqui é só cinto-e-suspensório. */
+export function forecastItems(deals: Deal[], owners: Map<string, Owner>): AggregatedDealItem[] {
+  return deals
+    .map((d) => ({ ...toDealLite(d), ownerName: resolveOwner(d, owners).nome }))
+    .filter((d) => d.temp === "forecast");
 }
 
 /** Negócios com Data Prevista do Evento nos próximos 30 dias, de TODOS os closers. */

@@ -6,6 +6,7 @@ import { unstable_cache } from "next/cache";
 import {
   fetchAllOwners,
   fetchWonAggregate,
+  fetchForecastDeals,
   fetchClosedCloserDeals,
   fetchFirstCloserMeeting,
   fetchConversionCounts,
@@ -21,6 +22,7 @@ import { fetchPropostaMesmoDia } from "@/lib/propostaMesmoDia";
 import {
   closeTimeMatrix,
   conversionFromCounts,
+  forecastItems,
   type DashboardData,
   type CloseTimeData,
   type ConversionData,
@@ -33,6 +35,22 @@ export const getWonAggregateCached = (config: SegmentConfig, origemId: string, o
   unstable_cache(
     () => fetchWonAggregate(config, { origem, owner, from, to }),
     ["won-aggregate-v2-periodo", config.id, origemId, owner || "all", from || "all", to || "all"],
+    { revalidate: 600 }
+  )();
+
+// "Valor previsto (Forecast)" — SEMPRE todo o período (ignora o filtro de data
+// de criação da header); respeita origem/closer. Cacheia 10min.
+export const getForecastCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["forecast"]; warning?: string }> => {
+      try {
+        const [owners, deals] = await Promise.all([fetchAllOwners(), fetchForecastDeals(config, { origem, owner })]);
+        return { data: forecastItems(deals, owners) };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar forecast" };
+      }
+    },
+    ["forecast-v1", config.id, origemId, owner || "all"],
     { revalidate: 600 }
   )();
 

@@ -226,7 +226,7 @@ const brEndOfDayMs = (yyyymmdd: string): number =>
 async function fetchDealsInStages(
   config: SegmentConfig,
   stageIds: string[],
-  opts?: { from?: string; to?: string; origem?: string[]; owner?: string }
+  opts?: { from?: string; to?: string; origem?: string[]; owner?: string; temperatura?: string }
 ): Promise<Deal[]> {
   if (stageIds.length === 0) return [];
 
@@ -235,6 +235,9 @@ async function fetchDealsInStages(
     { propertyName: "dealstage", operator: "IN", values: stageIds },
   ];
 
+  if (opts?.temperatura) {
+    filters.push({ propertyName: "temperatura_atual", operator: "EQ", value: opts.temperatura });
+  }
   if (opts?.from) {
     filters.push({ propertyName: "createdate", operator: "GTE", value: brStartOfDayMs(opts.from).toString() });
   }
@@ -292,6 +295,19 @@ export function fetchActiveDeals(
  */
 export function fetchCheckoutDeals(config: SegmentConfig, opts?: { from?: string; to?: string; owner?: string }): Promise<Deal[]> {
   return fetchDealsInStages(config, config.checkoutStages.map((s) => s.id), opts);
+}
+
+/**
+ * Negócios em Forecast (temperatura_atual = "Forecast") nas etapas ativas —
+ * SEMPRE todo o período (sem filtro por data de criação), pro card "Valor
+ * previsto (Forecast)". Respeita origem/closer da header, mas nunca a data.
+ */
+export function fetchForecastDeals(config: SegmentConfig, opts?: { origem?: string[]; owner?: string }): Promise<Deal[]> {
+  return fetchDealsInStages(config, config.stages.map((s) => s.id), {
+    origem: opts?.origem,
+    owner: opts?.owner,
+    temperatura: "Forecast",
+  });
 }
 
 const CLOSED_PROPS = [

@@ -13,6 +13,7 @@ import {
   CLOSE_TIME_BUCKETS,
   CLOSE_TIME_BUCKET_IDS,
   CLOSE_OUTCOMES,
+  dealsForecast,
 } from "./aggregate";
 import type {
   AggregatedDealItem,
@@ -319,6 +320,7 @@ function makeSeed(config: SegmentConfig, spec: SegmentSeedSpec): DashboardData {
     closers,
     checkout: makeCheckout(config, spec.checkout),
     closeTime: makeCloseTime(config, spec),
+    forecast: dealsForecast(closers),
   };
 }
 

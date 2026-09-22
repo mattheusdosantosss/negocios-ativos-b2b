@@ -28,7 +28,6 @@ import {
   allDealsOf,
   dealsForEventoAtrasado,
   dealsForEventoProximo30,
-  dealsForecast,
   dealsForEvento30Temp,
   dealsForTemp,
   dealsForPerfil,
@@ -226,7 +225,7 @@ export default function Page() {
     if (modal.mode === "evento30-temp") return dealsForEvento30Temp(data.closers, modal.bucketId, modal.tempId);
     if (modal.mode === "evento-atrasado-closer") return modal.row.dealsEventoAtrasado;
     if (modal.mode === "outside-team") return dealsOutsideTeam(data.closers);
-    if (modal.mode === "forecast") return dealsForecast(data.closers);
+    if (modal.mode === "forecast") return data.forecast ?? [];
     if (modal.mode === "checkout") return data.checkout?.dealsPorEtapa[modal.stageId] ?? [];
     if (modal.mode === "close-time") return data.closeTime?.deals[modal.bucketId]?.[modal.outcomeId] ?? [];
     if (modal.mode === "temp-agg") return dealsForTemp(data.closers, modal.stageId, modal.tempId);
@@ -309,7 +308,7 @@ export default function Page() {
     return { total, comPerfil, cobertura: total > 0 ? comPerfil / total : 0 };
   }, [data]);
 
-  const forecast = useMemo(() => (data ? dealsForecast(data.closers) : []), [data]);
+  const forecast = useMemo(() => data?.forecast ?? [], [data]);
   const forecastValor = useMemo(() => forecast.reduce((s, d) => s + d.amount, 0), [forecast]);
 
   // Seletor de segmento do topo — B2B | B2C | FARMER. Reusado no funil e no
