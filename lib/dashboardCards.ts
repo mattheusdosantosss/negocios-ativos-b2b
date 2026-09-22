@@ -222,6 +222,6 @@ export const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: st
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v9-meta520", config.id, from || "cur", to || "cur", owner || "all"],
+    ["month-goal-v10-datas", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();

@@ -567,7 +567,7 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon, lost: geralLost }, months };
 }
 
-export type MonthGoalCloser = { name: string; sold: number; count: number; sales: { dealname: string; url: string; amount: number; bruto: number }[] };
+export type MonthGoalCloser = { name: string; sold: number; count: number; sales: { dealname: string; url: string; amount: number; bruto: number; criadoMs: number | null; qualMs: number | null }[] };
 export type MonthGoalData = { goal: number; sold: number; count: number; byCloser: MonthGoalCloser[] };
 
 /** Primeiro dia do mês corrente (fuso BR) em ms. */
@@ -613,7 +613,7 @@ export async function fetchSalesByCloser(
   do {
     const body: Record<string, unknown> = {
       filterGroups: [{ filters }],
-      properties: ["amount", "valor_total_do_contrato__bruto___ganho_", "valor_bruto", "hubspot_owner_id", "dealname"],
+      properties: ["amount", "valor_total_do_contrato__bruto___ganho_", "valor_bruto", "hubspot_owner_id", "dealname", "createdate", "pipedrive___data_de_qualificacao"],
       limit: 200,
     };
     if (after) body.after = after;
@@ -639,9 +639,22 @@ export async function fetchSalesByCloser(
     const p = d.properties as Record<string, string>;
     const brutoRaw = config.id === "b2c" ? parseBRL(p.valor_bruto) : Number(p.valor_total_do_contrato__bruto___ganho_ || 0);
     const bruto = brutoRaw > 0 ? brutoRaw : amount; // bruto = contrato; líquido = amount
+    const toMsSafe = (v?: string): number | null => {
+      if (!v) return null;
+      const n = Number(v);
+      const ms = Number.isNaN(n) ? Date.parse(v) : n;
+      return Number.isFinite(ms) ? ms : null;
+    };
     c.sold += amount;
     c.count += 1;
-    c.sales.push({ dealname: d.properties.dealname || `Negócio ${d.id}`, url: dealUrl(d.id), amount, bruto });
+    c.sales.push({
+      dealname: d.properties.dealname || `Negócio ${d.id}`,
+      url: dealUrl(d.id),
+      amount,
+      bruto,
+      criadoMs: toMsSafe(p.createdate), // datetime
+      qualMs: toMsSafe(p.pipedrive___data_de_qualificacao), // campo DATE (meia-noite UTC)
+    });
   }
   const byCloser = [...byId.values()].sort((a, b) => b.sold - a.sold);
   byCloser.forEach((c) => c.sales.sort((a, b) => b.amount - a.amount));

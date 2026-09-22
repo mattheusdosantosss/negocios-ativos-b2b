@@ -48,6 +48,11 @@ const EVENTO_PROXIMO30_LABEL = "Evento nos próximos 30 dias";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (n: number) => n.toLocaleString("pt-BR");
+// createdate é datetime (fuso BR); qualificação é campo DATE (meia-noite UTC).
+const fmtDay = (ms: number | null, utc = false) =>
+  ms == null
+    ? "—"
+    : new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: utc ? "UTC" : "America/Sao_Paulo" });
 
 export default function Page() {
   const [segment, setSegment] = useState<SegmentId>("b2b");
@@ -499,7 +504,7 @@ export default function Page() {
 
       {/* Meta do mês — acima da Taxa de conversão (B2B e B2C). Segue o filtro de
           tempo (por fechamento); barra só em mês cheio. */}
-      {data && data.monthGoal && <MonthGoalCard data={data.monthGoal} period={period} />}
+      {data && data.monthGoal && <MonthGoalCard data={data.monthGoal} period={period} segment={segment} />}
 
       {/* Taxa de conversão + motivos — segue o filtro de tempo: fora de "Todo o
           período", trava no mês do período selecionado. */}
@@ -831,7 +836,7 @@ const paceLabel = (n: number) =>
 // (minimizável). Segue o filtro de tempo (por fechamento): em mês cheio (Este
 // mês / Mês passado / padrão) mostra a barra vs a meta; em recortes parciais
 // (Hoje / 7d / 30d / custom) esconde a barra e mostra só o total do período.
-function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["monthGoal"]>; period: PeriodValue }) {
+function MonthGoalCard({ data, period, segment }: { data: NonNullable<DashboardData["monthGoal"]>; period: PeriodValue; segment: SegmentId }) {
   const { goal, sold, count, byCloser } = data;
   const [openHist, setOpenHist] = useState(false);
   const ratio = goal > 0 ? sold / goal : 0;
@@ -943,22 +948,29 @@ function MonthGoalCard({ data, period }: { data: NonNullable<DashboardData["mont
                   </div>
                   <ul className="mt-1.5 pl-3 border-l-2 border-psa-orange/30 space-y-1">
                     {c.sales.map((s, i) => (
-                      <li key={i} className="flex items-center justify-between gap-3 text-[11px]">
-                        <a
-                          href={s.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="truncate text-psa-ink-soft hover:text-psa-orange hover:underline"
-                          title={s.dealname}
-                        >
-                          {s.dealname}
-                        </a>
-                        <span className="shrink-0 tabular-nums text-psa-ink-soft">
-                          {brl(s.amount)}
-                          {s.bruto > s.amount && (
-                            <span className="ml-1.5 text-psa-muted">· margem {Math.round((s.amount / s.bruto) * 100)}%</span>
-                          )}
-                        </span>
+                      <li key={i} className="text-[11px]">
+                        <div className="flex items-center justify-between gap-3">
+                          <a
+                            href={s.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate text-psa-ink-soft hover:text-psa-orange hover:underline"
+                            title={s.dealname}
+                          >
+                            {s.dealname}
+                          </a>
+                          <span className="shrink-0 tabular-nums text-psa-ink-soft">
+                            {brl(s.amount)}
+                            {s.bruto > s.amount && (
+                              <span className="ml-1.5 text-psa-muted">· margem {Math.round((s.amount / s.bruto) * 100)}%</span>
+                            )}
+                          </span>
+                        </div>
+                        {segment === "b2c" && (
+                          <div className="text-[10px] text-psa-muted tabular-nums">
+                            criado {fmtDay(s.criadoMs)} · qualif. {fmtDay(s.qualMs, true)}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
