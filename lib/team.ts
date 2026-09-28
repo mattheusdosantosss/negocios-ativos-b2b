@@ -40,6 +40,9 @@ export const B2C_TEAM: TeamMember[] = [
   { ownerId: "79760676", nome: "Amanda de Oliveira" },
   { ownerId: "93470034", nome: "Franciele Oliveira" },
   { ownerId: "79760746", nome: "Mayda Quadros" },
+  // Incluídas em set/2026.
+  { ownerId: "99956263", nome: "Indira Bauer" },
+  { ownerId: "99230962", nome: "Andrea Maria de Vargas" },
 ];
 
 export const B2C_TEAM_IDS = new Set(B2C_TEAM.map((m) => m.ownerId));
