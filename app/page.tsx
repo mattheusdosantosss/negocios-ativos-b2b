@@ -341,7 +341,7 @@ export default function Page() {
     handleSegmentChange(id);
   };
   const segmentSelector = (
-    <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-1">
+    <div className="flex-1 grid grid-cols-2 gap-1">
       {TOP_TABS.map((t) => {
         const active = t.id === activeTop;
         return (
@@ -358,6 +358,15 @@ export default function Page() {
           </button>
         );
       })}
+      {/* Sinaleira — painel externo (Tramitação). Abre em nova aba. */}
+      <a
+        href="https://painel-tramitacao.vercel.app/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="col-span-2 inline-flex items-center justify-center gap-1 text-center px-1.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-normal whitespace-nowrap transition-all text-white/60 hover:text-white hover:bg-white/[0.06]"
+      >
+        Sinaleira <span aria-hidden>↗</span>
+      </a>
     </div>
   );
 
