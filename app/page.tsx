@@ -410,7 +410,7 @@ export default function Page() {
               </p>
             </div>
 
-            <div className="flex flex-col w-full gap-2.5 sm:flex-row sm:items-stretch sm:w-auto sm:shrink-0">
+            <div className="flex flex-col w-full gap-2.5 sm:flex-row sm:items-start sm:w-auto sm:shrink-0">
               {/* Filtro de período */}
               <div className="bg-white/[0.06] backdrop-blur border border-white/10 rounded-xl px-4 py-3 flex flex-col w-full gap-3 sm:flex-row sm:items-end sm:w-auto sm:flex-wrap">
                 <PeriodFilter value={period} onChange={handlePeriodChange} />
