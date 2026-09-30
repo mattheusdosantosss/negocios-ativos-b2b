@@ -179,7 +179,7 @@ export default function PropostaMesmoDiaCard({ segment }: { segment: "b2b" | "b2
             </div>
             <p className="text-[11px] text-psa-ink-soft mt-1 max-w-2xl">
               Agilidade por closer: de quantas oportunidades ele mandou a proposta no mesmo dia (<b className="text-psa-ink-soft">enviou / teve</b>).{" "}
-              <b className="text-psa-ink-soft">Sem reunião</b> conta pelo dia da qualificação; <b className="text-psa-ink-soft">com reunião</b>, pelo dia da reunião.{" "}
+              <b className="text-psa-ink-soft">Sem reunião</b> conta pelo dia da qualificação; <b className="text-psa-ink-soft">com reunião</b>, pelo dia da reunião (ou da qualificação, se a proposta saiu antes).{" "}
               <span className="text-psa-muted">Clique numa linha pra ver os negócios.</span>
             </p>
           </div>

@@ -161,13 +161,16 @@ export async function fetchPropostaMesmoDia(
     const c = get(oid);
     if (meets.length > 0) {
       // COM REUNIÃO. "no dia" = a proposta saiu no mesmo dia de QUALQUER reunião
-      // já realizada (agilidade real). Senão: "fora" se alguma reunião de um dia
+      // já realizada (agilidade real) OU no dia da QUALIFICAÇÃO (proposta saiu
+      // antes/independente da reunião — não penaliza quem mandou proposta rápido
+      // e só depois agendou reunião). Senão: "fora" se alguma reunião de um dia
       // que JÁ ACABOU ficou sem proposta no dia; se a reunião é de hoje (já
       // ocorrida) ou futura, a janela ainda está aberta → aguardando (em dia/futura).
       const pastMeets = meets.filter((m) => m.ms < now);
       const match = propDay ? pastMeets.find((m) => m.day === propDay) : undefined;
-      if (match) {
-        c.comElig += 1; c.comComp += 1; c.dealsCom.push(dl("no_dia", match.ms));
+      const noDiaQualif = !!propDay && propDay === qualDay; // proposta no dia da qualificação
+      if (match || noDiaQualif) {
+        c.comElig += 1; c.comComp += 1; c.dealsCom.push(dl("no_dia", match ? match.ms : firstMeetMs));
       } else {
         const endedNoMatch = pastMeets.filter((m) => (m.day as string) < (todayKey as string));
         if (endedNoMatch.length > 0) {
