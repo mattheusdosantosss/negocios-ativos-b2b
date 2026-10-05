@@ -90,6 +90,10 @@ export type SegmentConfig = {
   rankingListId: string | null;
   /** Roster oficial de closers do segmento (métrica "fora do time"). */
   team: TeamMember[];
+  /** Card "SLA de Onboarding": negócios parados na etapa `stageId` há mais de
+   *  `prazoDias` desde que entraram em `refStageId` (Negócio fechado) = atrasado.
+   *  null quando o segmento não tem essa etapa. */
+  onboardingSLA: { stageId: string; stageLabel: string; refStageId: string; prazoDias: number } | null;
 };
 
 export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
@@ -144,6 +148,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     monthGoal: 1_200_000,
     rankingListId: "1491", // "RANKING DE VENDAS | MÊS"
     team: B2B_TEAM,
+    onboardingSLA: { stageId: "1451255875", stageLabel: "Aguardando Onboarding", refStageId: "1076664462", prazoDias: 7 },
   },
   b2c: {
     id: "b2c",
@@ -186,6 +191,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     monthGoal: 520_000,
     rankingListId: "1491", // "RANKING DE VENDAS | MÊS" (filtra pela pipeline B2C)
     team: B2C_TEAM,
+    onboardingSLA: null,
   },
 };
 

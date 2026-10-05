@@ -20,6 +20,7 @@ import { fetchGanhosAtributos, fetchLeadTimeGanhos } from "@/lib/b2cCards";
 import { fetchVendasDoDia } from "@/lib/vendasDia";
 import { fetchPropostaMesmoDia } from "@/lib/propostaMesmoDia";
 import { fetchConversaoVenda } from "@/lib/conversaoVenda";
+import { fetchOnboardingSLA } from "@/lib/onboarding";
 import {
   closeTimeMatrix,
   conversionFromCounts,
@@ -52,6 +53,22 @@ export const getForecastCached = (config: SegmentConfig, origemId: string, orige
       }
     },
     ["forecast-v1", config.id, origemId, owner || "all"],
+    { revalidate: 600 }
+  )();
+
+// "SLA de Onboarding" (B2B): negócios parados em "Aguardando Onboarding" além
+// do prazo desde que fecharam. Cacheia 10min.
+export const getOnboardingCached = (config: SegmentConfig, owner?: string) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["onboarding"]; warning?: string }> => {
+      try {
+        const owners = await fetchAllOwners();
+        return { data: await fetchOnboardingSLA(config, owners) };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar SLA de onboarding" };
+      }
+    },
+    ["onboarding-sla-v1", config.id, owner || "all"],
     { revalidate: 600 }
   )();
 

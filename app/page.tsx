@@ -11,6 +11,7 @@ import PropostaMeetingCard from "@/components/PropostaMeetingCard";
 import PropostaMesmoDiaCard from "@/components/PropostaMesmoDiaCard";
 import ReunioesPerfilCard from "@/components/ReunioesPerfilCard";
 import ConversaoVendaCard from "@/components/ConversaoVendaCard";
+import OnboardingSLACard from "@/components/OnboardingSLACard";
 import TempoPropostaCard from "@/components/TempoPropostaCard";
 import LeadTimeGanhosCard from "@/components/LeadTimeGanhosCard";
 import SectionCard from "@/components/SectionCard";
@@ -726,6 +727,9 @@ export default function Page() {
       {/* Proposta no mesmo dia (B2B) — filtro de tempo PRÓPRIO; o card busca os
           próprios dados. */}
       {data && cfg.hasPropostaMeeting && <PropostaMesmoDiaCard segment={segment} />}
+
+      {/* SLA de Onboarding (B2B) — negócios parados em "Aguardando Onboarding". */}
+      {data && data.onboarding && data.onboarding.total > 0 && <OnboardingSLACard data={data.onboarding} />}
 
       {/* Negócios ativos por perfil (mesma lógica da temperatura, dimensão Perfil).
           Só no B2C — no B2B o card não é apresentado. */}

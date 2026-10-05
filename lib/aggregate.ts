@@ -273,6 +273,8 @@ export type DashboardData = {
   /** Negócios em Forecast (temperatura), SEMPRE todo o período (ignora o filtro
    *  de data de criação da header). Alimenta o card "Valor previsto (Forecast)". */
   forecast?: AggregatedDealItem[];
+  /** B2B: SLA de Onboarding — negócios parados em "Aguardando Onboarding". */
+  onboarding?: import("./onboarding").OnboardingSLAData;
 };
 
 // Taxa de conversão Proposta → Ganho, por mês de criação.
