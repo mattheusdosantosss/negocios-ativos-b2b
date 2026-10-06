@@ -39,7 +39,7 @@ import {
   type DashboardData,
 } from "@/lib/aggregate";
 import { SEGMENTS, type SegmentId } from "@/lib/segments";
-import FarmerDashboard from "@/components/farmer/FarmerDashboard";
+import FarmerV2Dashboard from "@/components/farmer2/FarmerV2Dashboard";
 import ConversaoDashboard from "@/components/ConversaoDashboard";
 import { computePeriod, formatPeriodRange, type PeriodValue } from "@/lib/periods";
 import { type LeadSourceId } from "@/lib/leadSource";
@@ -375,7 +375,7 @@ export default function Page() {
   if (convMode) return <ConversaoDashboard segmentSelector={segmentSelector} />;
 
   // FARMER selecionado → painel de Líderes Táticos · Farmers no lugar do funil.
-  if (farmerMode) return <FarmerDashboard segmentSelector={segmentSelector} />;
+  if (farmerMode) return <FarmerV2Dashboard segmentSelector={segmentSelector} />;
 
   return (
     <main className="max-w-[1400px] mx-auto px-6 py-8 space-y-8">
