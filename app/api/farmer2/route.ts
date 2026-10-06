@@ -8,13 +8,10 @@ export const maxDuration = 60;
 
 // Dados crus do painel de Farmer (espelho do farmers-dashboard). O cliente
 // computa os cards (ranking/score/critérios/conversão/etc.) a partir disso,
-// igual ao externo. farmerRevenue (Map) vira objeto pra serializar.
+// igual ao externo. wonDeals = negócios ganhos (receita), filtrados por período no cliente.
 const getFarmer2 = unstable_cache(
-  async () => {
-    const r = await fetchAllDeals();
-    return { ...r, farmerRevenue: Object.fromEntries(r.farmerRevenue) };
-  },
-  ["farmer2-deals-v1"],
+  async () => fetchAllDeals(),
+  ["farmer2-deals-v2"],
   { revalidate: 600 }
 );
 

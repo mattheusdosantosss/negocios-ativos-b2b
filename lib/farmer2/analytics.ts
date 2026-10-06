@@ -252,7 +252,7 @@ export function getPeriodRange(period: PeriodKey): { start: Date; end: Date } | 
   }
 }
 
-export function filterDealsByPeriod(deals: Deal[], period: PeriodKey, customRange?: { start: string; end: string }): Deal[] {
+export function filterDealsByPeriod<T extends { date: string }>(deals: T[], period: PeriodKey, customRange?: { start: string; end: string }): T[] {
   if (period === 'entre' && customRange) {
     const startMs = new Date(customRange.start).getTime()
     const endMs = new Date(customRange.end + 'T23:59:59').getTime()
@@ -322,7 +322,7 @@ export function getAvailableMonths(deals: Deal[]): string[] {
   return Array.from(months).sort()
 }
 
-export function filterDealsByTeam(deals: Deal[], teamId: string | null): Deal[] {
+export function filterDealsByTeam<T extends { farmerId: string; date: string }>(deals: T[], teamId: string | null): T[] {
   if (!teamId) return deals
   // Sensível à data: negócios antigos usam a formação antiga; jul/26+ a nova.
   return deals.filter((d) => dealInTeam(d.farmerId, d.date, teamId))

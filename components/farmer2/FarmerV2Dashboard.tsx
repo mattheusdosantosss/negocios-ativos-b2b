@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { Deal, ExcludedDeal, FetchValidation } from "@/lib/farmer2/hubspot";
+import type { Deal, ExcludedDeal, FetchValidation, WonDeal } from "@/lib/farmer2/hubspot";
 import {
   computeSummaryStats, computeFarmerRanking, computeScoreDistribution, computeCriteriaAnalysis,
   computeMeetingConversion, computeForaDoMOA, computeOpportunitiesByDay, filterDealsByPeriod,
@@ -13,6 +13,7 @@ import { computeMacroKPIs, computeFarmerMatrix, generateInsights, computeStaleDe
 const num = (n: number) => n.toLocaleString("pt-BR");
 const pct = (n: number) => `${Math.round(n)}%`;
 const dec = (n: number, d = 1) => n.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const brlK = (n: number) => (n >= 1e6 ? `R$ ${dec(n / 1e6, 1)}M` : `R$ ${Math.round(n / 1000).toLocaleString("pt-BR")}k`);
 const fmtDM = (isoDay: string) => { const [, m, d] = isoDay.split("-"); return `${d}/${m}`; };
 const monthLabelOf = (monthKey: string) => { const [y, m] = monthKey.split("-").map(Number); const n = new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long" }); return `${n.charAt(0).toUpperCase()}${n.slice(1)} ${y}`; };
 
@@ -20,7 +21,7 @@ type ApiData = {
   deals: Deal[];
   validation: FetchValidation;
   excludedDeals: ExcludedDeal[];
-  farmerRevenue: Record<string, number>;
+  wonDeals: WonDeal[];
 };
 
 const TEAM_OPTIONS: { id: string | null; label: string }[] = [
@@ -66,6 +67,16 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
 
   // conversão por farmer indexada pra juntar no ranking
   const convById = useMemo(() => new Map(conversion.map((c) => [c.farmerId, c])), [conversion]);
+
+  // Receita dos negócios ganhos (farmer = SDR/responsável), por data de fechamento
+  // dentro do período/time selecionados.
+  const revenueById = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const w of filterDealsByPeriod(filterDealsByTeam(data?.wonDeals ?? [], team), period)) {
+      m.set(w.farmerId, (m.get(w.farmerId) ?? 0) + w.amount);
+    }
+    return m;
+  }, [data, team, period]);
 
   // ── MTD: composição por origem (do mês de referência, time-filtrado) + pace ──
   const mtd = useMemo(() => {
@@ -272,12 +283,14 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
                     <th className="text-right py-1.5 px-2">Empresas</th>
                     <th className="text-right py-1.5 px-2">Negócios</th>
                     <th className="text-right py-1.5 px-2 hidden sm:table-cell">Agend.</th>
-                    <th className="text-right py-1.5 pl-2 hidden sm:table-cell">Realiz.</th>
+                    <th className="text-right py-1.5 px-2 hidden sm:table-cell">Realiz.</th>
+                    <th className="text-right py-1.5 pl-2" title="Negócios ganhos com o farmer como SDR/responsável, pela data de fechamento no período">Receita</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-psa-line/60">
                   {ranking.map((f, i) => {
                     const c = convById.get(f.farmerId);
+                    const rev = revenueById.get(f.farmerId) ?? 0;
                     return (
                       <tr key={f.farmerId}>
                         <td className="py-1.5 pr-2 text-psa-muted tabular-nums">{i + 1}</td>
@@ -286,7 +299,8 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
                         <td className="py-1.5 px-2 text-right tabular-nums text-psa-ink-soft">{num(f.companyCount)}</td>
                         <td className="py-1.5 px-2 text-right tabular-nums text-psa-ink-soft">{num(f.dealCount)}</td>
                         <td className="py-1.5 px-2 text-right tabular-nums text-psa-ink-soft hidden sm:table-cell">{c ? `${c.scheduledPct}%` : "—"}</td>
-                        <td className="py-1.5 pl-2 text-right tabular-nums text-psa-ink-soft hidden sm:table-cell">{c ? `${c.completedPct}%` : "—"}</td>
+                        <td className="py-1.5 px-2 text-right tabular-nums text-psa-ink-soft hidden sm:table-cell">{c ? `${c.completedPct}%` : "—"}</td>
+                        <td className="py-1.5 pl-2 text-right tabular-nums font-semibold text-emerald-600">{rev > 0 ? brlK(rev) : "—"}</td>
                       </tr>
                     );
                   })}

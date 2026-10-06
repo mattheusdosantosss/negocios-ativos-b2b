@@ -52,12 +52,21 @@ export interface ExcludedDeal {
   reason?: 'noshow' | 'fora_moa'
 }
 
+// Negócio ganho com farmer como SDR/responsável — base da coluna Receita.
+// date = closedate (ISO), pra filtrar pelo período selecionado no painel.
+export interface WonDeal {
+  id: string
+  farmerId: string
+  date: string
+  amount: number
+}
+
 export interface FetchResult {
   deals: Deal[]
   validation: FetchValidation
   foraDoMOA: ForaDoMOAEntry[]
   excludedDeals: ExcludedDeal[]
-  farmerRevenue: Map<string, number>
+  wonDeals: WonDeal[]
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -559,8 +568,9 @@ export async function fetchAllDeals(): Promise<FetchResult> {
     .map(([farmerName, count]) => ({ farmerName, count }))
     .sort((a, b) => b.count - a.count)
 
-  // Receita: busca deals ganhos por closedate (independente da qualificação)
-  const farmerRevenue = new Map<string, number>()
+  // Receita: busca deals ganhos por closedate (independente da qualificação).
+  // Vai por negócio (com closedate) pro cliente filtrar pelo período.
+  const wonDeals: WonDeal[] = []
   const farmerIdsArray = Object.keys(FARMERS)
   let wonAfter: string | undefined
   while (true) {
@@ -592,23 +602,16 @@ export async function fetchAllDeals(): Promise<FetchResult> {
       if (!FARMERS[fid]) continue
       const amount = parseFloat(r.properties.amount_in_home_currency ?? '0') || 0
       const closeDate = r.properties.closedate ?? ''
-      farmerRevenue.set(`${fid}:${closeDate}:${r.id}`, amount)
+      wonDeals.push({ id: r.id, farmerId: fid, date: closeDate ? new Date(closeDate).toISOString() : '', amount })
     }
     wonAfter = wonData.paging?.next?.after
     if (!wonAfter) break
   }
-  // Aggregate by farmer
-  const revenueByFarmer = new Map<string, number>()
-  for (const [key, amount] of farmerRevenue) {
-    const fid = key.split(':')[0]
-    revenueByFarmer.set(fid, (revenueByFarmer.get(fid) ?? 0) + amount)
-  }
-
   return {
     deals,
     validation: { totalBruto, excludedFora, totalLiquido: deals.length },
     foraDoMOA,
     excludedDeals,
-    farmerRevenue: revenueByFarmer,
+    wonDeals,
   }
 }
