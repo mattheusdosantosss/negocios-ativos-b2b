@@ -194,6 +194,20 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
             <Kpi label="No show" value={pct(stats.meetingScheduled ? (stats.meetingNoShow / stats.meetingScheduled) * 100 : 0)} hint={`${num(stats.meetingNoShow)} de ${num(stats.meetingScheduled)} agendadas`} />
           </section>
 
+          {/* Fora do MOA (ordem do externo: logo após os KPIs) */}
+          {foraDoMOA.length > 0 && (
+            <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
+              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Fora do MOA · por farmer</div>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+                {foraDoMOA.map((f) => (
+                  <span key={f.farmerName} className="text-[12px] text-psa-ink-soft tabular-nums">
+                    {f.farmerName} <b className="text-psa-ink">{num(f.count)}</b>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Ranking de farmers por score */}
           <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
             <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Ranking de farmers · por pontuação média</div>
@@ -267,20 +281,6 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
               </div>
             </div>
           </div>
-
-          {/* Fora do MOA */}
-          {foraDoMOA.length > 0 && (
-            <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Fora do MOA · por farmer</div>
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
-                {foraDoMOA.map((f) => (
-                  <span key={f.farmerName} className="text-[12px] text-psa-ink-soft tabular-nums">
-                    {f.farmerName} <b className="text-psa-ink">{num(f.count)}</b>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Oportunidades por dia (empilhado por farmer) */}
           {oppsByDay.grandTotal > 0 && (
