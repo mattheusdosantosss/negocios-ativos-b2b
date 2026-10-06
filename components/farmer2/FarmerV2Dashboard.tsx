@@ -24,6 +24,12 @@ type ApiData = {
   wonDeals: WonDeal[];
 };
 
+type RankSortKey = "nome" | "score" | "empresas" | "negocios" | "agend" | "realiz" | "receita";
+const RANK_SORT_LABEL: Record<RankSortKey, string> = {
+  nome: "nome", score: "pontuação média", empresas: "empresas", negocios: "negócios",
+  agend: "agendadas", realiz: "realizadas", receita: "receita",
+};
+
 const TEAM_OPTIONS: { id: string | null; label: string }[] = [
   { id: null, label: "Todos os Farmers" },
   ...Object.entries(TEAMS).map(([id, t]) => ({ id, label: t.label })),
@@ -35,6 +41,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
   const [err, setErr] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodKey>("");
   const [team, setTeam] = useState<string | null>(null);
+  const [rankSort, setRankSort] = useState<{ key: RankSortKey; dir: "asc" | "desc" }>({ key: "empresas", dir: "desc" });
   const [pickedDay, setPickedDay] = useState<string | null>(null);
 
   const load = (fresh = false) => {
@@ -77,6 +84,44 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
     }
     return m;
   }, [data, team, period]);
+
+  // Ranking ordenável por qualquer coluna (padrão: empresas, maior primeiro).
+  // Empate → score médio; sem dado de reunião vai pro fim.
+  const sortedRanking = useMemo(() => {
+    const val = (f: (typeof ranking)[number]): number | string => {
+      const c = convById.get(f.farmerId);
+      switch (rankSort.key) {
+        case "nome": return f.farmerName.toLocaleLowerCase("pt-BR");
+        case "score": return f.avgScore;
+        case "empresas": return f.companyCount;
+        case "negocios": return f.dealCount;
+        case "agend": return c ? c.scheduledPct : -1;
+        case "realiz": return c ? c.completedPct : -1;
+        case "receita": return revenueById.get(f.farmerId) ?? 0;
+      }
+    };
+    const sign = rankSort.dir === "asc" ? 1 : -1;
+    return [...ranking].sort((a, b) => {
+      const va = val(a), vb = val(b);
+      const cmp = typeof va === "string" ? va.localeCompare(vb as string, "pt-BR") : va - (vb as number);
+      return cmp !== 0 ? cmp * sign : b.avgScore - a.avgScore;
+    });
+  }, [ranking, convById, revenueById, rankSort]);
+
+  const toggleRankSort = (key: RankSortKey) =>
+    setRankSort((s) => (s.key === key ? { key, dir: s.dir === "desc" ? "asc" : "desc" } : { key, dir: key === "nome" ? "asc" : "desc" }));
+
+  const rankTh = ({ k, label, className, title }: { k: RankSortKey; label: string; className: string; title?: string }) => {
+    const active = rankSort.key === k;
+    return (
+      <th className={className} title={title} aria-sort={active ? (rankSort.dir === "asc" ? "ascending" : "descending") : "none"}>
+        <button type="button" onClick={() => toggleRankSort(k)} className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-psa-ink transition-colors ${active ? "text-psa-orange" : ""}`}>
+          {label}
+          <span className={`text-[8px] leading-none ${active ? "" : "opacity-30"}`}>{active ? (rankSort.dir === "asc" ? "▲" : "▼") : "▼"}</span>
+        </button>
+      </th>
+    );
+  };
 
   // ── MTD: composição por origem (do mês de referência, time-filtrado) + pace ──
   const mtd = useMemo(() => {
@@ -270,25 +315,25 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
             </div>
           )}
 
-          {/* Ranking de farmers por score */}
+          {/* Ranking de farmers (ordenável por coluna) */}
           <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Ranking de farmers · por pontuação média</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Ranking de farmers · por {RANK_SORT_LABEL[rankSort.key]}</div>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="text-[9px] font-bold uppercase tracking-wide text-psa-muted border-b border-psa-line">
                     <th className="text-left py-1.5 pr-2">#</th>
-                    <th className="text-left py-1.5 pr-2">Farmer</th>
-                    <th className="text-right py-1.5 px-2">Score médio</th>
-                    <th className="text-right py-1.5 px-2">Empresas</th>
-                    <th className="text-right py-1.5 px-2">Negócios</th>
-                    <th className="text-right py-1.5 px-2 hidden sm:table-cell">Agend.</th>
-                    <th className="text-right py-1.5 px-2 hidden sm:table-cell">Realiz.</th>
-                    <th className="text-right py-1.5 pl-2" title="Negócios ganhos com o farmer como SDR/responsável, pela data de fechamento no período">Receita</th>
+                    {rankTh({ k: "nome", label: "Farmer", className: "text-left py-1.5 pr-2" })}
+                    {rankTh({ k: "score", label: "Score médio", className: "text-right py-1.5 px-2" })}
+                    {rankTh({ k: "empresas", label: "Empresas", className: "text-right py-1.5 px-2" })}
+                    {rankTh({ k: "negocios", label: "Negócios", className: "text-right py-1.5 px-2" })}
+                    {rankTh({ k: "agend", label: "Agend.", className: "text-right py-1.5 px-2 hidden sm:table-cell" })}
+                    {rankTh({ k: "realiz", label: "Realiz.", className: "text-right py-1.5 px-2 hidden sm:table-cell" })}
+                    {rankTh({ k: "receita", label: "Receita", className: "text-right py-1.5 pl-2", title: "Negócios ganhos com o farmer como SDR/responsável, pela data de fechamento no período" })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-psa-line/60">
-                  {ranking.map((f, i) => {
+                  {sortedRanking.map((f, i) => {
                     const c = convById.get(f.farmerId);
                     const rev = revenueById.get(f.farmerId) ?? 0;
                     return (
