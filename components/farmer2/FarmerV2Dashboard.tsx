@@ -13,6 +13,8 @@ import { computeMacroKPIs, computeFarmerMatrix, generateInsights, computeStaleDe
 const num = (n: number) => n.toLocaleString("pt-BR");
 const pct = (n: number) => `${Math.round(n)}%`;
 const dec = (n: number, d = 1) => n.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtDM = (isoDay: string) => { const [, m, d] = isoDay.split("-"); return `${d}/${m}`; };
+const monthLabelOf = (monthKey: string) => { const [y, m] = monthKey.split("-").map(Number); const n = new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long" }); return `${n.charAt(0).toUpperCase()}${n.slice(1)} ${y}`; };
 
 type ApiData = {
   deals: Deal[];
@@ -32,6 +34,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
   const [err, setErr] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodKey>("");
   const [team, setTeam] = useState<string | null>(null);
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
 
   const load = (fresh = false) => {
     setLoading(true); setErr(null);
@@ -55,6 +58,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
 
   // Meta de empresas únicas do mês de referência (por time, quando selecionado).
   const meta = monthlyGoal(monthKey, team);
+  const monthLabel = monthLabelOf(monthKey);
   const empresasNoMes = useMemo(() => {
     const mes = filterDealsByTeam(deals, team).filter((d) => d.date && d.date.slice(0, 7) === monthKey);
     return new Set(mes.map((d) => uniqueDemandKey(d))).size;
@@ -97,6 +101,31 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
     const criticos = isCurrent ? monthDeals.filter((d) => isDealWithCreator(d.farmerId, d.ownerId) && d.date && nowMs - new Date(d.date).getTime() > THREE).length : 0;
     return { total, b2c, crm, criador, carteira, paceTarget, diff, criticos, isCurrent };
   }, [deals, team, monthKey, meta]);
+
+  // Navegador de dia (empresas únicas do dia selecionado do mês de referência).
+  const dayNav = useMemo(() => {
+    const monthDeals = filterDealsByTeam(deals, team).filter((d) => d.date && d.date.slice(0, 7) === monthKey);
+    const [y, m] = monthKey.split("-").map(Number);
+    const totalDays = new Date(y, m, 0).getDate();
+    const now = new Date();
+    const cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const isCurrent = monthKey === cur;
+    const isPast = monthKey < cur;
+    const lastDay = isCurrent ? now.getDate() : isPast ? totalDays : 1;
+    const firstKey = `${monthKey}-01`;
+    const lastDayKey = `${monthKey}-${String(lastDay).padStart(2, "0")}`;
+    const sel = pickedDay && pickedDay.startsWith(monthKey) && pickedDay >= firstKey && pickedDay <= lastDayKey ? pickedDay : lastDayKey;
+    const todayKey = now.toISOString().slice(0, 10);
+    const dayDeals = monthDeals.filter((d) => d.date?.slice(0, 10) === sel);
+    const dayCount = new Set(dayDeals.map((d) => uniqueDemandKey(d))).size;
+    return { sel, firstKey, lastDayKey, dayCount, isToday: isCurrent && sel === todayKey, canPrev: sel > firstKey, canNext: sel < lastDayKey };
+  }, [deals, team, monthKey, pickedDay]);
+  const shiftDay = (delta: number) => {
+    const d = new Date(`${dayNav.sel}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + delta);
+    const next = d.toISOString().slice(0, 10);
+    if (next >= dayNav.firstKey && next <= dayNav.lastDayKey) setPickedDay(next);
+  };
 
   const oppsByDay = useMemo(() => computeOpportunitiesByDay(filterDealsByTeam(deals, team), monthKey, 7), [deals, team, monthKey]);
   const matrix = useMemo(() => computeFarmerMatrix(filtered), [filtered]);
@@ -153,33 +182,55 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
 
       {data && (
         <>
-          {/* Meta do mês (empresas únicas) + pace + composição por origem */}
+          {/* Cabeçalho MTD: dia + meta do mês (empresas únicas) + pace + composição */}
           <div className="rounded-2xl border-2 border-psa-orange/40 bg-gradient-to-br from-psa-orange/[0.07] to-transparent p-5">
-            <div className="flex items-end justify-between gap-4 flex-wrap">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">Meta do mês · empresas únicas{team ? " · " + TEAM_OPTIONS.find((t) => t.id === team)?.label : ""}</div>
-                <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                  <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{num(empresasNoMes)}</span>
-                  <span className="text-sm text-psa-ink-soft">de <b className="text-psa-ink">{num(meta)}</b> · {monthKey}</span>
+            <div className="flex items-stretch gap-4 flex-wrap">
+              {/* Navegador de dia */}
+              <div className="rounded-xl border border-psa-line bg-psa-surface px-3 py-2.5 flex flex-col items-center justify-center min-w-[112px] shrink-0">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => shiftDay(-1)} disabled={!dayNav.canPrev} className="text-psa-muted hover:text-psa-ink disabled:opacity-30 text-sm leading-none">‹</button>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">{dayNav.isToday ? "Hoje" : fmtDM(dayNav.sel)}</span>
+                  <button type="button" onClick={() => shiftDay(1)} disabled={!dayNav.canNext} className="text-psa-muted hover:text-psa-ink disabled:opacity-30 text-sm leading-none">›</button>
                 </div>
+                <div className="font-display text-3xl font-extrabold text-psa-ink tabular-nums leading-none mt-1">{num(dayNav.dayCount)}</div>
+                <div className="text-[10px] text-psa-muted mt-0.5">{fmtDM(dayNav.sel)} · empresas</div>
               </div>
-              <div className="text-right">
-                <div className="font-display text-3xl font-extrabold text-psa-orange tabular-nums">{meta > 0 ? pct((empresasNoMes / meta) * 100) : "—"}</div>
-                <div className="text-[11px] text-psa-ink-soft">
-                  {mtd.isCurrent ? "Meta do dia" : "Meta do mês"} <b className="text-psa-ink">{num(mtd.paceTarget)}</b>{" "}
-                  <span className={`font-semibold ${mtd.diff >= 0 ? "text-emerald-600" : "text-red-600"}`}>{mtd.diff >= 0 ? `+${mtd.diff} ↑` : `${mtd.diff} ↓`}</span>
+
+              {/* Meta do mês + barra + marcador meta-hoje */}
+              <div className="flex-1 min-w-[260px]">
+                <div className="flex items-end justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-orange">{monthLabel}{team ? " · " + TEAM_OPTIONS.find((t) => t.id === team)?.label : ""}</div>
+                    <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                      <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{num(empresasNoMes)}</span>
+                      <span className="text-sm text-psa-ink-soft">/ <b className="text-psa-ink">{num(meta)}</b> empresas únicas</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-display text-2xl font-extrabold text-psa-orange tabular-nums">{meta > 0 ? pct((empresasNoMes / meta) * 100) : "—"}</div>
+                    <div className="text-[11px] text-psa-ink-soft">
+                      {mtd.isCurrent ? "Meta do dia" : "Meta do mês"} <b className="text-psa-ink">{num(mtd.paceTarget)}</b>{" "}
+                      <span className={`font-semibold ${mtd.diff >= 0 ? "text-emerald-600" : "text-red-600"}`}>{mtd.diff >= 0 ? `+${mtd.diff} ↑` : `${mtd.diff} ↓`}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="relative mt-3">
+                  <div className="h-3 rounded-full bg-psa-canvas overflow-hidden">
+                    <div className="h-full rounded-full bg-psa-orange transition-all" style={{ width: `${meta > 0 ? Math.min(100, (empresasNoMes / meta) * 100) : 0}%` }} />
+                  </div>
+                  {meta > 0 && mtd.paceTarget > 0 && (
+                    <div className="absolute top-0 h-3 border-l-2 border-psa-ink/60" style={{ left: `${Math.min(100, (mtd.paceTarget / meta) * 100)}%` }} title={`Meta ${mtd.isCurrent ? "hoje" : "do mês"}: ${mtd.paceTarget}`} />
+                  )}
                 </div>
               </div>
             </div>
-            <div className="mt-3 h-3 rounded-full bg-psa-canvas overflow-hidden">
-              <div className="h-full rounded-full bg-psa-orange transition-all" style={{ width: `${meta > 0 ? Math.min(100, (empresasNoMes / meta) * 100) : 0}%` }} />
-            </div>
-            {/* Composição por origem (do mês) */}
+
+            {/* Composição por origem (do mês) com anel de % */}
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Bucket label="Carteira do Farmer" n={mtd.carteira} total={mtd.total} hint="empresas únicas" />
-              <Bucket label="Ação de CRM" n={mtd.crm} total={mtd.total} hint="prospecção ativa" />
-              <Bucket label="Convertido B2C" n={mtd.b2c} total={mtd.total} hint="closer B2C atribuído" />
-              <Bucket label="Com Criador" n={mtd.criador} total={mtd.total} hint={mtd.criticos > 0 ? `${mtd.criticos} críticos (>3d)` : "sdrfarmer = dono"} alert={mtd.criticos > 0} />
+              <Bucket label="Carteira do Farmer" n={mtd.carteira} total={mtd.total} hint="empresas únicas" color="#1E9E62" />
+              <Bucket label="Ação de CRM" n={mtd.crm} total={mtd.total} hint="prospecção ativa" color="#E8631A" />
+              <Bucket label="Convertido B2C" n={mtd.b2c} total={mtd.total} hint="closer B2C atribuído" color="#7C3AED" />
+              <Bucket label="Com Criador" n={mtd.criador} total={mtd.total} hint={mtd.criticos > 0 ? `${mtd.criticos} críticos (>3d)` : "sdrfarmer = dono"} alert={mtd.criticos > 0} color="#DC2626" />
             </div>
           </div>
 
@@ -398,16 +449,29 @@ const INSIGHT_STYLE: Record<string, string> = {
   positive: "border-emerald-200 bg-emerald-50 text-emerald-800",
 };
 
-function Bucket({ label, n, total, hint, alert }: { label: string; n: number; total: number; hint?: string; alert?: boolean }) {
+function CompRing({ pct, color }: { pct: number; color: string }) {
+  const r = 15.5;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (pct / 100) * circ;
+  return (
+    <svg width="40" height="40" viewBox="0 0 36 36" className="shrink-0">
+      <circle cx="18" cy="18" r={r} fill="none" stroke="currentColor" className="text-psa-line" strokeWidth="3" />
+      <circle cx="18" cy="18" r={r} fill="none" stroke={color} strokeWidth="3" strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" transform="rotate(-90 18 18)" />
+      <text x="18" y="19.5" textAnchor="middle" fill={color} fontSize="8" fontWeight="700">{pct}%</text>
+    </svg>
+  );
+}
+
+function Bucket({ label, n, total, hint, alert, color }: { label: string; n: number; total: number; hint?: string; alert?: boolean; color: string }) {
   const p = total > 0 ? Math.round((n / total) * 100) : 0;
   return (
-    <div className="rounded-xl bg-psa-surface border border-psa-line p-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-psa-ink-soft leading-tight">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1.5">
-        <span className="font-display text-2xl font-extrabold text-psa-ink tabular-nums">{n.toLocaleString("pt-BR")}</span>
-        <span className="text-sm font-bold text-psa-orange tabular-nums">{p}%</span>
+    <div className="rounded-xl bg-psa-surface border border-psa-line p-3 flex items-center justify-between gap-2" style={{ borderLeft: `3px solid ${color}` }}>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-psa-ink-soft leading-tight">{label}</div>
+        <div className="mt-1 font-display text-2xl font-extrabold text-psa-ink tabular-nums leading-none">{n.toLocaleString("pt-BR")}</div>
+        {hint && <div className={`mt-1 text-[10px] ${alert ? "text-red-600 font-medium" : "text-psa-muted"}`}>{hint}</div>}
       </div>
-      {hint && <div className={`mt-0.5 text-[10px] ${alert ? "text-red-600 font-medium" : "text-psa-muted"}`}>{hint}</div>}
+      <CompRing pct={p} color={color} />
     </div>
   );
 }
