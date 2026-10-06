@@ -30,6 +30,14 @@ const RANK_SORT_LABEL: Record<RankSortKey, string> = {
   agend: "agendadas", realiz: "realizadas", receita: "receita",
 };
 
+type BucketKey = "carteira" | "crm" | "b2c" | "criador";
+const BUCKETS: Record<BucketKey, { label: string; color: string }> = {
+  carteira: { label: "Carteira do Farmer", color: "#1E9E62" },
+  crm: { label: "Ação de CRM", color: "#E8631A" },
+  b2c: { label: "Convertido B2C", color: "#7C3AED" },
+  criador: { label: "Com Criador", color: "#DC2626" },
+};
+
 const TEAM_OPTIONS: { id: string | null; label: string }[] = [
   { id: null, label: "Todos os Farmers" },
   ...Object.entries(TEAMS).map(([id, t]) => ({ id, label: t.label })),
@@ -43,6 +51,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
   const [team, setTeam] = useState<string | null>(null);
   const [rankSort, setRankSort] = useState<{ key: RankSortKey; dir: "asc" | "desc" }>({ key: "empresas", dir: "desc" });
   const [pickedDay, setPickedDay] = useState<string | null>(null);
+  const [openBucket, setOpenBucket] = useState<BucketKey | null>(null);
 
   const load = (fresh = false) => {
     setLoading(true); setErr(null);
@@ -129,17 +138,21 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
     const monthDeals = teamDeals.filter((d) => d.date && d.date.slice(0, 7) === monthKey);
     const total = new Set(monthDeals.map((d) => uniqueDemandKey(d))).size;
     // Prioridade: Convertido B2C → Ação de CRM → Com Criador → Carteira (dedup por empresa única)
-    const seen = new Set<string>();
-    let b2c = 0, crm = 0, criador = 0, carteira = 0;
+    // A empresa cai no bloco do primeiro negócio dela; a lista do bloco traz
+    // todos os negócios do mês dessa empresa, para o número bater com a lista.
+    const bucketOfKey = new Map<string, BucketKey>();
     for (const d of monthDeals) {
       const k = uniqueDemandKey(d);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      if (d.ownerName && isB2CCloser(d.ownerName)) b2c++;
-      else if (d.origemDoLead === "Ação de CRM" || d.origemDoLead === "Ação de CRM (Carteira)") crm++;
-      else if (isDealWithCreator(d.farmerId, d.ownerId)) criador++;
-      else carteira++;
+      if (bucketOfKey.has(k)) continue;
+      if (d.ownerName && isB2CCloser(d.ownerName)) bucketOfKey.set(k, "b2c");
+      else if (d.origemDoLead === "Ação de CRM" || d.origemDoLead === "Ação de CRM (Carteira)") bucketOfKey.set(k, "crm");
+      else if (isDealWithCreator(d.farmerId, d.ownerId)) bucketOfKey.set(k, "criador");
+      else bucketOfKey.set(k, "carteira");
     }
+    const lists: Record<BucketKey, Deal[]> = { carteira: [], crm: [], b2c: [], criador: [] };
+    for (const d of monthDeals) lists[bucketOfKey.get(uniqueDemandKey(d))!].push(d);
+    const countOf = (b: BucketKey) => Array.from(bucketOfKey.values()).filter((v) => v === b).length;
+    const b2c = countOf("b2c"), crm = countOf("crm"), criador = countOf("criador"), carteira = countOf("carteira");
     // Pace (meta do dia): dias úteis decorridos / dias úteis do mês × meta.
     const [y, m] = monthKey.split("-").map(Number);
     const totalDays = new Date(y, m, 0).getDate();
@@ -155,7 +168,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
     const THREE = 3 * 86_400_000;
     const nowMs = Date.now();
     const criticos = isCurrent ? monthDeals.filter((d) => isDealWithCreator(d.farmerId, d.ownerId) && d.date && nowMs - new Date(d.date).getTime() > THREE).length : 0;
-    return { total, b2c, crm, criador, carteira, paceTarget, diff, criticos, isCurrent };
+    return { total, b2c, crm, criador, carteira, lists, paceTarget, diff, criticos, isCurrent };
   }, [deals, team, monthKey, meta]);
 
   // Navegador de dia (empresas únicas do dia selecionado do mês de referência).
@@ -283,11 +296,14 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
 
             {/* Composição por origem (do mês) com anel de % */}
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Bucket label="Carteira do Farmer" n={mtd.carteira} total={mtd.total} hint="empresas únicas" color="#1E9E62" />
-              <Bucket label="Ação de CRM" n={mtd.crm} total={mtd.total} hint="prospecção ativa" color="#E8631A" />
-              <Bucket label="Convertido B2C" n={mtd.b2c} total={mtd.total} hint="closer B2C atribuído" color="#7C3AED" />
-              <Bucket label="Com Criador" n={mtd.criador} total={mtd.total} hint={mtd.criticos > 0 ? `${mtd.criticos} críticos (>3d)` : "sdrfarmer = dono"} alert={mtd.criticos > 0} color="#DC2626" />
+              <Bucket label={BUCKETS.carteira.label} n={mtd.carteira} total={mtd.total} hint="empresas únicas" color={BUCKETS.carteira.color} onClick={() => setOpenBucket("carteira")} />
+              <Bucket label={BUCKETS.crm.label} n={mtd.crm} total={mtd.total} hint="prospecção ativa" color={BUCKETS.crm.color} onClick={() => setOpenBucket("crm")} />
+              <Bucket label={BUCKETS.b2c.label} n={mtd.b2c} total={mtd.total} hint="closer B2C atribuído" color={BUCKETS.b2c.color} onClick={() => setOpenBucket("b2c")} />
+              <Bucket label={BUCKETS.criador.label} n={mtd.criador} total={mtd.total} hint={mtd.criticos > 0 ? `${mtd.criticos} críticos (>3d)` : "sdrfarmer = dono"} alert={mtd.criticos > 0} color={BUCKETS.criador.color} onClick={() => setOpenBucket("criador")} />
             </div>
+            {openBucket && (
+              <BucketModal bucket={openBucket} deals={mtd.lists[openBucket]} monthLabel={monthLabelOf(monthKey)} showCritical={mtd.isCurrent} onClose={() => setOpenBucket(null)} />
+            )}
           </div>
 
           {/* KPIs */}
@@ -521,17 +537,17 @@ function CompRing({ pct, color }: { pct: number; color: string }) {
   );
 }
 
-function Bucket({ label, n, total, hint, alert, color }: { label: string; n: number; total: number; hint?: string; alert?: boolean; color: string }) {
+function Bucket({ label, n, total, hint, alert, color, onClick }: { label: string; n: number; total: number; hint?: string; alert?: boolean; color: string; onClick?: () => void }) {
   const p = total > 0 ? Math.round((n / total) * 100) : 0;
   return (
-    <div className="rounded-xl bg-psa-surface border border-psa-line p-3 flex items-center justify-between gap-2" style={{ borderLeft: `3px solid ${color}` }}>
+    <button type="button" onClick={onClick} title="Ver negócios" className="text-left rounded-xl bg-psa-surface border border-psa-line p-3 flex items-center justify-between gap-2 cursor-pointer transition hover:shadow-md hover:-translate-y-px" style={{ borderLeft: `3px solid ${color}` }}>
       <div className="min-w-0">
         <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-psa-ink-soft leading-tight">{label}</div>
         <div className="mt-1 font-display text-2xl font-extrabold text-psa-ink tabular-nums leading-none">{n.toLocaleString("pt-BR")}</div>
         {hint && <div className={`mt-1 text-[10px] ${alert ? "text-red-600 font-medium" : "text-psa-muted"}`}>{hint}</div>}
       </div>
       <CompRing pct={p} color={color} />
-    </div>
+    </button>
   );
 }
 
@@ -550,6 +566,64 @@ function Kpi({ label, value, hint, accent }: { label: string; value: string; hin
       <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-psa-ink-soft leading-tight">{label}</div>
       <div className={`mt-1 font-display text-2xl font-extrabold tabular-nums ${accent ? "text-psa-orange" : "text-psa-ink"}`}>{value}</div>
       {hint && <div className="mt-0.5 text-[10px] text-psa-muted">{hint}</div>}
+    </div>
+  );
+}
+
+function BucketModal({ bucket, deals, monthLabel, showCritical, onClose }: { bucket: BucketKey; deals: Deal[]; monthLabel: string; showCritical: boolean; onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", h); document.body.style.overflow = prev; };
+  }, [onClose]);
+  const { label, color } = BUCKETS[bucket];
+  const isCriador = bucket === "criador";
+  const nowMs = Date.now();
+  const dias = (d: Deal) => (d.date ? Math.floor((nowMs - new Date(d.date).getTime()) / 86_400_000) : 0);
+  const critico = (d: Deal) => isCriador && showCritical && dias(d) > 3;
+  // Críticos primeiro (Com Criador); depois do mais recente para o mais antigo.
+  const sorted = [...deals].sort((a, b) => {
+    const ca = critico(a), cb = critico(b);
+    if (ca !== cb) return ca ? -1 : 1;
+    return (b.date ?? "").localeCompare(a.date ?? "");
+  });
+  const empresas = new Set(deals.map((d) => uniqueDemandKey(d))).size;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-xl max-h-[85vh] bg-psa-ink text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-display text-xl font-bold inline-flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} /> {label}
+            </h3>
+            <div className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+              {monthLabel} · {num(empresas)} {empresas === 1 ? "empresa" : "empresas"} · {num(deals.length)} {deals.length === 1 ? "negócio" : "negócios"}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2 -mt-1" aria-label="Fechar">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-white/10">
+          {sorted.length === 0 && <div className="px-6 py-10 text-center text-sm text-white/50">Nenhum negócio neste bloco.</div>}
+          {sorted.map((d) => (
+            <a key={d.id} href={d.hubspotUrl} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-3 px-6 py-3 hover:bg-white/[0.03]">
+              <span className="flex-1 min-w-0">
+                <span className="block truncate text-sm text-white/90 group-hover:text-psa-orange">{d.name}</span>
+                <span className="block text-[11px] text-white/45 truncate">
+                  {d.farmerName}{d.date ? ` · ${fmtDM(d.date.slice(0, 10))}` : ""}{d.ownerName ? ` · dono: ${d.ownerName}` : ""}
+                </span>
+              </span>
+              {isCriador && (
+                <span className={`shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded ${critico(d) ? "bg-red-500/20 text-red-300" : "bg-white/10 text-white/60"}`}>{dias(d)}d</span>
+              )}
+              <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
+            </a>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
