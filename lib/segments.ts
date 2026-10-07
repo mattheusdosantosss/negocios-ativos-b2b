@@ -148,7 +148,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     monthGoal: 1_200_000,
     rankingListId: "1491", // "RANKING DE VENDAS | MÊS"
     team: B2B_TEAM,
-    onboardingSLA: { stageId: "1451255875", stageLabel: "Aguardando Onboarding", refStageId: "1076664462", prazoDias: 7 },
+    onboardingSLA: { stageId: "1451255875", stageLabel: "Aguardando Onboarding", refStageId: "1076664462", prazoDias: 2 },
   },
   b2c: {
     id: "b2c",

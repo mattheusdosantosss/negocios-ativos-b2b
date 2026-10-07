@@ -68,7 +68,7 @@ export const getOnboardingCached = (config: SegmentConfig, owner?: string) =>
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar SLA de onboarding" };
       }
     },
-    ["onboarding-sla-v1", config.id, owner || "all"],
+    ["onboarding-sla-v3-historico-maisantiga", config.id, owner || "all"],
     { revalidate: 600 }
   )();
 

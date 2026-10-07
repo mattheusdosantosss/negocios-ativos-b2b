@@ -29,7 +29,7 @@ export default function OnboardingSLACard({ data }: { data: OnboardingSLAData })
             </span>
           </div>
           <p className="mt-1.5 text-[11px] text-psa-ink-soft max-w-2xl">
-            Negócios parados em {data.stageLabel} há mais de <b className="text-psa-ink-soft">{data.prazoDias} dias</b> desde que entraram em Negócio fechado.
+            Negócios parados em {data.stageLabel} há mais de <b className="text-psa-ink-soft">{data.prazoDias} dias</b> desde que entraram em Negócio fechado ou Aguardando Onboarding (o que for mais antigo).
           </p>
         </div>
         <div className="shrink-0 rounded-xl border border-psa-line bg-psa-canvas/50 px-3 py-2 text-right">

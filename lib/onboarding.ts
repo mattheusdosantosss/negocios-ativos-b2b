@@ -33,7 +33,6 @@ export type OnboardingSLAData = {
 export async function fetchOnboardingSLA(config: SegmentConfig, owners: Map<string, Owner>): Promise<OnboardingSLAData | undefined> {
   const sla = config.onboardingSLA;
   if (!sla) return undefined;
-  const refProp = `hs_v2_date_entered_${sla.refStageId}`;
   const deals: { id: string; properties: Record<string, string> }[] = [];
   let after: string | undefined;
   do {
@@ -42,7 +41,7 @@ export async function fetchOnboardingSLA(config: SegmentConfig, owners: Map<stri
         { propertyName: "pipeline", operator: "EQ", value: pipelineIdFor(config) },
         { propertyName: "dealstage", operator: "EQ", value: sla.stageId },
       ] }],
-      properties: ["dealname", "hubspot_owner_id", refProp, "closedate"],
+      properties: ["dealname", "hubspot_owner_id", "closedate"],
       limit: 100,
     };
     if (after) body.after = after;
@@ -55,10 +54,34 @@ export async function fetchOnboardingSLA(config: SegmentConfig, owners: Map<stri
     if (after) await sleep(120);
   } while (after && deals.length < 9800);
 
+  // Referência = a data MAIS ANTIGA em que o negócio entrou em "Negócio fechado"
+  // OU em "Aguardando Onboarding", lida do HISTÓRICO do dealstage (o
+  // hs_v2_date_entered pega só a última entrada, e a de AO vem vazia no HubSpot).
+  const refEntry = new Map<string, number>();
+  const ids = deals.map((d) => d.id);
+  const stageVals = new Set([sla.refStageId, sla.stageId]);
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const res = await hsFetch<{ results?: { id: string; propertiesWithHistory?: { dealstage?: { value: string; timestamp: string }[] } }[] }>(
+      `/crm/v3/objects/deals/batch/read`,
+      { method: "POST", body: JSON.stringify({ propertiesWithHistory: ["dealstage"], inputs: chunk.map((id) => ({ id })) }) }
+    );
+    for (const d of res.results ?? []) {
+      let minMs: number | null = null;
+      for (const h of d.propertiesWithHistory?.dealstage ?? []) {
+        if (!stageVals.has(h.value)) continue;
+        const t = Date.parse(h.timestamp);
+        if (Number.isFinite(t) && (minMs == null || t < minMs)) minMs = t;
+      }
+      if (minMs != null) refEntry.set(d.id, minMs);
+    }
+    if (i + 50 < ids.length) await sleep(120);
+  }
+
   const now = Date.now();
   const items: OnboardingDeal[] = deals.map((d) => {
     const p = d.properties;
-    const fechouMs = toMs(p[refProp]) ?? toMs(p.closedate); // fallback pro closedate
+    const fechouMs = refEntry.get(d.id) ?? toMs(p.closedate); // fallback: closedate
     const dias = fechouMs != null ? Math.floor((now - fechouMs) / 86_400_000) : null;
     return {
       dealname: p.dealname || `Negócio ${d.id}`,
