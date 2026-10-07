@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Deal, ExcludedDeal, FetchValidation, WonDeal } from "@/lib/farmer2/hubspot";
 import {
   computeSummaryStats, computeFarmerRanking, computeScoreDistribution, computeCriteriaAnalysis,
-  computeMeetingConversion, computeForaDoMOA, computeOpportunitiesByDay, filterDealsByPeriod,
+  computeMeetingConversion, computeForaDoMOA, filterForaDoMOA, computeOpportunitiesByDay, filterDealsByPeriod,
   filterDealsByTeam, periodToMonthKey, PERIOD_OPTIONS, type PeriodKey,
 } from "@/lib/farmer2/analytics";
 import { TEAMS, monthlyGoal, uniqueDemandKey, isB2CCloser, isDealWithCreator, MAX_SCORE } from "@/lib/farmer2/constants";
@@ -72,6 +72,9 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
   const criteria = useMemo(() => computeCriteriaAnalysis(filtered), [filtered]);
   const monthKey = useMemo(() => periodToMonthKey(period) ?? new Date().toISOString().slice(0, 7), [period]);
   const foraDoMOA = useMemo(() => computeForaDoMOA(data?.excludedDeals ?? [], team, periodToMonthKey(period)), [data, team, period]);
+  const foraDeals = useMemo(() => filterForaDoMOA(data?.excludedDeals ?? [], team, periodToMonthKey(period)), [data, team, period]);
+  // null = fechado; "" = todos os farmers; nome = só aquele farmer.
+  const [foraOpen, setForaOpen] = useState<string | null>(null);
 
   // Meta de empresas únicas do mês de referência (por time, quando selecionado).
   const meta = monthlyGoal(monthKey, team);
@@ -320,15 +323,25 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
           {/* Fora do MOA (ordem do externo: logo após os KPIs) */}
           {foraDoMOA.length > 0 && (
             <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
-              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Fora do MOA · por farmer</div>
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
+              <button type="button" onClick={() => setForaOpen("")} title="Ver todos os negócios fora do MOA" className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft hover:text-psa-orange transition-colors">
+                Fora do MOA · {num(foraDeals.length)} {foraDeals.length === 1 ? "negócio" : "negócios"} <span className="text-psa-muted normal-case tracking-normal font-medium">· ver lista ↗</span>
+              </button>
+              <div className="mt-3 flex flex-wrap gap-2">
                 {foraDoMOA.map((f) => (
-                  <span key={f.farmerName} className="text-[12px] text-psa-ink-soft tabular-nums">
+                  <button key={f.farmerName} type="button" onClick={() => setForaOpen(f.farmerName)} className="inline-flex items-center gap-1.5 rounded-lg border border-psa-line bg-psa-canvas/50 px-2.5 py-1 text-[12px] text-psa-ink-soft tabular-nums hover:border-red-300 hover:bg-red-50 hover:text-red-700 transition">
                     {f.farmerName} <b className="text-psa-ink">{num(f.count)}</b>
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>
+          )}
+          {foraOpen !== null && (
+            <ForaModal
+              deals={foraOpen ? foraDeals.filter((d) => d.farmerName === foraOpen) : foraDeals}
+              farmer={foraOpen || null}
+              periodLabel={(() => { const mk = periodToMonthKey(period); return mk ? monthLabelOf(mk) : "Todo o período"; })()}
+              onClose={() => setForaOpen(null)}
+            />
           )}
 
           {/* Ranking de farmers (ordenável por coluna) */}
@@ -619,6 +632,57 @@ function BucketModal({ bucket, deals, monthLabel, showCritical, onClose }: { buc
               {isCriador && (
                 <span className={`shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded ${critico(d) ? "bg-red-500/20 text-red-300" : "bg-white/10 text-white/60"}`}>{dias(d)}d</span>
               )}
+              <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ForaModal({ deals, farmer, periodLabel, onClose }: { deals: ExcludedDeal[]; farmer: string | null; periodLabel: string; onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", h); document.body.style.overflow = prev; };
+  }, [onClose]);
+  const color = "#DC2626";
+  const noShow = deals.filter((d) => d.reason === "noshow").length;
+  // Agrupado por farmer (mais negócios primeiro); dentro dele, mais recente primeiro.
+  const count = new Map<string, number>();
+  for (const d of deals) count.set(d.farmerName, (count.get(d.farmerName) ?? 0) + 1);
+  const sorted = [...deals].sort((a, b) =>
+    (count.get(b.farmerName)! - count.get(a.farmerName)!) || a.farmerName.localeCompare(b.farmerName) || (b.date ?? "").localeCompare(a.date ?? ""));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-xl max-h-[85vh] bg-psa-ink text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-display text-xl font-bold inline-flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} /> Fora do MOA{farmer ? ` · ${farmer}` : ""}
+            </h3>
+            <div className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+              {periodLabel} · {num(deals.length)} {deals.length === 1 ? "negócio" : "negócios"}{noShow > 0 ? ` · ${num(noShow)} no show B2C` : ""}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2 -mt-1" aria-label="Fechar">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-white/10">
+          {sorted.length === 0 && <div className="px-6 py-10 text-center text-sm text-white/50">Nenhum negócio fora do MOA.</div>}
+          {sorted.map((d) => (
+            <a key={d.id} href={d.hubspotUrl} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-3 px-6 py-3 hover:bg-white/[0.03]">
+              <span className="flex-1 min-w-0">
+                <span className="block truncate text-sm text-white/90 group-hover:text-psa-orange">{d.name}</span>
+                <span className="block text-[11px] text-white/45 truncate">{d.farmerName}{d.date ? ` · ${fmtDM(d.date.slice(0, 10))}` : ""}</span>
+              </span>
+              <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${d.reason === "noshow" ? "bg-amber-500/20 text-amber-300" : "bg-red-500/20 text-red-300"}`}>
+                {d.reason === "noshow" ? "No Show B2C" : "Fora do MOA"}
+              </span>
               <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
             </a>
           ))}

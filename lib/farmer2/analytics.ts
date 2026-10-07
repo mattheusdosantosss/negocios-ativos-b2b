@@ -333,6 +333,24 @@ export function computeForaDoMOA(
   teamId: string | null,
   monthKey: string | null,
 ): ForaDoMOAEntry[] {
+  const filtered = filterForaDoMOA(excludedDeals, teamId, monthKey)
+
+  const byFarmer: Record<string, number> = {}
+  for (const d of filtered) {
+    byFarmer[d.farmerName] = (byFarmer[d.farmerName] ?? 0) + 1
+  }
+
+  return Object.entries(byFarmer)
+    .map(([farmerName, count]) => ({ farmerName, count }))
+    .sort((a, b) => b.count - a.count)
+}
+
+// Negócios fora do placar (Fora do MOA ou No Show B2C) no time e mês escolhidos.
+export function filterForaDoMOA(
+  excludedDeals: ExcludedDeal[],
+  teamId: string | null,
+  monthKey: string | null,
+): ExcludedDeal[] {
   let filtered = excludedDeals
 
   if (teamId) {
@@ -348,14 +366,7 @@ export function computeForaDoMOA(
     })
   }
 
-  const byFarmer: Record<string, number> = {}
-  for (const d of filtered) {
-    byFarmer[d.farmerName] = (byFarmer[d.farmerName] ?? 0) + 1
-  }
-
-  return Object.entries(byFarmer)
-    .map(([farmerName, count]) => ({ farmerName, count }))
-    .sort((a, b) => b.count - a.count)
+  return filtered
 }
 
 export interface OppsByDayResult {
