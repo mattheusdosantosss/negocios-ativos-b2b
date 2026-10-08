@@ -7,7 +7,7 @@ import {
   computeMeetingConversion, computeForaDoMOA, filterForaDoMOA, computeOpportunitiesByDay, filterDealsByPeriod,
   filterDealsByTeam, periodToMonthKey, PERIOD_OPTIONS, type PeriodKey,
 } from "@/lib/farmer2/analytics";
-import { TEAMS, monthlyGoal, uniqueDemandKey, isB2CCloser, isDealWithCreator, MAX_SCORE } from "@/lib/farmer2/constants";
+import { TEAMS, monthlyGoal, uniqueDemandKey, isB2CCloser, isDealWithCreator, MAX_SCORE, CRITERIA, STALE_EXCLUDED_FARMERS } from "@/lib/farmer2/constants";
 import { computeMacroKPIs, computeFarmerMatrix, generateInsights, computeStaleDeals } from "@/lib/farmer2/insights";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -16,6 +16,8 @@ const dec = (n: number, d = 1) => n.toLocaleString("pt-BR", { minimumFractionDig
 const brlK = (n: number) => (n >= 1e6 ? `R$ ${dec(n / 1e6, 1)}M` : `R$ ${Math.round(n / 1000).toLocaleString("pt-BR")}k`);
 const fmtDM = (isoDay: string) => { const [, m, d] = isoDay.split("-"); return `${d}/${m}`; };
 const monthLabelOf = (monthKey: string) => { const [y, m] = monthKey.split("-").map(Number); const n = new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long" }); return `${n.charAt(0).toUpperCase()}${n.slice(1)} ${y}`; };
+const daysSince = (iso?: string) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : -1);
+const isFullyQualified = (d: Deal) => CRITERIA.every((c) => d.criteria.includes(c.key));
 
 type ApiData = {
   deals: Deal[];
@@ -52,6 +54,8 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
   const [rankSort, setRankSort] = useState<{ key: RankSortKey; dir: "asc" | "desc" }>({ key: "empresas", dir: "desc" });
   const [pickedDay, setPickedDay] = useState<string | null>(null);
   const [openBucket, setOpenBucket] = useState<BucketKey | null>(null);
+  const [dealsModal, setDealsModal] = useState<{ title: string; deals: Deal[] } | null>(null);
+  const openDeals = (title: string, ds: Deal[]) => setDealsModal({ title, deals: ds });
 
   const load = (fresh = false) => {
     setLoading(true); setErr(null);
@@ -311,13 +315,13 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
 
           {/* KPIs */}
           <section className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <Kpi label="Empresas únicas" value={num(stats.totalCompanies)} hint="conta para a meta" accent />
+            <Kpi label="Empresas únicas" value={num(stats.totalCompanies)} hint="conta para a meta" accent onClick={() => openDeals("Empresas únicas", filtered)} />
             <Kpi label="Média de pontuação" value={`${dec(stats.avgScore, 1)} / ${MAX_SCORE}`} hint="qualidade da qualificação" />
-            <Kpi label="Negócios" value={num(stats.totalDeals)} hint="inclui repetidos" />
+            <Kpi label="Negócios" value={num(stats.totalDeals)} hint="inclui repetidos" onClick={() => openDeals("Negócios", filtered)} />
             <Kpi label="Farmers ativos" value={num(stats.activeFarmers)} hint="≥ 1 negócio" />
-            <Kpi label="Reuniões agendadas" value={pct(stats.totalCompanies ? (stats.meetingScheduled / stats.totalCompanies) * 100 : 0)} hint={`${num(stats.meetingScheduled)} de ${num(stats.totalCompanies)}`} />
-            <Kpi label="Reuniões realizadas" value={pct(stats.totalCompanies ? (stats.meetingCompleted / stats.totalCompanies) * 100 : 0)} hint={`${num(stats.meetingCompleted)} de ${num(stats.totalCompanies)}`} />
-            <Kpi label="No show" value={pct(stats.meetingScheduled ? (stats.meetingNoShow / stats.meetingScheduled) * 100 : 0)} hint={`${num(stats.meetingNoShow)} de ${num(stats.meetingScheduled)} agendadas`} />
+            <Kpi label="Reuniões agendadas" value={pct(stats.totalCompanies ? (stats.meetingScheduled / stats.totalCompanies) * 100 : 0)} hint={`${num(stats.meetingScheduled)} de ${num(stats.totalCompanies)}`} onClick={() => openDeals("Reuniões agendadas", filtered.filter((d) => d.meetingScheduled))} />
+            <Kpi label="Reuniões realizadas" value={pct(stats.totalCompanies ? (stats.meetingCompleted / stats.totalCompanies) * 100 : 0)} hint={`${num(stats.meetingCompleted)} de ${num(stats.totalCompanies)}`} onClick={() => openDeals("Reuniões realizadas", filtered.filter((d) => d.meetingCompleted))} />
+            <Kpi label="No show" value={pct(stats.meetingScheduled ? (stats.meetingNoShow / stats.meetingScheduled) * 100 : 0)} hint={`${num(stats.meetingNoShow)} de ${num(stats.meetingScheduled)} agendadas`} onClick={() => openDeals("No show", filtered.filter((d) => d.meetingNoShow))} />
           </section>
 
           {/* Fora do MOA (ordem do externo: logo após os KPIs) */}
@@ -366,7 +370,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
                     const c = convById.get(f.farmerId);
                     const rev = revenueById.get(f.farmerId) ?? 0;
                     return (
-                      <tr key={f.farmerId}>
+                      <tr key={f.farmerId} onClick={() => openDeals(`${f.farmerName} · negócios`, filtered.filter((d) => d.farmerId === f.farmerId))} className="cursor-pointer hover:bg-psa-canvas/40 transition-colors" title="Ver negócios do farmer">
                         <td className="py-1.5 pr-2 text-psa-muted tabular-nums">{i + 1}</td>
                         <td className="py-1.5 pr-2 text-psa-ink truncate max-w-[180px]" title={f.farmerName}>{f.farmerName}</td>
                         <td className="py-1.5 px-2 text-right tabular-nums font-semibold text-psa-ink">{dec(f.avgScore, 1)}</td>
@@ -390,17 +394,26 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
               <div className="mt-4 space-y-2">
                 {(() => {
                   const max = Math.max(1, ...dist.map((d) => d.count));
-                  return dist.map((d) => (
-                    <div key={d.score} className="flex items-center gap-2">
-                      <span className="w-6 text-right text-[11px] tabular-nums text-psa-ink-soft">{d.score}</span>
-                      <div className="flex-1 h-5 rounded bg-psa-canvas overflow-hidden">
-                        <div className="h-full rounded bg-psa-orange/80 flex items-center justify-end pr-1.5 text-[10px] font-semibold text-white" style={{ width: `${(d.count / max) * 100}%` }}>
-                          {d.count > 0 && (d.count / max) > 0.12 ? num(d.count) : ""}
+                  return dist.map((d) => {
+                    const row = (
+                      <>
+                        <span className="w-6 text-right text-[11px] tabular-nums text-psa-ink-soft">{d.score}</span>
+                        <div className="flex-1 h-5 rounded bg-psa-canvas overflow-hidden">
+                          <div className="h-full rounded bg-psa-orange/80 flex items-center justify-end pr-1.5 text-[10px] font-semibold text-white" style={{ width: `${(d.count / max) * 100}%` }}>
+                            {d.count > 0 && (d.count / max) > 0.12 ? num(d.count) : ""}
+                          </div>
                         </div>
-                      </div>
-                      <span className="w-10 text-right text-[11px] tabular-nums text-psa-muted">{num(d.count)}</span>
-                    </div>
-                  ));
+                        <span className="w-10 text-right text-[11px] tabular-nums text-psa-muted">{num(d.count)}</span>
+                      </>
+                    );
+                    return d.count > 0 ? (
+                      <button key={d.score} type="button" onClick={() => openDeals(`Score ${d.score}`, filtered.filter((x) => x.isScored && Math.round(x.score) === d.score))} title="Ver negócios deste score" className="w-full flex items-center gap-2 rounded hover:bg-psa-canvas/40 transition-colors cursor-pointer">
+                        {row}
+                      </button>
+                    ) : (
+                      <div key={d.score} className="flex items-center gap-2">{row}</div>
+                    );
+                  });
                 })()}
               </div>
             </div>
@@ -410,12 +423,12 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
               <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Critérios que mais faltam · pontos perdidos</div>
               <div className="mt-3 divide-y divide-psa-line/60">
                 {criteria.absence.map((c) => (
-                  <div key={c.key} className="flex items-center justify-between gap-3 py-1.5 text-[12px]">
+                  <button key={c.key} type="button" onClick={() => openDeals(`Sem ${c.label}`, filtered.filter((d) => !d.criteria.includes(c.key)))} title="Ver negócios sem este critério" className="w-full flex items-center justify-between gap-3 py-1.5 text-[12px] text-left hover:bg-psa-canvas/40 transition-colors cursor-pointer">
                     <span className="text-psa-ink truncate">{c.label} <span className="text-psa-muted">(peso {c.weight})</span></span>
                     <span className="shrink-0 tabular-nums text-psa-ink-soft">
                       <b className="text-red-600">{num(c.pointsLost)}</b> pts · {pct(c.absentPercent)} sem
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -439,18 +452,21 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
                 const maxDay = Math.max(1, ...oppsByDay.rows.map((r) => Number(r.total) || 0));
                 return (
                   <div className="mt-3 flex items-end gap-[3px] h-40 overflow-x-auto">
-                    {oppsByDay.rows.map((r) => (
-                      <div key={String(r.day)} className="flex flex-col items-center gap-1 shrink-0" style={{ minWidth: 20 }} title={`${r.day}: ${r.total}`}>
-                        <div className="w-4 flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${((Number(r.total) || 0) / maxDay) * 136}px` }}>
-                          {oppsByDay.owners.map((o, i) => {
-                            const v = Number(r[o.name]) || 0;
-                            const tot = Number(r.total) || 0;
-                            return v === 0 ? null : <div key={o.name} style={{ height: `${(v / tot) * 100}%`, background: SERIES_COLORS[i % SERIES_COLORS.length] }} />;
-                          })}
-                        </div>
-                        <span className="text-[8px] text-psa-muted tabular-nums">{String(r.day)}</span>
-                      </div>
-                    ))}
+                    {oppsByDay.rows.map((r) => {
+                      const tot = Number(r.total) || 0;
+                      const dd = String(r.day);
+                      return (
+                        <button key={dd} type="button" disabled={tot === 0} onClick={() => openDeals(`${fmtDM(`${monthKey}-${dd}`)} · oportunidades`, filterDealsByTeam(deals, team).filter((d) => d.date && d.date.slice(0, 7) === monthKey && d.date.slice(8, 10) === dd))} className="flex flex-col items-center gap-1 shrink-0 enabled:cursor-pointer enabled:hover:opacity-80 transition-opacity" style={{ minWidth: 20 }} title={`${dd}: ${tot}`}>
+                          <div className="w-4 flex flex-col-reverse rounded-t overflow-hidden" style={{ height: `${(tot / maxDay) * 136}px` }}>
+                            {oppsByDay.owners.map((o, i) => {
+                              const v = Number(r[o.name]) || 0;
+                              return v === 0 ? null : <div key={o.name} style={{ height: `${(v / tot) * 100}%`, background: SERIES_COLORS[i % SERIES_COLORS.length] }} />;
+                            })}
+                          </div>
+                          <span className="text-[8px] text-psa-muted tabular-nums">{dd}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 );
               })()}
@@ -461,9 +477,9 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
           <div className="rounded-2xl bg-psa-surface border border-psa-line p-5 shadow-card">
             <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-ink-soft">Diagnóstico · qualidade da qualificação</div>
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Mini label="Totalmente qualificados" value={pct(macro.fullyQualifiedRate * 100)} />
-              <Mini label="Parados > 15 dias" value={num(macro.staleCount)} alert={macro.staleCount > 0} />
-              <Mini label="Parados > 30 dias" value={num(macro.criticalStaleCount)} alert={macro.criticalStaleCount > 0} />
+              <Mini label="Totalmente qualificados" value={pct(macro.fullyQualifiedRate * 100)} onClick={() => openDeals("Totalmente qualificados", filtered.filter(isFullyQualified))} />
+              <Mini label="Parados > 15 dias" value={num(macro.staleCount)} alert={macro.staleCount > 0} onClick={() => openDeals("Parados > 15 dias", filtered.filter((d) => !STALE_EXCLUDED_FARMERS.has(d.farmerId) && daysSince(d.lastModifiedDate) >= 15))} />
+              <Mini label="Parados > 30 dias" value={num(macro.criticalStaleCount)} alert={macro.criticalStaleCount > 0} onClick={() => openDeals("Parados > 30 dias", filtered.filter((d) => !STALE_EXCLUDED_FARMERS.has(d.farmerId) && daysSince(d.lastModifiedDate) >= 30))} />
               <Mini label="Farmers em risco (<7)" value={num(macro.highRiskFarmers)} alert={macro.highRiskFarmers > 0} />
             </div>
             {insights.length > 0 && (
@@ -494,7 +510,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
                 </thead>
                 <tbody className="divide-y divide-psa-line/60">
                   {matrix.map((f) => (
-                    <tr key={f.farmerId}>
+                    <tr key={f.farmerId} onClick={() => openDeals(`${f.farmerName} · negócios`, filtered.filter((d) => d.farmerId === f.farmerId))} className="cursor-pointer hover:bg-psa-canvas/40 transition-colors" title="Ver negócios do farmer">
                       <td className="py-1.5 pr-2 text-psa-ink truncate max-w-[180px]" title={f.farmerName}>{f.farmerName}</td>
                       <td className="py-1.5 px-2 text-right tabular-nums text-psa-ink-soft">{num(f.dealCount)}</td>
                       <td className="py-1.5 px-2 text-right tabular-nums font-semibold text-psa-ink">{dec(f.avgScore, 1)}</td>
@@ -523,6 +539,8 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
               </div>
             </div>
           )}
+
+          {dealsModal && <DealsModal title={dealsModal.title} deals={dealsModal.deals} onClose={() => setDealsModal(null)} />}
         </>
       )}
     </main>
@@ -564,23 +582,39 @@ function Bucket({ label, n, total, hint, alert, color, onClick }: { label: strin
   );
 }
 
-function Mini({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
-  return (
-    <div className="rounded-xl bg-psa-canvas/50 border border-psa-line p-3">
+function Mini({ label, value, alert, onClick }: { label: string; value: string; alert?: boolean; onClick?: () => void }) {
+  const inner = (
+    <>
       <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-psa-ink-soft leading-tight">{label}</div>
       <div className={`mt-1 font-display text-xl font-extrabold tabular-nums ${alert ? "text-red-600" : "text-psa-ink"}`}>{value}</div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} title="Ver negócios" className="text-left rounded-xl bg-psa-canvas/50 border border-psa-line p-3 transition hover:border-psa-orange/40 hover:bg-psa-canvas cursor-pointer">
+        {inner}
+      </button>
+    );
+  }
+  return <div className="rounded-xl bg-psa-canvas/50 border border-psa-line p-3">{inner}</div>;
 }
 
-function Kpi({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: boolean }) {
-  return (
-    <div className="rounded-xl bg-psa-surface border border-psa-line p-3.5 shadow-sm">
+function Kpi({ label, value, hint, accent, onClick }: { label: string; value: string; hint?: string; accent?: boolean; onClick?: () => void }) {
+  const inner = (
+    <>
       <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-psa-ink-soft leading-tight">{label}</div>
       <div className={`mt-1 font-display text-2xl font-extrabold tabular-nums ${accent ? "text-psa-orange" : "text-psa-ink"}`}>{value}</div>
       {hint && <div className="mt-0.5 text-[10px] text-psa-muted">{hint}</div>}
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} title="Ver negócios" className="text-left rounded-xl bg-psa-surface border border-psa-line p-3.5 shadow-sm transition hover:shadow-md hover:-translate-y-px hover:border-psa-orange/40 cursor-pointer">
+        {inner}
+      </button>
+    );
+  }
+  return <div className="rounded-xl bg-psa-surface border border-psa-line p-3.5 shadow-sm">{inner}</div>;
 }
 
 function BucketModal({ bucket, deals, monthLabel, showCritical, onClose }: { bucket: BucketKey; deals: Deal[]; monthLabel: string; showCritical: boolean; onClose: () => void }) {
@@ -632,6 +666,53 @@ function BucketModal({ bucket, deals, monthLabel, showCritical, onClose }: { buc
               {isCriador && (
                 <span className={`shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded ${critico(d) ? "bg-red-500/20 text-red-300" : "bg-white/10 text-white/60"}`}>{dias(d)}d</span>
               )}
+              <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DealsModal({ title, deals, onClose }: { title: string; deals: Deal[]; onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", h); document.body.style.overflow = prev; };
+  }, [onClose]);
+  const color = "#E8631A";
+  const empresas = new Set(deals.map((d) => uniqueDemandKey(d))).size;
+  // Mais recente primeiro (pela data de qualificação).
+  const sorted = [...deals].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-xl max-h-[85vh] bg-psa-ink text-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-display text-xl font-bold inline-flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} /> {title}
+            </h3>
+            <div className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+              {num(empresas)} {empresas === 1 ? "empresa" : "empresas"} · {num(deals.length)} {deals.length === 1 ? "negócio" : "negócios"}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-2xl leading-none px-2 -mt-1" aria-label="Fechar">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-white/10">
+          {sorted.length === 0 && <div className="px-6 py-10 text-center text-sm text-white/50">Nenhum negócio.</div>}
+          {sorted.map((d) => (
+            <a key={d.id} href={d.hubspotUrl} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-3 px-6 py-3 hover:bg-white/[0.03]">
+              <span className="flex-1 min-w-0">
+                <span className="block truncate text-sm text-white/90 group-hover:text-psa-orange">{d.name}</span>
+                <span className="block text-[11px] text-white/45 truncate">
+                  {d.farmerName}{d.date ? ` · ${fmtDM(d.date.slice(0, 10))}` : ""}{d.isScored ? ` · score ${d.score}` : ""}{d.ownerName ? ` · dono: ${d.ownerName}` : ""}
+                </span>
+              </span>
               <span className="text-white/30 group-hover:text-psa-orange text-xs">↗</span>
             </a>
           ))}
