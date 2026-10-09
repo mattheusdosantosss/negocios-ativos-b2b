@@ -214,7 +214,7 @@ const finalize = (c: ConvCell): ConvCell => ({ ...c, taxa: c.propostas > 0 ? c.v
 // ---------- B2B ----------
 const B2B = {
   pipeline: "default",
-  ganho: ["1076664462", "1076664460"],
+  ganho: ["1076664462", "1076664460", "1451255875"], // + Aguardando Onboarding (pós-fechamento = venda)
   proposta: "hs_v2_date_entered_closedwon",
   emNeg: "hs_v2_date_entered_closedlost",
   negAv: "hs_v2_date_entered_1167445770",

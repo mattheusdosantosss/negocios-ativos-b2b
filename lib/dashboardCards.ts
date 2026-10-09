@@ -36,7 +36,7 @@ import { type SegmentConfig } from "@/lib/segments";
 export const getWonAggregateCached = (config: SegmentConfig, origemId: string, origem: string[], owner?: string, from?: string, to?: string) =>
   unstable_cache(
     () => fetchWonAggregate(config, { origem, owner, from, to }),
-    ["won-aggregate-v2-periodo", config.id, origemId, owner || "all", from || "all", to || "all"],
+    ["won-aggregate-v3-aguardando-onb", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 600 }
   )();
 
@@ -101,7 +101,7 @@ export const getConversionCached = (config: SegmentConfig, origemId: string, ori
       const monthFilterLabel = config.conversionDateProp === "closedate" ? "Mês de fechamento" : "Mês de criação";
       return { data: conversionFromCounts(counts, config.conversionDenomLabel, monthFilterLabel), warning: undefined };
     },
-    ["conversion-v18-janela1615", config.id, origemId, owner || "all"],
+    ["conversion-v19-aguardando-onb", config.id, origemId, owner || "all"],
     { revalidate: 21600 }
   )();
 
@@ -259,7 +259,7 @@ export const getVendasDoDiaCached = (config: SegmentConfig, from?: string, to?: 
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar vendas do dia" };
       }
     },
-    ["vendas-dia-v16-primeirofechamento", config.id, from || "cur", to || "cur"],
+    ["vendas-dia-v17-aguardando-onb", config.id, from || "cur", to || "cur"],
     { revalidate: 600 }
   )();
 
@@ -276,6 +276,6 @@ export const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: st
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v10-datas", config.id, from || "cur", to || "cur", owner || "all"],
+    ["month-goal-v11-aguardando-onb", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();

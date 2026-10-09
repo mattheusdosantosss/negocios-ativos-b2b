@@ -114,8 +114,9 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     tempStageIds: ["decisionmakerboughtin", "closedwon", "closedlost", "1167445770"],
     // "Proposta enviada | 1° Follow" reaproveita o id interno "closedwon".
     propostaStageId: "closedwon",
-    // Etapas terminais de ganho: "Negócio fechado" + "Ganho / Contrato assinado".
-    wonStageIds: ["1076664462", "1076664460"],
+    // Etapas terminais de ganho: "Negócio fechado" + "Ganho / Contrato assinado"
+    // + "Aguardando Onboarding" (etapa pós-fechamento, também conta como venda).
+    wonStageIds: ["1076664462", "1076664460", "1451255875"],
     lostStageIds: ["1076664461"],
     checkoutStages: [],
     hasEvento: true,
