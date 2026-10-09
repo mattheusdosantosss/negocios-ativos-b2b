@@ -86,10 +86,18 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   // reabertura empurra a atual pra frente, então a margem tem que cobrir o gap
   // (vistos até ~20 dias) pra não perder o negócio. 30 dias cobre com folga.
   const SEARCH_MARGIN_MS = 30 * 86_400_000;
+  // A etapa de "holding" pós-fechamento (Aguardando Onboarding) é won, mas NÃO
+  // tem a propriedade hs_v2_date_entered_<id> no HubSpot — buscá-la por essa
+  // propriedade dá 400 e derruba a busca inteira. Pra ela, filtra pela etapa
+  // ATUAL (dealstage EQ). Negócios que passaram por "Negócio fechado" antes já
+  // entram pelo grupo daquela etapa (dedup por id), com o dia de fechamento real.
+  const holdingStage = config.onboardingSLA?.stageId;
   const filterGroups = config.wonStageIds.map((sid) => ({
     filters: [
       { propertyName: "pipeline", operator: "EQ", value: pipe },
-      { propertyName: `hs_v2_date_entered_${sid}`, operator: "HAS_PROPERTY" },
+      sid === holdingStage
+        ? { propertyName: "dealstage", operator: "EQ", value: sid }
+        : { propertyName: `hs_v2_date_entered_${sid}`, operator: "HAS_PROPERTY" },
       { propertyName: "closedate", operator: "GTE", value: String(startMs - SEARCH_MARGIN_MS) },
       { propertyName: "closedate", operator: "LTE", value: String(endMs + SEARCH_MARGIN_MS) },
     ],
