@@ -1111,7 +1111,26 @@ export async function fetchReunioesPerfil(
     return c;
   };
 
-  let total = 0;
+  // Resolve o negócio de cada reunião (1ª associação válida) ANTES de contar, pra
+  // aplicar a regra de dedupe das reprogramadas.
+  const mToMs = (v?: string): number | null => {
+    if (!v) return null;
+    const n = Number(v);
+    const ms = Number.isNaN(n) ? Date.parse(v) : n;
+    return Number.isFinite(ms) ? ms : null;
+  };
+  const monthKeyBr = (ms: number) => {
+    const d = new Date(ms - BR_OFFSET_MS);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  };
+  type ResolvedMeeting = {
+    m: (typeof meetings)[number];
+    did: string;
+    info: { perfil?: string; stage?: string; dealname?: string; amount: number };
+    bucket: ReunioesOutcomeId;
+    ms: number | null;
+  };
+  const resolved: ResolvedMeeting[] = [];
   for (const m of meetings) {
     let did: string | undefined;
     let info: { perfil?: string; stage?: string; dealname?: string; amount: number } | undefined;
@@ -1125,10 +1144,36 @@ export async function fetchReunioesPerfil(
       break;
     }
     if (!info || !did) continue;
+    resolved.push({ m, did, info, bucket: outcomeBucket(m.outcome), ms: mToMs(m.date) });
+  }
+
+  // Reprogramada que virou realizada: se o MESMO negócio tem uma reunião CONCLUÍDA
+  // na mesma data ou numa data futura DENTRO DO MESMO MÊS, a reprogramada é
+  // absorvida — não conta como reprogramada nem soma uma 2ª realizada (a concluída
+  // já conta). Pedido do time (out/2026), só B2C (único segmento com este card).
+  const completedByDeal = new Map<string, number[]>();
+  for (const r of resolved) {
+    if (r.bucket !== "realizada" || r.ms == null) continue;
+    const arr = completedByDeal.get(r.did);
+    if (arr) arr.push(r.ms);
+    else completedByDeal.set(r.did, [r.ms]);
+  }
+  const absorvida = (r: ResolvedMeeting): boolean => {
+    if (r.bucket !== "reprogramada" || r.ms == null) return false;
+    const comps = completedByDeal.get(r.did);
+    if (!comps) return false;
+    const mk = monthKeyBr(r.ms);
+    return comps.some((c) => c >= r.ms! && monthKeyBr(c) === mk);
+  };
+
+  let total = 0;
+  for (const r of resolved) {
+    if (absorvida(r)) continue;
+    const { m, did, info } = r;
     const c = cubeFor(m.owner);
     const perfilId = perfilBucket(info.perfil);
     const cell = (c.cube[statusOf(info.stage)][perfilId] ??= emptyCell());
-    cell[outcomeBucket(m.outcome)].push({
+    cell[r.bucket].push({
       dealId: did,
       dealname: info.dealname || `Negócio ${did}`,
       url: dealUrl(did),

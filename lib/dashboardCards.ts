@@ -159,7 +159,7 @@ export const getReunioesPerfilCached = (
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar reuniões por perfil" };
       }
     },
-    ["reunioes-perfil-v8-tipos5", config.id, origemId, owner || "all", from || "all", to || "all"],
+    ["reunioes-perfil-v9-reprog-absorve", config.id, origemId, owner || "all", from || "all", to || "all"],
     { revalidate: 3600 }
   )();
 
