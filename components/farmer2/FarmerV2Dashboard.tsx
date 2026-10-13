@@ -7,7 +7,7 @@ import {
   computeMeetingConversion, computeForaDoMOA, filterForaDoMOA, computeOpportunitiesByDay, filterDealsByPeriod,
   filterDealsByTeam, periodToMonthKey, PERIOD_OPTIONS, type PeriodKey,
 } from "@/lib/farmer2/analytics";
-import { TEAMS, monthlyGoal, uniqueDemandKey, isB2CCloser, isDealWithCreator, MAX_SCORE, CRITERIA, STALE_EXCLUDED_FARMERS } from "@/lib/farmer2/constants";
+import { TEAMS, monthlyGoal, uniqueDemandKey, isB2CCloser, isDealWithCreator, MAX_SCORE, CRITERIA, STALE_EXCLUDED_FARMERS, businessDays } from "@/lib/farmer2/constants";
 import { computeMacroKPIs, computeFarmerMatrix, generateInsights, computeStaleDeals } from "@/lib/farmer2/insights";
 
 const num = (n: number) => n.toLocaleString("pt-BR");
@@ -166,7 +166,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
     const now = new Date();
     const isCurrent = monthKey === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const isPast = monthKey < `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const bizDays = (from: number, to: number) => { let c = 0; for (let d = from; d <= to; d++) { const wd = new Date(y, m - 1, d).getDay(); if (wd !== 0 && wd !== 6) c++; } return c; };
+    const bizDays = (from: number, to: number) => businessDays(y, m, from, to);
     const bizTotal = bizDays(1, totalDays);
     const bizElapsed = isPast ? bizTotal : isCurrent ? bizDays(1, now.getDate()) : 0;
     const paceTarget = bizTotal > 0 ? Math.round((bizElapsed / bizTotal) * meta) : 0;

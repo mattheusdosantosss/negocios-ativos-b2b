@@ -451,3 +451,23 @@ export const CRITERIA: Array<{ key: string; label: string; weight: number }> = [
 ]
 
 export const MAX_SCORE = 12
+
+// Feriados nacionais que não contam como dia útil no ritmo do mês (MTD).
+// Carnaval e Corpus Christi são ponto facultativo: ficam de fora até alguém pedir.
+export const HOLIDAYS = new Set([
+  '2026-01-01', '2026-04-03', '2026-04-21', '2026-05-01', '2026-09-07',
+  '2026-10-12', '2026-11-02', '2026-11-15', '2026-11-20', '2026-12-25',
+  '2027-01-01', '2027-03-26', '2027-04-21', '2027-05-01', '2027-09-07',
+  '2027-10-12', '2027-11-02', '2027-11-15', '2027-11-20', '2027-12-25',
+])
+
+// Dias úteis (seg–sex, fora feriados) entre os dias `from` e `to` do mês.
+export function businessDays(year: number, month: number, from: number, to: number): number {
+  let count = 0
+  for (let d = from; d <= to; d++) {
+    const wd = new Date(year, month - 1, d).getDay()
+    const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    if (wd !== 0 && wd !== 6 && !HOLIDAYS.has(key)) count++
+  }
+  return count
+}
