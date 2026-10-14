@@ -50,6 +50,12 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodKey>("");
+  // Período personalizado ("Entre datas"): do dia 1 do mês até hoje, por padrão.
+  const [customRange, setCustomRange] = useState(() => {
+    const today = new Date().toLocaleDateString("en-CA");
+    return { start: `${today.slice(0, 7)}-01`, end: today };
+  });
+  const range = period === "entre" && customRange.start && customRange.end && customRange.start <= customRange.end ? customRange : undefined;
   const [team, setTeam] = useState<string | null>(null);
   const [rankSort, setRankSort] = useState<{ key: RankSortKey; dir: "asc" | "desc" }>({ key: "empresas", dir: "desc" });
   const [pickedDay, setPickedDay] = useState<string | null>(null);
@@ -68,15 +74,21 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
 
   const deals = data?.deals ?? [];
   // período + time (sensível à data, igual ao externo)
-  const filtered = useMemo(() => filterDealsByPeriod(filterDealsByTeam(deals, team), period), [deals, team, period]);
+  const filtered = useMemo(() => filterDealsByPeriod(filterDealsByTeam(deals, team), period, range), [deals, team, period, range]);
   const stats = useMemo(() => computeSummaryStats(filtered), [filtered]);
   const ranking = useMemo(() => computeFarmerRanking(filtered), [filtered]);
   const conversion = useMemo(() => computeMeetingConversion(filtered), [filtered]);
   const dist = useMemo(() => computeScoreDistribution(filtered), [filtered]);
   const criteria = useMemo(() => computeCriteriaAnalysis(filtered), [filtered]);
-  const monthKey = useMemo(() => periodToMonthKey(period) ?? new Date().toISOString().slice(0, 7), [period]);
-  const foraDoMOA = useMemo(() => computeForaDoMOA(data?.excludedDeals ?? [], team, periodToMonthKey(period)), [data, team, period]);
-  const foraDeals = useMemo(() => filterForaDoMOA(data?.excludedDeals ?? [], team, periodToMonthKey(period)), [data, team, period]);
+  const monthKey = useMemo(() => periodToMonthKey(period, range) ?? new Date().toISOString().slice(0, 7), [period, range]);
+  // Fora do MOA segue o mês do período; no "Entre datas", segue as datas escolhidas.
+  const foraDeals = useMemo(() => {
+    const excl = data?.excludedDeals ?? [];
+    return period === "entre" && range
+      ? filterDealsByPeriod(filterForaDoMOA(excl, team, null), "entre", range)
+      : filterForaDoMOA(excl, team, periodToMonthKey(period));
+  }, [data, team, period, range]);
+  const foraDoMOA = useMemo(() => computeForaDoMOA(foraDeals, null, null), [foraDeals]);
   // null = fechado; "" = todos os farmers; nome = só aquele farmer.
   const [foraOpen, setForaOpen] = useState<string | null>(null);
 
@@ -95,11 +107,11 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
   // dentro do período/time selecionados.
   const revenueById = useMemo(() => {
     const m = new Map<string, number>();
-    for (const w of filterDealsByPeriod(filterDealsByTeam(data?.wonDeals ?? [], team), period)) {
+    for (const w of filterDealsByPeriod(filterDealsByTeam(data?.wonDeals ?? [], team), period, range)) {
       m.set(w.farmerId, (m.get(w.farmerId) ?? 0) + w.amount);
     }
     return m;
-  }, [data, team, period]);
+  }, [data, team, period, range]);
 
   // Ranking ordenável por qualquer coluna (padrão: empresas, maior primeiro).
   // Empate → score médio; sem dado de reunião vai pro fim.
@@ -238,9 +250,26 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
                 <div className="flex flex-col w-full sm:w-[172px]">
                   <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/85">Período</label>
                   <select value={period} onChange={(e) => setPeriod(e.target.value as PeriodKey)} className="w-full rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10">
-                    {PERIOD_OPTIONS.filter((p) => p.value !== "entre").map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    {PERIOD_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.value === "entre" ? "Personalizado…" : p.label}</option>)}
                   </select>
                 </div>
+                {period === "entre" && (
+                  <div className="flex w-full items-end gap-2">
+                    {(["start", "end"] as const).map((k) => (
+                      <div key={k} className="flex flex-col flex-1">
+                        <label className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-white/85">{k === "start" ? "De" : "Até"}</label>
+                        <input
+                          type="date"
+                          value={customRange[k]}
+                          min={k === "end" ? customRange.start : undefined}
+                          max={k === "start" ? customRange.end : undefined}
+                          onChange={(e) => setCustomRange((r) => ({ ...r, [k]: e.target.value }))}
+                          className="w-full rounded-lg border border-psa-line bg-psa-surface px-3 py-2 text-sm text-psa-ink focus:outline-none focus:border-psa-blue focus:ring-2 focus:ring-psa-blue/10"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex flex-col gap-1 w-full sm:w-[200px] rounded-xl bg-white/[0.06] border border-white/10 p-1">
                 {segmentSelector}
@@ -343,7 +372,7 @@ export default function FarmerV2Dashboard({ segmentSelector }: { segmentSelector
             <ForaModal
               deals={foraOpen ? foraDeals.filter((d) => d.farmerName === foraOpen) : foraDeals}
               farmer={foraOpen || null}
-              periodLabel={(() => { const mk = periodToMonthKey(period); return mk ? monthLabelOf(mk) : "Todo o período"; })()}
+              periodLabel={range ? `${fmtDM(range.start)} – ${fmtDM(range.end)}` : (() => { const mk = periodToMonthKey(period); return mk ? monthLabelOf(mk) : "Todo o período"; })()}
               onClose={() => setForaOpen(null)}
             />
           )}
