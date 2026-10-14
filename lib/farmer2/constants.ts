@@ -142,6 +142,7 @@ export const FARMER_DATE_RESTRICTIONS: Record<string, DateRestriction> = {
   '96198720': { untilDate: '2026-09-01' }, // Alexcia: fora da formação set/26
   '85002012': { untilDate: '2026-09-01' }, // Bruna Machado: fora da formação set/26
   '84249251': { untilDate: '2026-09-01' }, // Tércio: fora da formação set/26
+  '99956495': { untilDate: '2026-10-14' }, // Milena: sai do resultado farmer em 14/10/26, conta até dia 13
 }
 
 // ── Filtro de origem do lead (vale apenas de ORIGIN_CUTOVER em diante) ──
@@ -370,7 +371,17 @@ const TEAMS_OCT07: TeamMap = {
   },
 }
 
+// 14/10: Milena sai do Time Letícia (e do resultado farmer).
+const TEAMS_OCT14: TeamMap = {
+  ...TEAMS_OCT07,
+  leticia: {
+    label: 'Time Leticia',
+    farmerIds: ['94028856', '92704130', '100465709'],
+  },
+}
+
 const TEAM_PERIODS: { from: number; teams: TeamMap }[] = [
+  { from: new Date('2026-10-14').getTime(), teams: TEAMS_OCT14 },
   { from: new Date('2026-10-07').getTime(), teams: TEAMS_OCT07 },
   { from: new Date('2026-10-05').getTime(), teams: TEAMS_OCT05 },
   { from: new Date('2026-10-01').getTime(), teams: TEAMS_OCT },
@@ -382,7 +393,7 @@ const TEAM_PERIODS: { from: number; teams: TeamMap }[] = [
   { from: new Date('2026-07-01').getTime(), teams: TEAMS_JULY },
 ]
 
-export const TEAMS: TeamMap = TEAMS_OCT07
+export const TEAMS: TeamMap = TEAMS_OCT14
 
 // Metas mensais de empresas únicas, por mês de vigência (mais recente primeiro).
 // teamGoals: metas individuais por time (quando diferem entre si).
