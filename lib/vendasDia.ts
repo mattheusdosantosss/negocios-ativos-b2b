@@ -65,7 +65,6 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const endMs = endOf(opts.to);
   const pipe = config.id === "b2c" ? "725182862" : "default";
   const wonSet = new Set(config.wonStageIds);
-  const lostSet = new Set(config.lostStageIds);
 
   // Mapa etapa → rótulo (pra mostrar onde a venda foi parar quando cai).
   const stageLabel = new Map<string, string>();
@@ -119,15 +118,13 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   } while (after && rawById.size < 9800);
   const raw = [...rawById.values()];
 
-  // Dia da venda = a MENOR (mais antiga) data de fechamento já registrada no
-  // histórico da closedate — auto ou manual. Reaberturas e carimbos errados da
-  // automação sempre empurram a data pra FRENTE; a correção traz de volta pra
-  // data real, que é a mais antiga. Assim reabrir/editar nunca move a venda de
-  // dia, e um carimbo errado corrigido pra uma data anterior (ex.: 01/09 → 31/08)
-  // também acerta. EXCEÇÃO: closedate carimbada ao entrar numa etapa de PERDA é
-  // data de perda, não de venda — ignora (negócio perdido-depois-reaberto/ganho
-  // cairia no dia da perda). Casa pelo timestamp (closedate e dealstage são
-  // gravados na mesma transação). batch/read c/ histórico: máx 50 inputs.
+  // Dia da venda = a data da PRIMEIRA entrada numa ETAPA DE FECHAMENTO (ganho).
+  // Perda NÃO é fechamento de venda (é desistência), então nem conta — olho só as
+  // entradas em etapas de ganho (config.wonStageIds). Pego a MENOR closedate
+  // carimbada numa dessas entradas (closedate e dealstage são gravados na mesma
+  // transação → caso pelo timestamp). Assim reabrir/editar depois não move a venda
+  // de dia, e um negócio perdido-depois-ganho cai no dia do GANHO, não da perda.
+  // batch/read c/ histórico: máx 50 inputs.
   const firstClose = new Map<string, number>();
   const rawIds = raw.map((d) => d.id);
   for (let i = 0; i < rawIds.length; i += 50) {
@@ -141,20 +138,23 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     );
     for (const d of res.results ?? []) {
       const hist = d.propertiesWithHistory ?? {};
-      // Momentos (timestamp) em que o negócio entrou numa etapa de PERDA.
-      const lostTs = new Set<number>();
+      // Momentos (timestamp) em que o negócio entrou numa etapa de GANHO.
+      const wonTs = new Set<number>();
       for (const h of hist.dealstage ?? []) {
-        if (!lostSet.has(h.value)) continue;
+        if (!wonSet.has(h.value)) continue;
         const t = Date.parse(h.timestamp);
-        if (Number.isFinite(t)) lostTs.add(t);
+        if (Number.isFinite(t)) wonTs.add(t);
       }
+      // Menor closedate carimbada numa entrada em etapa de ganho.
       let minMs: number | null = null;
       for (const h of hist.closedate ?? []) {
         const t = Date.parse(h.timestamp);
-        if (Number.isFinite(t) && lostTs.has(t)) continue; // pula closedate de perda
+        if (!(Number.isFinite(t) && wonTs.has(t))) continue; // só closedate de ganho
         const v = toMs(h.value);
         if (v != null && (minMs == null || v < minMs)) minMs = v;
       }
+      // Sem casar (ex.: closedate só editada à mão): usa a 1ª entrada em ganho.
+      if (minMs == null && wonTs.size) minMs = Math.min(...wonTs);
       if (minMs != null) firstClose.set(d.id, minMs);
     }
     if (i + 50 < rawIds.length) await sleep(120);
