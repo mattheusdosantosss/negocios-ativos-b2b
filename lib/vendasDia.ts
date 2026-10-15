@@ -65,6 +65,12 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   const endMs = endOf(opts.to);
   const pipe = config.id === "b2c" ? "725182862" : "default";
   const wonSet = new Set(config.wonStageIds);
+  // Etapas de FECHAMENTO (definem o DIA da venda): Negócio fechado + Aguardando
+  // Onboarding (vêm do onboardingSLA, sem hardcode). "Ganho/Contrato assinado" é
+  // won pra contagem, mas não é um ponto de fechamento. B2C: usa o próprio won.
+  const closingSet = config.onboardingSLA
+    ? new Set([config.onboardingSLA.refStageId, config.onboardingSLA.stageId])
+    : wonSet;
 
   // Mapa etapa → rótulo (pra mostrar onde a venda foi parar quando cai).
   const stageLabel = new Map<string, string>();
@@ -138,23 +144,23 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     );
     for (const d of res.results ?? []) {
       const hist = d.propertiesWithHistory ?? {};
-      // Momentos (timestamp) em que o negócio entrou numa etapa de GANHO.
-      const wonTs = new Set<number>();
+      // Momentos (timestamp) em que o negócio entrou numa etapa de FECHAMENTO.
+      const closingTs = new Set<number>();
       for (const h of hist.dealstage ?? []) {
-        if (!wonSet.has(h.value)) continue;
+        if (!closingSet.has(h.value)) continue;
         const t = Date.parse(h.timestamp);
-        if (Number.isFinite(t)) wonTs.add(t);
+        if (Number.isFinite(t)) closingTs.add(t);
       }
-      // Menor closedate carimbada numa entrada em etapa de ganho.
+      // Menor closedate carimbada numa entrada em etapa de fechamento.
       let minMs: number | null = null;
       for (const h of hist.closedate ?? []) {
         const t = Date.parse(h.timestamp);
-        if (!(Number.isFinite(t) && wonTs.has(t))) continue; // só closedate de ganho
+        if (!(Number.isFinite(t) && closingTs.has(t))) continue; // só closedate de fechamento
         const v = toMs(h.value);
         if (v != null && (minMs == null || v < minMs)) minMs = v;
       }
-      // Sem casar (ex.: closedate só editada à mão): usa a 1ª entrada em ganho.
-      if (minMs == null && wonTs.size) minMs = Math.min(...wonTs);
+      // Sem casar (ex.: closedate só editada à mão): usa a 1ª entrada em fechamento.
+      if (minMs == null && closingTs.size) minMs = Math.min(...closingTs);
       if (minMs != null) firstClose.set(d.id, minMs);
     }
     if (i + 50 < rawIds.length) await sleep(120);

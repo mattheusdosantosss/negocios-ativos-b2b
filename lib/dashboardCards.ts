@@ -259,7 +259,7 @@ export const getVendasDoDiaCached = (config: SegmentConfig, from?: string, to?: 
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar vendas do dia" };
       }
     },
-    ["vendas-dia-v20-primeira-entrada-ganho", config.id, from || "cur", to || "cur"],
+    ["vendas-dia-v21-fechamento-negfechado-ao", config.id, from || "cur", to || "cur"],
     { revalidate: 600 }
   )();
 
