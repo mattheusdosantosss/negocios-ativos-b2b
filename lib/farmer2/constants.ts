@@ -380,7 +380,24 @@ const TEAMS_OCT14: TeamMap = {
   },
 }
 
+// 20/10: Talita vai para o Time Cami; Bruno Beck, para o Time Katy.
+const TEAMS_OCT20: TeamMap = {
+  leticia: {
+    label: 'Time Leticia',
+    farmerIds: ['94028856'],
+  },
+  katyeli: {
+    label: 'Time Katy',
+    farmerIds: ['85002282', '93238814', '95415669', '92335488', '93599591', '85846971', '97204561', '98715151', '100619918', '100465709'],
+  },
+  camila: {
+    label: 'Time Cami',
+    farmerIds: ['80228367', '94316537', '84497577', '95993082', '95810969', '88200239', '96589066', '92704130'],
+  },
+}
+
 const TEAM_PERIODS: { from: number; teams: TeamMap }[] = [
+  { from: new Date('2026-10-20').getTime(), teams: TEAMS_OCT20 },
   { from: new Date('2026-10-14').getTime(), teams: TEAMS_OCT14 },
   { from: new Date('2026-10-07').getTime(), teams: TEAMS_OCT07 },
   { from: new Date('2026-10-05').getTime(), teams: TEAMS_OCT05 },
@@ -393,7 +410,7 @@ const TEAM_PERIODS: { from: number; teams: TeamMap }[] = [
   { from: new Date('2026-07-01').getTime(), teams: TEAMS_JULY },
 ]
 
-export const TEAMS: TeamMap = TEAMS_OCT14
+export const TEAMS: TeamMap = TEAMS_OCT20
 
 // Metas mensais de empresas únicas, por mês de vigência (mais recente primeiro).
 // teamGoals: metas individuais por time (quando diferem entre si).
