@@ -143,6 +143,7 @@ export const FARMER_DATE_RESTRICTIONS: Record<string, DateRestriction> = {
   '85002012': { untilDate: '2026-09-01' }, // Bruna Machado: fora da formação set/26
   '84249251': { untilDate: '2026-09-01' }, // Tércio: fora da formação set/26
   '99956495': { untilDate: '2026-10-14' }, // Milena: sai do resultado farmer em 14/10/26, conta até dia 13
+  '98715128': { untilDate: '2026-10-20' }, // Mayke: sai do painel em 20/10/26, conta até dia 19
 }
 
 // ── Filtro de origem do lead (vale apenas de ORIGIN_CUTOVER em diante) ──
