@@ -516,6 +516,10 @@ export default function Page() {
           tempo (por fechamento); barra só em mês cheio. */}
       {data && data.monthGoal && <MonthGoalCard data={data.monthGoal} period={period} segment={segment} />}
 
+      {/* Meta de Logística (B2B) — comissão PSA dos tickets por Data de Emissão
+          do mês. Card à parte da curadoria; junto, formam a meta total. */}
+      {data && data.logisticaMeta && <LogisticaMetaCard data={data.logisticaMeta} curadoriaGoal={data.monthGoal?.goal} />}
+
       {/* Taxa de conversão + motivos — segue o filtro de tempo: fora de "Todo o
           período", trava no mês do período selecionado. */}
       {data && data.conversion && data.conversion.geral.entered > 0 && (
@@ -852,6 +856,51 @@ const paceLabel = (n: number) =>
 // (minimizável). Segue o filtro de tempo (por fechamento): em mês cheio (Este
 // mês / Mês passado / padrão) mostra a barra vs a meta; em recortes parciais
 // (Hoje / 7d / 30d / custom) esconde a barra e mostra só o total do período.
+function LogisticaMetaCard({ data, curadoriaGoal }: { data: NonNullable<DashboardData["logisticaMeta"]>; curadoriaGoal?: number }) {
+  const { goal, sold, count } = data;
+  const ratio = goal > 0 ? sold / goal : 0;
+  const pctTxt = `${(ratio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  const remaining = Math.max(0, goal - sold);
+  const reached = sold >= goal;
+  return (
+    <div className="rounded-xl border-2 border-psa-blue/40 bg-gradient-to-br from-psa-blue/[0.07] to-transparent p-5">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-psa-blue">Meta de Logística</div>
+          <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+            <span className="font-display text-3xl font-extrabold text-psa-ink tabular-nums">{brl(sold)}</span>
+            <span className="text-sm text-psa-ink-soft">de <b className="text-psa-ink">{brl(goal)}</b></span>
+          </div>
+        </div>
+        <div className="text-left sm:text-right">
+          <div className="font-display text-3xl font-extrabold text-psa-blue tabular-nums">{pctTxt}</div>
+          <div className="text-[11px] text-psa-ink-soft">
+            {num(count)} {count === 1 ? "ticket" : "tickets"} · comissão PSA · mês atual
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 h-3 rounded-full bg-psa-canvas overflow-hidden">
+        <div className="h-full rounded-full bg-psa-blue transition-all" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3 flex-wrap text-[11px] text-psa-ink-soft">
+        <span>
+          {reached ? (
+            <span className="font-bold text-psa-blue">Meta batida!</span>
+          ) : (
+            <>Faltam <b className="text-psa-ink">{brl(remaining)}</b> pra bater a meta</>
+          )}
+          <span className="text-psa-muted"> · por Data de Emissão</span>
+        </span>
+        {curadoriaGoal != null && (
+          <span className="text-psa-muted">
+            Curadoria + Logística = <b className="text-psa-ink">{brl(curadoriaGoal + goal)}</b>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MonthGoalCard({ data, period, segment }: { data: NonNullable<DashboardData["monthGoal"]>; period: PeriodValue; segment: SegmentId }) {
   const { goal, sold, count, byCloser } = data;
   const [openHist, setOpenHist] = useState(false);

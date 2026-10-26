@@ -275,6 +275,8 @@ export type DashboardData = {
   forecast?: AggregatedDealItem[];
   /** B2B: SLA de Onboarding — negócios parados em "Aguardando Onboarding". */
   onboarding?: import("./onboarding").OnboardingSLAData;
+  /** B2B: Meta de Logística — comissão PSA dos tickets por Data de Emissão do mês. */
+  logisticaMeta?: { goal: number; sold: number; count: number };
 };
 
 // Taxa de conversão Proposta → Ganho, por mês de criação.

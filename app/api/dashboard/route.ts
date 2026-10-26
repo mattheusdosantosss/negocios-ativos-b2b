@@ -9,7 +9,7 @@ import { aggregate, taskMatrix, type DashboardData } from "@/lib/aggregate";
 import { getSegment, tempStagesOf } from "@/lib/segments";
 import { isLeadSourceId, leadSourceValues } from "@/lib/leadSource";
 import { seedFor } from "@/lib/seed";
-import { getWonAggregateCached, getCloseTimeCached, getMonthGoalCached, getForecastCached, getOnboardingCached } from "@/lib/dashboardCards";
+import { getWonAggregateCached, getCloseTimeCached, getMonthGoalCached, getForecastCached, getOnboardingCached, getLogisticaMetaCached } from "@/lib/dashboardCards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    const [owners, deals, checkoutDeals, won, closeRaw, goalRaw, forecastRaw, onboardingRaw, tasksRaw] = await Promise.all([
+    const [owners, deals, checkoutDeals, won, closeRaw, goalRaw, forecastRaw, onboardingRaw, logisticaRaw, tasksRaw] = await Promise.all([
       fetchAllOwners(),
       dealsP,
       fetchCheckoutDeals(config, { from, to, owner }),
@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
       config.monthGoal != null ? getMonthGoalCached(config, from, to, owner) : Promise.resolve(null),
       getForecastCached(config, origemId, origem, owner),
       config.onboardingSLA ? getOnboardingCached(config, owner) : Promise.resolve(null),
+      config.logisticaGoal != null ? getLogisticaMetaCached(config) : Promise.resolve(null),
       tasksP,
     ]);
 
@@ -89,6 +90,7 @@ export async function GET(req: NextRequest) {
       monthGoal: goalRaw?.data,
       forecast: forecastRaw?.data,
       onboarding: onboardingRaw?.data,
+      logisticaMeta: logisticaRaw?.data,
     };
 
     return NextResponse.json(data);

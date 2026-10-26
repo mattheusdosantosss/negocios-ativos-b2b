@@ -21,6 +21,7 @@ import { fetchVendasDoDia } from "@/lib/vendasDia";
 import { fetchPropostaMesmoDia } from "@/lib/propostaMesmoDia";
 import { fetchConversaoVenda } from "@/lib/conversaoVenda";
 import { fetchOnboardingSLA } from "@/lib/onboarding";
+import { fetchLogisticaComissao } from "@/lib/logistica";
 import {
   closeTimeMatrix,
   conversionFromCounts,
@@ -69,6 +70,24 @@ export const getOnboardingCached = (config: SegmentConfig, owner?: string) =>
       }
     },
     ["onboarding-sla-v3-historico-maisantiga", config.id, owner || "all"],
+    { revalidate: 600 }
+  )();
+
+// "Meta de Logística" (B2B): comissão PSA (valor_final_de_comissao_psa) dos
+// tickets por Data de Emissão do mês corrente. Cacheia 10min; chave rotaciona por
+// mês (UTC) pra virar de mês sozinho.
+export const getLogisticaMetaCached = (config: SegmentConfig) =>
+  unstable_cache(
+    async (): Promise<{ data: DashboardData["logisticaMeta"]; warning?: string }> => {
+      try {
+        if (config.logisticaGoal == null) return { data: undefined };
+        const r = await fetchLogisticaComissao();
+        return { data: { goal: config.logisticaGoal, ...r } };
+      } catch (e) {
+        return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta de logística" };
+      }
+    },
+    ["logistica-meta-v1", config.id, new Date().toISOString().slice(0, 7)],
     { revalidate: 600 }
   )();
 

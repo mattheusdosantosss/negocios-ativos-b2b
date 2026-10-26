@@ -88,6 +88,10 @@ export type SegmentConfig = {
   /** Override da meta por mês (chave "YYYY-MM"). O mês sem entrada cai no
    *  `monthGoal`. Usado quando a meta muda de um mês pro outro. */
   monthGoalOverrides?: Record<string, number>;
+  /** Meta de comissão de Logística (card à parte): soma de
+   *  `valor_final_de_comissao_psa` dos TICKETS por Data de Emissão do mês.
+   *  null/ausente = sem card. Só B2B. */
+  logisticaGoal?: number;
   /** Id da lista/segmento do HubSpot (dinâmica "MÊS") cujos negócios somam a
    *  venda do mês pra bater na meta. null quando o segmento não tem. */
   rankingListId: string | null;
@@ -150,6 +154,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDateProp: "closedate",
     hasCloserBreakdown: false,
     monthGoal: 1_085_000,
+    logisticaGoal: 217_000,
     rankingListId: "1491", // "RANKING DE VENDAS | MÊS"
     team: B2B_TEAM,
     onboardingSLA: { stageId: "1451255875", stageLabel: "Aguardando Onboarding", refStageId: "1076664462", prazoDias: 2 },
