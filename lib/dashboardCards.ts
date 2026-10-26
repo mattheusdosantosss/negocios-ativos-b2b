@@ -271,11 +271,15 @@ export const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: st
         if (config.monthGoal == null) return { data: undefined };
         const owners = await fetchAllOwners();
         const sales = await fetchSalesByCloser(config, { from, to, owner }, owners);
-        return { data: { goal: config.monthGoal, ...sales }, warning: undefined };
+        // Meta do mês visualizado: `from` define o mês; sem filtro = mês atual
+        // (fuso BR). Override por mês vence o valor base.
+        const mk = (from ?? new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()).slice(0, 7);
+        const goal = config.monthGoalOverrides?.[mk] ?? config.monthGoal;
+        return { data: { goal, ...sales }, warning: undefined };
       } catch (e) {
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v11-aguardando-onb", config.id, from || "cur", to || "cur", owner || "all"],
+    ["month-goal-v12-override-mes", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();
