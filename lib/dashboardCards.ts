@@ -280,6 +280,6 @@ export const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: st
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v12-override-mes", config.id, from || "cur", to || "cur", owner || "all"],
+    ["month-goal-v13-b2b-1085k", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();

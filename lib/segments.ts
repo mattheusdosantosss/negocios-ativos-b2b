@@ -149,7 +149,7 @@ export const SEGMENTS: Record<SegmentId, SegmentConfig> = {
     conversionDenomLabel: "só negócios com proposta anexada",
     conversionDateProp: "closedate",
     hasCloserBreakdown: false,
-    monthGoal: 1_200_000,
+    monthGoal: 1_085_000,
     rankingListId: "1491", // "RANKING DE VENDAS | MÊS"
     team: B2B_TEAM,
     onboardingSLA: { stageId: "1451255875", stageLabel: "Aguardando Onboarding", refStageId: "1076664462", prazoDias: 2 },
