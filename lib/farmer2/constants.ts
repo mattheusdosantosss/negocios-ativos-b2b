@@ -112,6 +112,7 @@ export const BONUS_DEALS: Array<{ dealId: string; farmerId: string; date: string
 export const ORIGIN_OVERRIDE_DEAL_IDS = new Set([
   '62654660376', // Mayra | Credipronto — Bruna Machado (inbound, deveria ser Farmer)
   '63187333523', // Gabriela | FDC — Maria Julia (inbound, deveria ser Farmer)
+  '66052734117', // Inbound - Tamyres | Firjan — Luiza Rodriguez (inbound, caso à parte, conta como Farmer)
 ])
 
 // Per-farmer date restrictions applied after fetching

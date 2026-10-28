@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { fetchAllDeals } from "@/lib/farmer2/hubspot";
-import { FARMERS, FARMER_DATE_RESTRICTIONS } from "@/lib/farmer2/constants";
+import { FARMERS, FARMER_DATE_RESTRICTIONS, ORIGIN_OVERRIDE_DEAL_IDS } from "@/lib/farmer2/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export const maxDuration = 60;
 // antigo (que sobrevive ao deploy).
 const getFarmer2 = unstable_cache(
   async () => fetchAllDeals(),
-  ["farmer2-deals-v2", Object.keys(FARMERS).sort().join(","), JSON.stringify(FARMER_DATE_RESTRICTIONS)],
+  ["farmer2-deals-v2", Object.keys(FARMERS).sort().join(","), JSON.stringify(FARMER_DATE_RESTRICTIONS), [...ORIGIN_OVERRIDE_DEAL_IDS].sort().join(",")],
   { revalidate: 600 }
 );
 
