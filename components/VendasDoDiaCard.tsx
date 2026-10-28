@@ -7,6 +7,7 @@ import type { VendasDoDiaData, VendaItem, VendaDia } from "@/lib/vendasDia";
 const splitProd = (s?: string): string[] => (s ? s.split(";").map((x) => x.trim()).filter(Boolean) : []);
 
 const num = (n: number) => n.toLocaleString("pt-BR");
+const brl = (n: number) => `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // Percentual da venda = líquido ÷ bruto (fatia da PSA sobre o contrato). Só no B2B (bruto ≠ líq).
 const pctLiq = (liq: number, bruto: number) => (bruto > 0 ? `${Math.round((liq / bruto) * 100)}%` : "");
 const fmtK = (n: number) =>
@@ -86,9 +87,14 @@ function Venda({ v }: { v: VendaItem }) {
       </div>
 
       {/* Quem vendeu */}
-      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-psa-ink-soft">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-psa-ink-soft">
         <span>Closer: <b className="text-psa-ink font-medium">{v.closer}</b></span>
         {v.sdrFarmer && <span>SDR/Farmer: <b className="text-psa-ink font-medium">{v.sdrFarmer}</b></span>}
+        {v.logistica != null && (
+          <span className="text-[10px] font-semibold text-psa-blue bg-psa-blue/10 border border-psa-blue/20 rounded px-1.5 py-0.5" title="Comissão de logística do ticket associado a esta venda">
+            Logística {brl(v.logistica)}
+          </span>
+        )}
       </div>
 
       {/* Palestrante / evento / produto */}

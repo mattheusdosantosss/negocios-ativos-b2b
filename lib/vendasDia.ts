@@ -56,6 +56,9 @@ export type VendaItem = {
   palestrante?: string; // só B2B (palestrante vendido)
   produto?: string;
   turma?: string;
+  /** Comissão de Logística (só B2B): soma de valor_final_de_comissao_psa dos
+   *  tickets de logística associados ao negócio. undefined = sem logística. */
+  logistica?: number;
 };
 export type VendaDia = { key: string; count: number; total: number; totalLiq: number; vendas: VendaItem[] };
 export type VendasDoDiaData = { dias: VendaDia[]; total: number; totalLiq: number; count: number };
@@ -197,6 +200,36 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     }
   }
 
+  // Comissão de Logística por venda (só B2B): soma de valor_final_de_comissao_psa
+  // dos TICKETS de logística (pipeline 751582050) associados ao negócio. O ticket
+  // é da operação de logística; a venda é do closer (dono do negócio) — por isso
+  // vai pelo negócio associado, não pelo dono do ticket.
+  const LOG_PIPELINE = "751582050";
+  const logByDeal = new Map<string, number>();
+  if (seg === "b2b" && raw.length) {
+    const assoc = await fetchAssocIds("deals", "tickets", raw.map((d) => d.id));
+    const allTk = [...new Set([...assoc.values()].flat())];
+    const tkVal = new Map<string, number>();
+    for (let i = 0; i < allTk.length; i += 100) {
+      const chunk = allTk.slice(i, i + 100);
+      const res = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[] }>(
+        `/crm/v3/objects/tickets/batch/read`,
+        { method: "POST", body: JSON.stringify({ properties: ["valor_final_de_comissao_psa", "hs_pipeline"], inputs: chunk.map((id) => ({ id })) }) }
+      );
+      for (const t of res.results ?? []) {
+        if (t.properties.hs_pipeline !== LOG_PIPELINE) continue; // só tickets de logística
+        const v = Number(t.properties.valor_final_de_comissao_psa || 0);
+        if (v) tkVal.set(t.id, v);
+      }
+      if (i + 100 < allTk.length) await sleep(120);
+    }
+    for (const [dealId, tkIds] of assoc) {
+      let sum = 0;
+      for (const tid of tkIds) sum += tkVal.get(tid) ?? 0;
+      if (sum > 0) logByDeal.set(dealId, sum);
+    }
+  }
+
   const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; bruto: number; liquido: number } => {
     const amount = Number(p.amount) || 0;
     // Bruto por segmento: B2B usa "valor total do contrato (ganho)"; B2C usa
@@ -221,6 +254,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
         sdrFarmer: clean(name(p.sdrfarmer_responsavel)),
         evento: clean(p.data_prevista_do_evento),
         palestrante: seg === "b2b" ? (palByDeal.get(id) || undefined) : undefined,
+        logistica: seg === "b2b" ? (logByDeal.get(id) || undefined) : undefined,
         produto: clean(p.produto_de_interesse),
         turma: clean(p.turma_the_best_weekend_) || clean(p.turma_the_best_weekend) || clean(p.turma_tbw_s),
       },
