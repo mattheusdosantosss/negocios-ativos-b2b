@@ -1001,7 +1001,7 @@ function MonthGoalCard({ data, period, segment }: { data: NonNullable<DashboardD
           </button>
 
           {openHist && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3 max-h-[600px] overflow-y-auto pr-1">
               {byCloser.map((c) => (
                 <div key={c.name} className="rounded-lg border border-psa-line bg-psa-surface/60 p-3">
                   <div className="flex items-baseline justify-between gap-2">
