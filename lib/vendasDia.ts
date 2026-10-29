@@ -60,7 +60,7 @@ export type VendaItem = {
 // Venda de Logística = ticket de logística (comissão PSA), no SEU dia de emissão
 // (a logística costuma sair bem depois da venda da curadoria, por isso é um card
 // à parte, não grudado na venda). Closer = dono do negócio associado.
-export type LogisticaVenda = { closer: string; valor: number; cliente: string; url: string; semNegocio: boolean };
+export type LogisticaVenda = { closer: string; sdr: string; bruto: number; liquido: number; cliente: string; url: string; semNegocio: boolean };
 export type VendaDia = { key: string; count: number; total: number; totalLiq: number; vendas: VendaItem[]; logisticas: LogisticaVenda[]; logisticaTotal: number };
 export type VendasDoDiaData = { dias: VendaDia[]; total: number; totalLiq: number; count: number; logisticaTotal: number };
 
@@ -257,7 +257,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   // do NEGÓCIO associado (a venda é do closer; o dono do ticket é a operação).
   let logisticaTotal = 0;
   if (seg === "b2b") {
-    const tickets: { id: string; valor: number; cliente: string; emissao: string }[] = [];
+    const tickets: { id: string; bruto: number; liquido: number; cliente: string; emissao: string; sdrId: string }[] = [];
     let tkAfter: string | undefined;
     do {
       const body: Record<string, unknown> = {
@@ -266,7 +266,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
           { propertyName: "data_de_emissao", operator: "GTE", value: String(startMs) },
           { propertyName: "data_de_emissao", operator: "LTE", value: String(endMs) },
         ] }],
-        properties: ["valor_final_de_comissao_psa", "subject", "data_de_emissao"],
+        properties: ["valor_total_da_comissao_psa", "valor_final_de_comissao_psa", "subject", "data_de_emissao", "hubspot_owner_id"],
         limit: 200,
       };
       if (tkAfter) body.after = tkAfter;
@@ -274,9 +274,10 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
         `/crm/v3/objects/tickets/search`, { method: "POST", body: JSON.stringify(body) }
       );
       for (const t of r.results ?? []) {
-        const valor = Number(t.properties.valor_final_de_comissao_psa || 0);
+        const liquido = Number(t.properties.valor_final_de_comissao_psa || 0);
+        const bruto = Number(t.properties.valor_total_da_comissao_psa || 0) || liquido; // bruto (fallback = líquido)
         const emissao = (t.properties.data_de_emissao || "").slice(0, 10);
-        if (valor > 0 && emissao) tickets.push({ id: t.id, valor, cliente: t.properties.subject || `Ticket ${t.id}`, emissao });
+        if (liquido > 0 && emissao) tickets.push({ id: t.id, bruto, liquido, cliente: t.properties.subject || `Ticket ${t.id}`, emissao, sdrId: t.properties.hubspot_owner_id || "" });
       }
       tkAfter = r.paging?.next?.after;
       if (tkAfter) await sleep(120);
@@ -300,9 +301,9 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
       const closer = did ? (name(ownerByDeal.get(did)) || "Sem closer") : "";
       let dia = byDay.get(t.emissao);
       if (!dia) { dia = { key: t.emissao, count: 0, total: 0, totalLiq: 0, vendas: [], logisticas: [], logisticaTotal: 0 }; byDay.set(t.emissao, dia); }
-      dia.logisticas.push({ closer: closer || "Sem negócio", valor: t.valor, cliente: t.cliente, url: did ? dealUrl(did) : ticketUrl(t.id), semNegocio: !did });
-      dia.logisticaTotal += t.valor;
-      logisticaTotal += t.valor;
+      dia.logisticas.push({ closer: closer || "Sem negócio", sdr: name(t.sdrId), bruto: t.bruto, liquido: t.liquido, cliente: t.cliente, url: did ? dealUrl(did) : ticketUrl(t.id), semNegocio: !did });
+      dia.logisticaTotal += t.liquido;
+      logisticaTotal += t.liquido;
     }
   }
 
@@ -310,7 +311,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
   // Dentro do dia: ganhos primeiro (valor bruto desc), depois as que caíram.
   dias.forEach((d) => {
     d.vendas.sort((a, b) => (a.status === b.status ? b.bruto - a.bruto : a.status === "ganho" ? -1 : 1));
-    d.logisticas.sort((a, b) => b.valor - a.valor);
+    d.logisticas.sort((a, b) => b.liquido - a.liquido);
   });
   return { dias, total, totalLiq, count, logisticaTotal };
 }

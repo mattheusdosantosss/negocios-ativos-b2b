@@ -114,7 +114,10 @@ function Venda({ v }: { v: VendaItem }) {
 }
 
 // Card de Venda de Logística (comissão PSA do ticket), no dia da emissão.
+// Bruto = valor_total_da_comissao_psa; Líquido = valor_final_de_comissao_psa.
+// Vendedor = closer do negócio associado; SDR = dono do ticket (Elenice/Luciana).
 function LogisticaCard({ l }: { l: LogisticaVenda }) {
+  const temMargem = l.bruto > 0 && l.bruto !== l.liquido;
   return (
     <a
       href={l.url}
@@ -123,16 +126,19 @@ function LogisticaCard({ l }: { l: LogisticaVenda }) {
       className="block rounded-xl border p-3 transition border-psa-blue/30 bg-psa-blue/[0.05] hover:border-psa-blue/60 hover:bg-psa-blue/10"
       title="Abrir no HubSpot"
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex-1 min-w-0 text-[12px] font-semibold text-psa-ink truncate">{l.cliente}</span>
-        <span className="shrink-0 text-[13px] font-extrabold text-psa-blue tabular-nums">{brl(l.valor)}</span>
+      <span className="block text-[12px] font-semibold text-psa-ink truncate">{l.cliente}</span>
+      <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-1">
+        <Valor label="Líquido" value={fmtK(l.liquido)} strong="text-psa-blue" />
+        <Valor label="Bruto" value={fmtK(l.bruto)} />
+        {temMargem && <Valor label="Margem" value={pctLiq(l.liquido, l.bruto)} />}
       </div>
-      <div className="mt-1.5 text-[11px] text-psa-ink-soft">
+      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-psa-ink-soft">
         {l.semNegocio ? (
           <span className="text-red-600 font-medium">Sem negócio associado</span>
         ) : (
-          <>Closer: <b className="text-psa-ink font-medium">{l.closer}</b></>
+          <span>Vendedor: <b className="text-psa-ink font-medium">{l.closer}</b></span>
         )}
+        {l.sdr && <span>SDR: <b className="text-psa-ink font-medium">{l.sdr}</b></span>}
       </div>
     </a>
   );
