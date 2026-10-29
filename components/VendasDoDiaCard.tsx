@@ -138,7 +138,7 @@ function LogisticaCard({ l }: { l: LogisticaVenda }) {
         ) : (
           <span>Vendedor: <b className="text-psa-ink font-medium">{l.closer}</b></span>
         )}
-        {l.sdr && <span>SDR: <b className="text-psa-ink font-medium">{l.sdr}</b></span>}
+        {l.sdr && <span>Responsável: <b className="text-psa-ink font-medium">{l.sdr}</b></span>}
       </div>
     </a>
   );
