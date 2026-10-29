@@ -6,7 +6,7 @@
 // "caíram" (saíram do ganho) ficam sinalizadas, não somem.
 // ============================================================
 
-import { hsFetch, sleep, dealUrl, ownerDisplayName, fetchAssocIds, type Owner } from "./hubspot";
+import { hsFetch, sleep, dealUrl, ticketUrl, ownerDisplayName, fetchAssocIds, type Owner } from "./hubspot";
 import type { SegmentConfig } from "./segments";
 
 const BR_OFFSET_MS = 3 * 60 * 60 * 1000; // GMT-3
@@ -56,12 +56,13 @@ export type VendaItem = {
   palestrante?: string; // só B2B (palestrante vendido)
   produto?: string;
   turma?: string;
-  /** Comissão de Logística (só B2B): soma de valor_final_de_comissao_psa dos
-   *  tickets de logística associados ao negócio. undefined = sem logística. */
-  logistica?: number;
 };
-export type VendaDia = { key: string; count: number; total: number; totalLiq: number; vendas: VendaItem[] };
-export type VendasDoDiaData = { dias: VendaDia[]; total: number; totalLiq: number; count: number };
+// Venda de Logística = ticket de logística (comissão PSA), no SEU dia de emissão
+// (a logística costuma sair bem depois da venda da curadoria, por isso é um card
+// à parte, não grudado na venda). Closer = dono do negócio associado.
+export type LogisticaVenda = { closer: string; valor: number; cliente: string; url: string; semNegocio: boolean };
+export type VendaDia = { key: string; count: number; total: number; totalLiq: number; vendas: VendaItem[]; logisticas: LogisticaVenda[]; logisticaTotal: number };
+export type VendasDoDiaData = { dias: VendaDia[]; total: number; totalLiq: number; count: number; logisticaTotal: number };
 
 export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: string; to?: string }, owners: Map<string, Owner>): Promise<VendasDoDiaData> {
   const startMs = startOf(opts.from);
@@ -200,36 +201,6 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     }
   }
 
-  // Comissão de Logística por venda (só B2B): soma de valor_final_de_comissao_psa
-  // dos TICKETS de logística (pipeline 751582050) associados ao negócio. O ticket
-  // é da operação de logística; a venda é do closer (dono do negócio) — por isso
-  // vai pelo negócio associado, não pelo dono do ticket.
-  const LOG_PIPELINE = "751582050";
-  const logByDeal = new Map<string, number>();
-  if (seg === "b2b" && raw.length) {
-    const assoc = await fetchAssocIds("deals", "tickets", raw.map((d) => d.id));
-    const allTk = [...new Set([...assoc.values()].flat())];
-    const tkVal = new Map<string, number>();
-    for (let i = 0; i < allTk.length; i += 100) {
-      const chunk = allTk.slice(i, i + 100);
-      const res = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[] }>(
-        `/crm/v3/objects/tickets/batch/read`,
-        { method: "POST", body: JSON.stringify({ properties: ["valor_final_de_comissao_psa", "hs_pipeline"], inputs: chunk.map((id) => ({ id })) }) }
-      );
-      for (const t of res.results ?? []) {
-        if (t.properties.hs_pipeline !== LOG_PIPELINE) continue; // só tickets de logística
-        const v = Number(t.properties.valor_final_de_comissao_psa || 0);
-        if (v) tkVal.set(t.id, v);
-      }
-      if (i + 100 < allTk.length) await sleep(120);
-    }
-    for (const [dealId, tkIds] of assoc) {
-      let sum = 0;
-      for (const tid of tkIds) sum += tkVal.get(tid) ?? 0;
-      if (sum > 0) logByDeal.set(dealId, sum);
-    }
-  }
-
   const toItem = (id: string, p: Record<string, string>): { item: VendaItem; isWon: boolean; bruto: number; liquido: number } => {
     const amount = Number(p.amount) || 0;
     // Bruto por segmento: B2B usa "valor total do contrato (ganho)"; B2C usa
@@ -254,7 +225,6 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
         sdrFarmer: clean(name(p.sdrfarmer_responsavel)),
         evento: clean(p.data_prevista_do_evento),
         palestrante: seg === "b2b" ? (palByDeal.get(id) || undefined) : undefined,
-        logistica: seg === "b2b" ? (logByDeal.get(id) || undefined) : undefined,
         produto: clean(p.produto_de_interesse),
         turma: clean(p.turma_the_best_weekend_) || clean(p.turma_the_best_weekend) || clean(p.turma_tbw_s),
       },
@@ -269,7 +239,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     const { item, isWon, bruto, liquido } = toItem(id, p);
     const k = dayKey(saleMs);
     let dia = byDay.get(k);
-    if (!dia) { dia = { key: k, count: 0, total: 0, totalLiq: 0, vendas: [] }; byDay.set(k, dia); }
+    if (!dia) { dia = { key: k, count: 0, total: 0, totalLiq: 0, vendas: [], logisticas: [], logisticaTotal: 0 }; byDay.set(k, dia); }
     dia.vendas.push(item);
     if (isWon) { dia.count += 1; dia.total += bruto; dia.totalLiq += liquido; total += bruto; totalLiq += liquido; count += 1; }
   };
@@ -281,8 +251,66 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
     if (saleMs != null && saleMs >= startMs && saleMs <= endMs) push(saleMs, d.id, d.properties);
   }
 
+  // Vendas de Logística (só B2B): tickets de logística (pipeline 751582050) no SEU
+  // dia de EMISSÃO (data_de_emissao), dentro da mesma janela. Vão como card à parte
+  // porque a logística costuma sair bem depois da venda da curadoria. Closer = dono
+  // do NEGÓCIO associado (a venda é do closer; o dono do ticket é a operação).
+  let logisticaTotal = 0;
+  if (seg === "b2b") {
+    const tickets: { id: string; valor: number; cliente: string; emissao: string }[] = [];
+    let tkAfter: string | undefined;
+    do {
+      const body: Record<string, unknown> = {
+        filterGroups: [{ filters: [
+          { propertyName: "hs_pipeline", operator: "EQ", value: "751582050" },
+          { propertyName: "data_de_emissao", operator: "GTE", value: String(startMs) },
+          { propertyName: "data_de_emissao", operator: "LTE", value: String(endMs) },
+        ] }],
+        properties: ["valor_final_de_comissao_psa", "subject", "data_de_emissao"],
+        limit: 200,
+      };
+      if (tkAfter) body.after = tkAfter;
+      const r = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[]; paging?: { next?: { after?: string } } }>(
+        `/crm/v3/objects/tickets/search`, { method: "POST", body: JSON.stringify(body) }
+      );
+      for (const t of r.results ?? []) {
+        const valor = Number(t.properties.valor_final_de_comissao_psa || 0);
+        const emissao = (t.properties.data_de_emissao || "").slice(0, 10);
+        if (valor > 0 && emissao) tickets.push({ id: t.id, valor, cliente: t.properties.subject || `Ticket ${t.id}`, emissao });
+      }
+      tkAfter = r.paging?.next?.after;
+      if (tkAfter) await sleep(120);
+    } while (tkAfter);
+
+    const assoc = await fetchAssocIds("tickets", "deals", tickets.map((t) => t.id));
+    const dealIds = [...new Set([...assoc.values()].flat())];
+    const ownerByDeal = new Map<string, string>();
+    for (let i = 0; i < dealIds.length; i += 100) {
+      const chunk = dealIds.slice(i, i + 100);
+      const res = await hsFetch<{ results?: { id: string; properties: Record<string, string> }[] }>(
+        `/crm/v3/objects/deals/batch/read`,
+        { method: "POST", body: JSON.stringify({ properties: ["hubspot_owner_id"], inputs: chunk.map((id) => ({ id })) }) }
+      );
+      for (const d of res.results ?? []) ownerByDeal.set(d.id, d.properties.hubspot_owner_id || "");
+      if (i + 100 < dealIds.length) await sleep(120);
+    }
+
+    for (const t of tickets) {
+      const did = (assoc.get(t.id) ?? [])[0];
+      const closer = did ? (name(ownerByDeal.get(did)) || "Sem closer") : "";
+      let dia = byDay.get(t.emissao);
+      if (!dia) { dia = { key: t.emissao, count: 0, total: 0, totalLiq: 0, vendas: [], logisticas: [], logisticaTotal: 0 }; byDay.set(t.emissao, dia); }
+      dia.logisticas.push({ closer: closer || "Sem negócio", valor: t.valor, cliente: t.cliente, url: did ? dealUrl(did) : ticketUrl(t.id), semNegocio: !did });
+      dia.logisticaTotal += t.valor;
+      logisticaTotal += t.valor;
+    }
+  }
+
   const dias = [...byDay.values()].sort((a, b) => (a.key < b.key ? 1 : -1));
   // Dentro do dia: ganhos primeiro (valor bruto desc), depois as que caíram.
-  dias.forEach((d) => d.vendas.sort((a, b) => (a.status === b.status ? b.bruto - a.bruto : a.status === "ganho" ? -1 : 1)));
-  return { dias, total, totalLiq, count };
+  dias.forEach((d) => {
+    d.vendas.sort((a, b) => (a.status === b.status ? b.bruto - a.bruto : a.status === "ganho" ? -1 : 1));
+    d.logisticas.sort((a, b) => b.valor - a.valor);
+  });
+  return { dias, total, totalLiq, count, logisticaTotal };
 }

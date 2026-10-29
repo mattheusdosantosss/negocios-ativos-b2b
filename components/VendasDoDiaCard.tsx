@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { VendasDoDiaData, VendaItem, VendaDia } from "@/lib/vendasDia";
+import type { VendasDoDiaData, VendaItem, VendaDia, LogisticaVenda } from "@/lib/vendasDia";
 
 // produto_de_interesse pode ter vários produtos separados por ";".
 const splitProd = (s?: string): string[] => (s ? s.split(";").map((x) => x.trim()).filter(Boolean) : []);
@@ -87,14 +87,9 @@ function Venda({ v }: { v: VendaItem }) {
       </div>
 
       {/* Quem vendeu */}
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-psa-ink-soft">
+      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-psa-ink-soft">
         <span>Closer: <b className="text-psa-ink font-medium">{v.closer}</b></span>
         {v.sdrFarmer && <span>SDR/Farmer: <b className="text-psa-ink font-medium">{v.sdrFarmer}</b></span>}
-        {v.logistica != null && (
-          <span className="text-[10px] font-semibold text-psa-blue bg-psa-blue/10 border border-psa-blue/20 rounded px-1.5 py-0.5" title="Comissão de logística do ticket associado a esta venda">
-            Logística {brl(v.logistica)}
-          </span>
-        )}
       </div>
 
       {/* Palestrante / evento / produto */}
@@ -114,6 +109,31 @@ function Venda({ v }: { v: VendaItem }) {
           )}
         </div>
       )}
+    </a>
+  );
+}
+
+// Card de Venda de Logística (comissão PSA do ticket), no dia da emissão.
+function LogisticaCard({ l }: { l: LogisticaVenda }) {
+  return (
+    <a
+      href={l.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block rounded-xl border p-3 transition border-psa-blue/30 bg-psa-blue/[0.05] hover:border-psa-blue/60 hover:bg-psa-blue/10"
+      title="Abrir no HubSpot"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex-1 min-w-0 text-[12px] font-semibold text-psa-ink truncate">{l.cliente}</span>
+        <span className="shrink-0 text-[13px] font-extrabold text-psa-blue tabular-nums">{brl(l.valor)}</span>
+      </div>
+      <div className="mt-1.5 text-[11px] text-psa-ink-soft">
+        {l.semNegocio ? (
+          <span className="text-red-600 font-medium">Sem negócio associado</span>
+        ) : (
+          <>Closer: <b className="text-psa-ink font-medium">{l.closer}</b></>
+        )}
+      </div>
     </a>
   );
 }
@@ -139,7 +159,7 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
       let c = 0, t = 0, tL = 0;
       for (const v of vendas) if (v.status === "ganho") { c += 1; t += v.bruto; tL += v.liquido; }
       count += c; total += t; totalLiq += tL;
-      dias.push({ key: d.key, count: c, total: t, totalLiq: tL, vendas });
+      dias.push({ key: d.key, count: c, total: t, totalLiq: tL, vendas, logisticas: d.logisticas, logisticaTotal: d.logisticaTotal });
     }
     return { dias, count, total, totalLiq };
   }, [data, produto]);
@@ -188,19 +208,41 @@ export default function VendasDoDiaCard({ data }: { data: VendasDoDiaData }) {
                   {dayLabel(dia.key)}
                 </span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
-                  <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1">
-                    {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}{dia.totalLiq !== dia.total && <span className="font-normal opacity-70"> líq {fmtK(dia.totalLiq)} · {pctLiq(dia.totalLiq, dia.total)}</span>}
-                  </span>
+                  {dia.vendas.length > 0 && (
+                    <span className="text-[11px] font-semibold text-psa-orange bg-psa-orange/10 rounded-full px-2.5 py-1">
+                      {dia.count} {dia.count === 1 ? "venda" : "vendas"} · {fmtK(dia.total)}{dia.totalLiq !== dia.total && <span className="font-normal opacity-70"> líq {fmtK(dia.totalLiq)} · {pctLiq(dia.totalLiq, dia.total)}</span>}
+                    </span>
+                  )}
                   {caiu > 0 && (
                     <span className="text-[11px] font-semibold text-red-700 bg-red-100 rounded-full px-2.5 py-1">{caiu} caiu</span>
                   )}
+                  {dia.logisticas.length > 0 && (
+                    <span className="text-[11px] font-semibold text-psa-blue bg-psa-blue/10 rounded-full px-2.5 py-1">
+                      Logística {fmtK(dia.logisticaTotal)}
+                    </span>
+                  )}
                 </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {dia.vendas.map((v, i) => (
-                  <Venda key={i} v={v} />
-                ))}
-              </div>
+              {dia.vendas.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {dia.vendas.map((v, i) => (
+                    <Venda key={i} v={v} />
+                  ))}
+                </div>
+              )}
+              {dia.logisticas.length > 0 && (
+                <div className={dia.vendas.length > 0 ? "mt-4" : ""}>
+                  <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-psa-blue">
+                    <span className="inline-block w-1 h-3.5 rounded-full bg-psa-blue" />
+                    Logística · {dia.logisticas.length} {dia.logisticas.length === 1 ? "emissão" : "emissões"} · {brl(dia.logisticaTotal)}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {dia.logisticas.map((l, i) => (
+                      <LogisticaCard key={i} l={l} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             );
           })

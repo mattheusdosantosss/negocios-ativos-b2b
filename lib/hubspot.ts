@@ -31,6 +31,9 @@ const PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID || "49656171";
 export const dealUrl = (dealId: string): string =>
   `https://app.hubspot.com/contacts/${PORTAL_ID}/record/0-3/${dealId}`;
 
+export const ticketUrl = (ticketId: string): string =>
+  `https://app.hubspot.com/contacts/${PORTAL_ID}/record/0-5/${ticketId}`;
+
 // ============================================================
 // Tipos
 // ============================================================
