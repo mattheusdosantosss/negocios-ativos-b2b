@@ -266,7 +266,7 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
           { propertyName: "data_de_emissao", operator: "GTE", value: String(startMs) },
           { propertyName: "data_de_emissao", operator: "LTE", value: String(endMs) },
         ] }],
-        properties: ["valor_total_da_comissao_psa", "valor_final_de_comissao_psa", "subject", "data_de_emissao", "hubspot_owner_id"],
+        properties: ["valor_total_nd__nota_de_debito__ou_nf__nota_fiscal_", "valor_total_da_comissao_psa", "subject", "data_de_emissao", "hubspot_owner_id"],
         limit: 200,
       };
       if (tkAfter) body.after = tkAfter;
@@ -274,8 +274,9 @@ export async function fetchVendasDoDia(config: SegmentConfig, opts: { from?: str
         `/crm/v3/objects/tickets/search`, { method: "POST", body: JSON.stringify(body) }
       );
       for (const t of r.results ?? []) {
-        const liquido = Number(t.properties.valor_final_de_comissao_psa || 0);
-        const bruto = Number(t.properties.valor_total_da_comissao_psa || 0) || liquido; // bruto (fallback = líquido)
+        // Líquido = comissão PSA; Bruto = valor total da logística (ND/NF); margem = líq/bruto.
+        const liquido = Number(t.properties.valor_total_da_comissao_psa || 0);
+        const bruto = Number(t.properties.valor_total_nd__nota_de_debito__ou_nf__nota_fiscal_ || 0) || liquido;
         const emissao = (t.properties.data_de_emissao || "").slice(0, 10);
         if (liquido > 0 && emissao) tickets.push({ id: t.id, bruto, liquido, cliente: t.properties.subject || `Ticket ${t.id}`, emissao, sdrId: t.properties.hubspot_owner_id || "" });
       }

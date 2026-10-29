@@ -278,7 +278,7 @@ export const getVendasDoDiaCached = (config: SegmentConfig, from?: string, to?: 
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar vendas do dia" };
       }
     },
-    ["vendas-dia-v24-logistica-bruto-liq-sdr", config.id, from || "cur", to || "cur"],
+    ["vendas-dia-v25-logistica-ndnf-margem", config.id, from || "cur", to || "cur"],
     { revalidate: 600 }
   )();
 
@@ -312,6 +312,6 @@ export const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: st
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v14-logistica-por-closer", config.id, from || "cur", to || "cur", owner || "all"],
+    ["month-goal-v15-logistica-ndnf-margem", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();

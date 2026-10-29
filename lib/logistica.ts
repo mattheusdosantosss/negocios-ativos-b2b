@@ -28,7 +28,7 @@ export async function fetchLogisticaByCloser(opts: { from?: string; to?: string 
         { propertyName: "data_de_emissao", operator: "GTE", value: String(startMs) },
         { propertyName: "data_de_emissao", operator: "LTE", value: String(endMs) },
       ] }],
-      properties: ["valor_total_da_comissao_psa", "valor_final_de_comissao_psa", "subject"],
+      properties: ["valor_total_nd__nota_de_debito__ou_nf__nota_fiscal_", "valor_total_da_comissao_psa", "subject"],
       limit: 200,
     };
     if (after) body.after = after;
@@ -36,8 +36,9 @@ export async function fetchLogisticaByCloser(opts: { from?: string; to?: string 
       `/crm/v3/objects/tickets/search`, { method: "POST", body: JSON.stringify(body) }
     );
     for (const t of r.results ?? []) {
-      const liquido = Number(t.properties.valor_final_de_comissao_psa || 0);
-      const bruto = Number(t.properties.valor_total_da_comissao_psa || 0) || liquido;
+      // Líquido = comissão PSA; Bruto = valor total da logística (ND/NF).
+      const liquido = Number(t.properties.valor_total_da_comissao_psa || 0);
+      const bruto = Number(t.properties.valor_total_nd__nota_de_debito__ou_nf__nota_fiscal_ || 0) || liquido;
       if (liquido > 0) tickets.push({ id: t.id, bruto, liquido, cliente: t.properties.subject || `Ticket ${t.id}` });
     }
     after = r.paging?.next?.after;
