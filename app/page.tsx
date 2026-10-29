@@ -1009,8 +1009,12 @@ function MonthGoalCard({ data, period, segment }: { data: NonNullable<DashboardD
                     <span className="text-[11px] text-psa-ink-soft whitespace-nowrap">
                       <b className="text-psa-ink tabular-nums">{brl(c.sold)}</b> · {c.count}{" "}
                       {c.count === 1 ? "venda" : "vendas"}
+                      {c.logistica > 0 && (
+                        <span className="text-psa-blue"> · Logística <b className="tabular-nums">{brl(c.logistica)}</b></span>
+                      )}
                     </span>
                   </div>
+                  {c.sales.length > 0 && (
                   <table className="mt-2 w-full table-auto border-collapse text-[11px]">
                     <thead>
                       <tr className="border-b border-psa-line text-[9px] font-bold uppercase tracking-wide text-psa-muted">
@@ -1045,6 +1049,31 @@ function MonthGoalCard({ data, period, segment }: { data: NonNullable<DashboardD
                       ))}
                     </tbody>
                   </table>
+                  )}
+
+                  {/* Logística do closer — subtotal à parte da curadoria. */}
+                  {c.logisticaSales.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-psa-blue/20">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-psa-blue">Logística</span>
+                        <span className="text-[11px] text-psa-blue whitespace-nowrap">
+                          <b className="tabular-nums">{brl(c.logistica)}</b> · {c.logisticaCount} {c.logisticaCount === 1 ? "emissão" : "emissões"}
+                        </span>
+                      </div>
+                      <table className="mt-1.5 w-full table-auto border-collapse text-[11px]">
+                        <tbody className="divide-y divide-psa-blue/10">
+                          {c.logisticaSales.map((l, i) => (
+                            <tr key={i}>
+                              <td className="py-1 pr-2 max-w-0">
+                                <a href={l.url} target="_blank" rel="noopener noreferrer" className="block truncate text-psa-ink hover:text-psa-blue hover:underline" title={l.cliente}>{l.cliente}</a>
+                              </td>
+                              <td className="py-1 pl-2 text-right tabular-nums font-medium text-psa-blue whitespace-nowrap">{brl(l.liquido)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

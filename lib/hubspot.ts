@@ -586,7 +586,14 @@ export async function fetchConversionCounts(
   return { geral: { created: geralCreated, won: geralWon, lost: geralLost }, months };
 }
 
-export type MonthGoalCloser = { name: string; sold: number; count: number; sales: { dealname: string; url: string; amount: number; bruto: number; criadoMs: number | null; qualMs: number | null }[] };
+export type LogisticaSale = { cliente: string; liquido: number; bruto: number; url: string };
+export type MonthGoalCloser = {
+  ownerId: string;
+  name: string; sold: number; count: number;
+  sales: { dealname: string; url: string; amount: number; bruto: number; criadoMs: number | null; qualMs: number | null }[];
+  /** Logística do closer no mês (subtotal à parte da curadoria). */
+  logistica: number; logisticaCount: number; logisticaSales: LogisticaSale[];
+};
 export type MonthGoalData = { goal: number; sold: number; count: number; byCloser: MonthGoalCloser[] };
 
 /** Primeiro dia do mês corrente (fuso BR) em ms. */
@@ -650,7 +657,7 @@ export async function fetchSalesByCloser(
   for (const d of deals) {
     const oid = (d.properties as Record<string, string>).hubspot_owner_id || "sem-dono";
     const name = teamName.get(oid) || ownerDisplayName(owners.get(oid));
-    if (!byId.has(oid)) byId.set(oid, { name, sold: 0, count: 0, sales: [] });
+    if (!byId.has(oid)) byId.set(oid, { ownerId: oid, name, sold: 0, count: 0, sales: [], logistica: 0, logisticaCount: 0, logisticaSales: [] });
     const c = byId.get(oid)!;
     const amount = Number(d.properties.amount || 0);
     // Bruto por segmento: B2B = valor_total_do_contrato (número); B2C = valor_bruto

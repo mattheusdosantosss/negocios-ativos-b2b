@@ -21,7 +21,7 @@ import { fetchVendasDoDia } from "@/lib/vendasDia";
 import { fetchPropostaMesmoDia } from "@/lib/propostaMesmoDia";
 import { fetchConversaoVenda } from "@/lib/conversaoVenda";
 import { fetchOnboardingSLA } from "@/lib/onboarding";
-import { fetchLogisticaComissao } from "@/lib/logistica";
+import { fetchLogisticaComissao, fetchLogisticaByCloser } from "@/lib/logistica";
 import {
   closeTimeMatrix,
   conversionFromCounts,
@@ -290,6 +290,19 @@ export const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: st
         if (config.monthGoal == null) return { data: undefined };
         const owners = await fetchAllOwners();
         const sales = await fetchSalesByCloser(config, { from, to, owner }, owners);
+        // Logística por closer (subtotal à parte da curadoria) — só B2B.
+        if (config.logisticaGoal != null) {
+          const logByOwner = await fetchLogisticaByCloser({ from, to }, owners);
+          for (const c of sales.byCloser) {
+            const lg = logByOwner.get(c.ownerId);
+            if (lg) { c.logistica = lg.total; c.logisticaCount = lg.count; c.logisticaSales = lg.sales; logByOwner.delete(c.ownerId); }
+          }
+          // Closers que só têm logística no mês (sem venda de curadoria) entram também.
+          for (const lg of logByOwner.values()) {
+            if (owner && lg.ownerId !== owner) continue;
+            sales.byCloser.push({ ownerId: lg.ownerId, name: lg.name, sold: 0, count: 0, sales: [], logistica: lg.total, logisticaCount: lg.count, logisticaSales: lg.sales });
+          }
+        }
         // Meta do mês visualizado: `from` define o mês; sem filtro = mês atual
         // (fuso BR). Override por mês vence o valor base.
         const mk = (from ?? new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()).slice(0, 7);
@@ -299,6 +312,6 @@ export const getMonthGoalCached = (config: SegmentConfig, from?: string, to?: st
         return { data: undefined, warning: e instanceof Error ? e.message : "erro ao carregar meta do mês" };
       }
     },
-    ["month-goal-v13-b2b-1085k", config.id, from || "cur", to || "cur", owner || "all"],
+    ["month-goal-v14-logistica-por-closer", config.id, from || "cur", to || "cur", owner || "all"],
     { revalidate: 600 }
   )();
